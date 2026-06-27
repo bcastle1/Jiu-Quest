@@ -585,16 +585,15 @@ main {
   border: 1px solid rgba(139, 92, 255, 0.46);
   border-radius: var(--radius);
   background:
-    radial-gradient(circle at 50% 18%, rgba(139, 92, 255, 0.45), transparent 42%),
+    radial-gradient(circle at 50% 18%, rgba(139, 92, 255, 0.42), transparent 42%),
     linear-gradient(140deg, rgba(6, 12, 22, 0.95), rgba(19, 32, 54, 0.92));
 }
 
 .mini-portrait span {
   position: relative;
-  width: 68%;
-  height: 82%;
-  border-radius: 40% 40% 10% 10%;
-  background: linear-gradient(to bottom, transparent 0 36%, var(--gi-top) 37% 100%);
+  width: 62%;
+  height: 88%;
+  filter: drop-shadow(0 0.45rem 0.55rem rgba(0, 0, 0, 0.42));
 }
 
 .mini-portrait span::before,
@@ -606,20 +605,26 @@ main {
 }
 
 .mini-portrait span::before {
-  top: 13%;
-  width: 42%;
-  height: 30%;
-  border-radius: 45%;
-  background: var(--skin);
+  top: 8%;
+  width: 48%;
+  height: 34%;
+  border-radius: 48% 48% 54% 54%;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.22), transparent 45%),
+    var(--skin);
+  box-shadow:
+    0 0 0 1px rgba(10, 12, 18, 0.18),
+    0 1.35rem 0 -0.42rem var(--gi-top),
+    0 1.7rem 0 0.1rem color-mix(in srgb, var(--gi-top) 82%, #07101d);
 }
 
 .mini-portrait span::after {
-  top: 7%;
-  width: 56%;
-  height: 25%;
-  border-radius: 50% 50% 30% 30%;
+  top: 0;
+  width: 72%;
+  height: 30%;
+  border-radius: 56% 58% 30% 30%;
   background: var(--hair);
-  clip-path: polygon(5% 58%, 16% 18%, 30% 42%, 44% 4%, 59% 36%, 73% 8%, 92% 61%, 75% 48%, 61% 78%, 47% 52%, 31% 78%, 17% 50%);
+  clip-path: polygon(4% 66%, 12% 28%, 21% 50%, 32% 8%, 43% 43%, 54% 3%, 66% 41%, 78% 11%, 95% 62%, 80% 56%, 70% 86%, 59% 62%, 47% 96%, 34% 60%, 18% 84%);
 }
 
 .avatar {
@@ -627,6 +632,13 @@ main {
   width: var(--avatar-w, 13rem);
   height: var(--avatar-h, 26rem);
   transform-origin: 50% 100%;
+  isolation: isolate;
+  filter: drop-shadow(0 1rem 1.4rem rgba(0, 0, 0, 0.38));
+  --gi-light: color-mix(in srgb, var(--gi-top) 72%, #ffffff);
+  --gi-shade: color-mix(in srgb, var(--gi-top) 78%, #050914);
+  --skin-light: color-mix(in srgb, var(--skin) 82%, #ffffff);
+  --pants-shade: color-mix(in srgb, var(--gi-pants) 72%, #050914);
+  --skin-shade: color-mix(in srgb, var(--skin) 74%, #1f120d);
 }
 
 .avatar-hero {
@@ -677,14 +689,15 @@ main {
 
 .avatar-aura {
   position: absolute;
-  inset: 3% -22% 10%;
+  inset: 1% -24% 7%;
   border-radius: 50%;
   background:
-    radial-gradient(circle, color-mix(in srgb, var(--aura) 34%, transparent), transparent 62%),
-    conic-gradient(from 20deg, transparent, color-mix(in srgb, var(--aura) 70%, transparent), transparent, color-mix(in srgb, var(--aura) 45%, transparent), transparent);
-  filter: blur(3px);
-  opacity: 0.8;
+    radial-gradient(circle at 50% 36%, color-mix(in srgb, var(--aura) 42%, transparent), transparent 58%),
+    conic-gradient(from 20deg, transparent, color-mix(in srgb, var(--aura) 78%, transparent), transparent 30%, color-mix(in srgb, var(--aura) 48%, transparent), transparent 72%);
+  filter: blur(3.5px);
+  opacity: 0.76;
   animation: auraPulse 2.8s ease-in-out infinite;
+  z-index: 0;
 }
 
 .head,
@@ -693,138 +706,434 @@ main {
 .arm,
 .belt,
 .leg,
-.hair {
+.hair,
+.hand,
+.foot,
+.avatar-shadow {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
 }
 
 .head {
-  top: 8%;
-  width: 29%;
-  height: 12%;
-  border-radius: 45% 45% 42% 42%;
+  top: 7.4%;
+  width: 25%;
+  height: 12.6%;
+  border-radius: 46% 46% 54% 54% / 38% 38% 64% 64%;
   background:
-    radial-gradient(circle at 36% 48%, #10141f 0 3%, transparent 4%),
-    radial-gradient(circle at 64% 48%, #10141f 0 3%, transparent 4%),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.2), transparent 38%),
+    radial-gradient(ellipse at 62% 72%, rgba(74, 38, 29, 0.16), transparent 44%),
     var(--skin);
-  z-index: 4;
+  clip-path: polygon(12% 18%, 28% 4%, 72% 4%, 88% 19%, 86% 65%, 69% 91%, 50% 100%, 31% 91%, 14% 65%);
+  z-index: 7;
+  box-shadow:
+    inset 0 -0.22rem 0.55rem rgba(45, 22, 14, 0.24),
+    0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+
+.head::before,
+.head::after {
+  content: "";
+  position: absolute;
+  top: 33%;
+  width: 12%;
+  height: 18%;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--skin) 82%, #ffffff);
+  opacity: 0.45;
+}
+
+.head::before {
+  left: 18%;
+}
+
+.head::after {
+  right: 18%;
+}
+
+.eye,
+.brow,
+.nose,
+.mouth {
+  position: absolute;
+  display: block;
+}
+
+.eye {
+  top: 45%;
+  width: 17%;
+  height: 4%;
+  border-radius: 999px;
+  background: #080b14;
+  box-shadow: 0 0 0.15rem rgba(132, 196, 255, 0.35);
+}
+
+.eye-left {
+  left: 23%;
+  transform: rotate(6deg);
+}
+
+.eye-right {
+  right: 23%;
+  transform: rotate(-6deg);
+}
+
+.brow {
+  top: 38%;
+  width: 18%;
+  height: 3.2%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hair) 84%, #000);
+}
+
+.brow-left {
+  left: 21%;
+  transform: rotate(-12deg);
+}
+
+.brow-right {
+  right: 21%;
+  transform: rotate(12deg);
+}
+
+.nose {
+  top: 52%;
+  left: 49%;
+  width: 5%;
+  height: 16%;
+  border-radius: 999px;
+  background: rgba(63, 34, 24, 0.25);
+}
+
+.mouth {
+  left: 42%;
+  top: 74%;
+  width: 18%;
+  height: 3.5%;
+  border-radius: 999px;
+  background: rgba(49, 24, 22, 0.38);
 }
 
 .hair {
-  top: 4%;
-  width: 38%;
-  height: 11%;
-  z-index: 5;
-  border-radius: 60% 60% 30% 30%;
-  background: var(--hair);
-  clip-path: polygon(6% 66%, 13% 22%, 25% 42%, 35% 6%, 47% 38%, 61% 4%, 72% 43%, 88% 20%, 94% 70%, 82% 58%, 73% 86%, 57% 62%, 45% 90%, 31% 60%, 16% 84%);
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.16), transparent 31%),
+    linear-gradient(250deg, rgba(0, 0, 0, 0.4), transparent 42%),
+    var(--hair);
+  filter: drop-shadow(0 0.25rem 0.25rem rgba(0, 0, 0, 0.34));
+}
+
+.hair-back {
+  top: 3%;
+  width: 43%;
+  height: 13.4%;
+  z-index: 6;
+  border-radius: 58% 58% 28% 30%;
+  clip-path: polygon(4% 72%, 11% 33%, 21% 45%, 31% 8%, 43% 37%, 55% 0, 66% 37%, 78% 10%, 96% 62%, 84% 58%, 75% 86%, 63% 63%, 51% 98%, 39% 65%, 25% 92%, 16% 60%);
+}
+
+.hair-front {
+  top: 4.7%;
+  width: 37%;
+  height: 9%;
+  z-index: 8;
+  border-radius: 52% 55% 30% 35%;
+  clip-path: polygon(2% 58%, 14% 18%, 28% 47%, 38% 7%, 49% 43%, 61% 8%, 76% 44%, 94% 24%, 98% 64%, 82% 57%, 70% 75%, 58% 59%, 45% 82%, 33% 58%, 17% 78%);
 }
 
 .hair-short-fade {
-  clip-path: ellipse(48% 34% at 50% 46%);
+  clip-path: polygon(8% 64%, 13% 38%, 31% 18%, 51% 10%, 72% 18%, 90% 44%, 90% 69%, 68% 60%, 49% 67%, 28% 59%);
 }
 
 .hair-braided-top,
 .hair-storm-tail {
-  clip-path: polygon(12% 55%, 25% 10%, 48% 30%, 68% 8%, 88% 56%, 74% 72%, 62% 55%, 56% 98%, 44% 56%, 32% 78%);
+  clip-path: polygon(11% 58%, 24% 12%, 48% 28%, 69% 6%, 90% 57%, 76% 74%, 64% 56%, 57% 99%, 45% 58%, 31% 80%);
+}
+
+.hair-curly-guard {
+  clip-path: polygon(5% 64%, 10% 34%, 22% 50%, 29% 18%, 39% 48%, 49% 12%, 59% 49%, 69% 15%, 82% 52%, 95% 35%, 94% 70%, 78% 63%, 65% 86%, 51% 65%, 37% 90%, 24% 64%, 12% 84%);
+}
+
+.hair-wave-cut {
+  clip-path: polygon(6% 63%, 13% 40%, 26% 20%, 41% 14%, 56% 18%, 70% 28%, 91% 14%, 96% 62%, 80% 58%, 67% 76%, 50% 62%, 34% 76%, 19% 58%);
 }
 
 .neck {
-  top: 19%;
-  width: 13%;
-  height: 5%;
-  background: var(--skin);
-  z-index: 2;
+  top: 17.8%;
+  width: 12%;
+  height: 5.7%;
+  border-radius: 0 0 38% 38%;
+  background:
+    linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.16), transparent),
+    var(--skin);
+  z-index: 3;
 }
 
 .torso {
-  top: 22%;
-  width: 48%;
-  height: 30%;
-  border-radius: 15% 15% 9% 9%;
+  top: 21.2%;
+  width: 49%;
+  height: 31.5%;
+  border-radius: 22% 22% 10% 10% / 13% 13% 9% 9%;
   background:
-    linear-gradient(115deg, rgba(0, 0, 0, 0.18) 0 24%, transparent 25%),
-    linear-gradient(245deg, rgba(255, 255, 255, 0.2) 0 20%, transparent 21%),
+    linear-gradient(102deg, rgba(0, 0, 0, 0.22) 0 15%, transparent 16%),
+    linear-gradient(250deg, rgba(255, 255, 255, 0.24) 0 21%, transparent 22%),
+    radial-gradient(ellipse at 50% 6%, rgba(255, 255, 255, 0.35), transparent 35%),
+    linear-gradient(180deg, var(--gi-light), var(--gi-top) 38%, var(--gi-shade)),
     var(--gi-top);
-  z-index: 3;
-  box-shadow: inset 0 -1rem 1.8rem rgba(0, 0, 0, 0.18);
+  z-index: 4;
+  box-shadow:
+    inset 0 -1rem 1.8rem rgba(0, 0, 0, 0.22),
+    inset 0 0.3rem 0.5rem rgba(255, 255, 255, 0.12),
+    0 0.35rem 0.6rem rgba(0, 0, 0, 0.22);
+  clip-path: polygon(17% 0, 83% 0, 96% 65%, 83% 100%, 17% 100%, 4% 65%);
+}
+
+.torso::before,
+.torso::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.torso::before {
+  left: 13%;
+  top: 9%;
+  width: 74%;
+  height: 56%;
+  background:
+    linear-gradient(132deg, transparent 0 40%, rgba(0, 0, 0, 0.24) 41% 44%, transparent 45%),
+    linear-gradient(226deg, transparent 0 41%, rgba(255, 255, 255, 0.28) 42% 46%, transparent 47%);
+  clip-path: polygon(0 0, 49% 40%, 100% 0, 64% 100%, 49% 78%, 34% 100%);
+  opacity: 0.82;
+}
+
+.torso::after {
+  left: 16%;
+  bottom: 11%;
+  width: 68%;
+  height: 11%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.18), transparent 66%);
+  transform: rotate(-3deg);
+  opacity: 0.76;
+}
+
+.collar {
+  position: absolute;
+  top: -1%;
+  left: 32%;
+  width: 36%;
+  height: 32%;
+  border-radius: 0 0 50% 50%;
+  background:
+    linear-gradient(130deg, transparent 0 45%, rgba(0, 0, 0, 0.24) 46% 52%, transparent 53%),
+    linear-gradient(230deg, transparent 0 45%, rgba(255, 255, 255, 0.22) 46% 52%, transparent 53%);
+  box-shadow: inset 0 -0.2rem 0.35rem rgba(0, 0, 0, 0.16);
 }
 
 .lapel {
   position: absolute;
   top: 0;
-  width: 48%;
-  height: 78%;
-  border-bottom: 2px solid rgba(0, 0, 0, 0.2);
-  background: rgba(255, 255, 255, 0.18);
+  width: 43%;
+  height: 82%;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.28);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  z-index: 3;
 }
 
 .lapel.left {
-  left: 4%;
-  transform: skewX(-16deg);
+  left: 7%;
+  transform: skewX(-19deg);
+  clip-path: polygon(4% 0, 100% 0, 62% 100%, 0 76%);
 }
 
 .lapel.right {
-  right: 4%;
-  transform: skewX(16deg);
+  right: 7%;
+  transform: skewX(19deg);
+  clip-path: polygon(0 0, 96% 0, 100% 76%, 38% 100%);
+}
+
+.gi-fold {
+  position: absolute;
+  display: block;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  opacity: 0.78;
+  z-index: 2;
+}
+
+.fold-a {
+  left: 18%;
+  top: 28%;
+  width: 48%;
+  height: 1.5%;
+  transform: rotate(18deg);
+}
+
+.fold-b {
+  right: 15%;
+  top: 48%;
+  width: 33%;
+  height: 1.35%;
+  transform: rotate(-14deg);
+}
+
+.fold-c {
+  left: 23%;
+  bottom: 14%;
+  width: 55%;
+  height: 1.4%;
+  transform: rotate(-3deg);
 }
 
 .patch {
   position: absolute;
-  right: 12%;
-  top: 34%;
+  right: 13%;
+  top: 33%;
+  z-index: 4;
   display: grid;
-  width: 17%;
+  width: 16%;
   aspect-ratio: 1;
   place-items: center;
-  border: 1px solid rgba(8, 10, 16, 0.6);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(8, 10, 16, 0.66);
+  border-radius: 30% 30% 45% 45%;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.58)),
+    rgba(255, 255, 255, 0.72);
   color: #111521;
   font-size: 0.62rem;
   font-weight: 900;
 }
 
 .arm {
-  top: 24%;
-  width: 13%;
-  height: 31%;
-  background: linear-gradient(var(--gi-top), var(--gi-top) 68%, var(--skin) 69%);
-  z-index: 2;
+  top: 23.2%;
+  width: 12.4%;
+  height: 32.7%;
+  background:
+    linear-gradient(94deg, rgba(255, 255, 255, 0.22), transparent 34%),
+    linear-gradient(180deg, var(--gi-light), var(--gi-top) 52%, var(--gi-shade) 66%, var(--skin-light) 67%, var(--skin) 82%, var(--skin-shade) 100%);
+  z-index: 3;
+  border-radius: 60% 60% 45% 45% / 12% 12% 68% 68%;
+  clip-path: polygon(18% 0, 82% 0, 94% 60%, 75% 100%, 24% 100%, 6% 60%);
+  box-shadow:
+    inset 0.22rem 0 0.42rem rgba(255, 255, 255, 0.1),
+    inset -0.32rem -0.4rem 0.75rem rgba(0, 0, 0, 0.24);
+}
+
+.arm::before {
+  content: "";
+  position: absolute;
+  left: 24%;
+  top: 13%;
+  width: 10%;
+  height: 50%;
   border-radius: 999px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.arm::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  top: 63%;
+  width: 64%;
+  height: 3%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.32);
+  box-shadow: 0 0.08rem 0 rgba(0, 0, 0, 0.14);
 }
 
 .arm-left {
   left: 28%;
-  transform: rotate(13deg);
+  transform: rotate(10deg);
+  transform-origin: 50% 9%;
 }
 
 .arm-right {
   left: 72%;
-  transform: rotate(-13deg);
+  transform: rotate(-10deg);
+  transform-origin: 50% 9%;
+}
+
+.hand {
+  top: 52.4%;
+  width: 9.8%;
+  height: 6.3%;
+  border-radius: 48% 46% 38% 42% / 44% 44% 56% 54%;
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.18), transparent 42%),
+    radial-gradient(ellipse at 42% 82%, rgba(0, 0, 0, 0.18), transparent 52%),
+    var(--skin);
+  z-index: 4;
+  box-shadow:
+    inset 0 -0.2rem 0.35rem rgba(0, 0, 0, 0.2),
+    0 0.2rem 0.3rem rgba(0, 0, 0, 0.2);
+}
+
+.hand::before,
+.hand::after {
+  content: "";
+  position: absolute;
+  display: block;
+}
+
+.hand::before {
+  left: 24%;
+  top: 26%;
+  width: 48%;
+  height: 6%;
+  border-radius: 999px;
+  background: rgba(51, 28, 21, 0.25);
+  box-shadow:
+    0 0.28rem 0 rgba(51, 28, 21, 0.16),
+    0 0.56rem 0 rgba(51, 28, 21, 0.13);
+}
+
+.hand::after {
+  right: 8%;
+  top: 42%;
+  width: 28%;
+  height: 26%;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--skin) 90%, #ffffff);
+  transform: rotate(-18deg);
+}
+
+.hand-left {
+  left: 25%;
+  transform: rotate(7deg);
+}
+
+.hand-right {
+  left: 75%;
+  transform: rotate(-7deg) scaleX(-1);
 }
 
 .belt {
   top: 50%;
-  width: 56%;
+  width: 58%;
   height: 5.2%;
   background: var(--belt-color);
-  z-index: 5;
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.28);
+  z-index: 6;
+  border-radius: 999px 999px 42% 42%;
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.3),
+    inset 0 0.3rem 0.35rem rgba(255, 255, 255, 0.12),
+    0 0.22rem 0.35rem rgba(0, 0, 0, 0.34);
 }
 
 .belt::after {
   content: "";
   position: absolute;
-  left: 45%;
-  top: -30%;
-  width: 15%;
-  height: 160%;
+  left: 45.5%;
+  top: -34%;
+  width: 15.5%;
+  height: 170%;
   border-radius: 4px;
   background: color-mix(in srgb, var(--belt-color) 72%, #000);
-  transform: rotate(8deg);
+  transform: rotate(7deg);
+  box-shadow: 0.12rem 0.08rem 0.16rem rgba(0, 0, 0, 0.35);
 }
 
 .belt i {
@@ -840,38 +1149,136 @@ main {
 }
 
 .leg {
-  top: 54%;
-  width: 19%;
-  height: 38%;
-  background: var(--gi-pants);
+  top: 53.8%;
+  width: 17.6%;
+  height: 37%;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.12), transparent 34%, rgba(0, 0, 0, 0.13) 82%),
+    linear-gradient(180deg, var(--gi-pants), var(--pants-shade)),
+    var(--gi-pants);
   z-index: 1;
-  border-radius: 0 0 999px 999px;
-  box-shadow: inset 0 -1.5rem 2rem rgba(0, 0, 0, 0.18);
+  border-radius: 4% 4% 999px 999px;
+  box-shadow:
+    inset 0 -1.5rem 2rem rgba(0, 0, 0, 0.22),
+    inset 0.35rem 0 0.45rem rgba(255, 255, 255, 0.08);
+  clip-path: polygon(16% 0, 84% 0, 93% 91%, 78% 100%, 22% 100%, 7% 91%);
+}
+
+.leg::before {
+  content: "";
+  position: absolute;
+  left: 22%;
+  top: 7%;
+  width: 11%;
+  height: 78%;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.14);
 }
 
 .leg::after {
   content: "";
   position: absolute;
-  bottom: -6%;
-  width: 115%;
-  height: 10%;
+  right: 24%;
+  top: 8%;
+  width: 8%;
+  height: 78%;
   border-radius: 999px;
-  background: var(--skin);
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .leg-left {
-  left: 40%;
-  transform: rotate(3deg);
+  left: 39%;
+  transform: rotate(2deg);
+  transform-origin: 50% 0;
 }
 
 .leg-right {
-  left: 60%;
-  transform: rotate(-3deg);
+  left: 61%;
+  transform: rotate(-2deg);
+  transform-origin: 50% 0;
+}
+
+.foot {
+  top: 89%;
+  width: 19%;
+  height: 5.8%;
+  border-radius: 999px 999px 40% 40%;
+  background:
+    linear-gradient(180deg, var(--skin), var(--skin-shade)),
+    var(--skin);
+  z-index: 2;
+  box-shadow: 0 0.3rem 0.35rem rgba(0, 0, 0, 0.3);
+}
+
+.foot-left {
+  left: 37%;
+  transform: rotate(-5deg);
+}
+
+.foot-right {
+  left: 63%;
+  transform: rotate(5deg);
+}
+
+.avatar-shadow {
+  bottom: 1%;
+  width: 68%;
+  height: 4%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.52), transparent 70%);
+  filter: blur(2px);
+  z-index: 0;
 }
 
 .stance-wrestling-stance .torso,
 .stance-sambo-crouch .torso {
   transform: translateX(-50%) skewX(-5deg);
+}
+
+.stance-wrestling-stance .head,
+.stance-sambo-crouch .head,
+.stance-combat-base .head {
+  transform: translateX(-50%) rotate(-2deg);
+}
+
+.stance-boxer-shell .arm-left,
+.stance-muay-thai-guard .arm-left {
+  top: 26%;
+  left: 35%;
+  height: 27%;
+  transform: rotate(42deg);
+}
+
+.stance-boxer-shell .arm-right,
+.stance-muay-thai-guard .arm-right {
+  top: 26%;
+  left: 65%;
+  height: 27%;
+  transform: rotate(-42deg);
+}
+
+.stance-boxer-shell .hand-left,
+.stance-muay-thai-guard .hand-left {
+  top: 35%;
+  left: 42%;
+}
+
+.stance-boxer-shell .hand-right,
+.stance-muay-thai-guard .hand-right {
+  top: 35%;
+  left: 58%;
+}
+
+.stance-karate-stance .arm-left,
+.stance-capoeira-rhythm .arm-left {
+  left: 25%;
+  transform: rotate(27deg);
+}
+
+.stance-karate-stance .arm-right,
+.stance-capoeira-rhythm .arm-right {
+  left: 75%;
+  transform: rotate(-24deg);
 }
 
 .stance-sumo-base .leg-left {
@@ -882,6 +1289,16 @@ main {
 .stance-sumo-base .leg-right {
   left: 65%;
   transform: rotate(-11deg);
+}
+
+.stance-sumo-base .foot-left {
+  left: 31%;
+  transform: rotate(-14deg);
+}
+
+.stance-sumo-base .foot-right {
+  left: 69%;
+  transform: rotate(14deg);
 }
 
 .belt-rank {
@@ -1936,6 +2353,11 @@ input[type="range"] {
     --avatar-w: 13rem;
     --avatar-h: 27rem;
     top: 7%;
+  }
+
+  .avatar-profile {
+    --avatar-w: 15rem;
+    --avatar-h: 31rem;
   }
 
   .mode-card {

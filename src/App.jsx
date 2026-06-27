@@ -1422,6 +1422,7 @@ function stopAudio(audioRef) {
 
 function Avatar({ fighter, beltStatus, size = "profile", facing = "front" }) {
   const aura = auraColors[fighter.aura] ?? "#8a5cff";
+  const hairStyleClass = fighter.hairStyle?.replaceAll(" ", "-");
   return (
     <div
       className={`avatar avatar-${size} facing-${facing} stance-${fighter.stance?.replaceAll(" ", "-")}`}
@@ -1436,16 +1437,30 @@ function Avatar({ fighter, beltStatus, size = "profile", facing = "front" }) {
       aria-label={`${fighter.name} avatar`}
     >
       <span className="avatar-aura" />
-      <span className={`hair hair-${fighter.hairStyle?.replaceAll(" ", "-")}`} />
-      <span className="head" />
+      <span className={`hair hair-back hair-${hairStyleClass}`} />
+      <span className="head">
+        <span className="brow brow-left" />
+        <span className="brow brow-right" />
+        <span className="eye eye-left" />
+        <span className="eye eye-right" />
+        <span className="nose" />
+        <span className="mouth" />
+      </span>
+      <span className={`hair hair-front hair-${hairStyleClass}`} />
       <span className="neck" />
       <span className="torso">
+        <span className="collar" />
         <span className="lapel left" />
         <span className="lapel right" />
+        <span className="gi-fold fold-a" />
+        <span className="gi-fold fold-b" />
+        <span className="gi-fold fold-c" />
         <span className="patch">{fighter.emblem?.slice(0, 1)?.toUpperCase()}</span>
       </span>
       <span className="arm arm-left" />
       <span className="arm arm-right" />
+      <span className="hand hand-left" />
+      <span className="hand hand-right" />
       <span className="belt">
         {Array.from({ length: beltStatus.stripes ?? 0 }).map((_, index) => (
           <i key={index} />
@@ -1453,6 +1468,9 @@ function Avatar({ fighter, beltStatus, size = "profile", facing = "front" }) {
       </span>
       <span className="leg leg-left" />
       <span className="leg leg-right" />
+      <span className="foot foot-left" />
+      <span className="foot foot-right" />
+      <span className="avatar-shadow" />
     </div>
   );
 }
