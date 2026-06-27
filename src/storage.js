@@ -7,7 +7,7 @@ const STORAGE_KEY = "jiuquest:v1";
 const palette = {
   skin: ["#f1c6a8", "#d99b71", "#a86b4d", "#6f432f", "#3d241b"],
   hair: ["#11131c", "#3b251b", "#8a5b2d", "#d7c09a", "#6b6f86", "#f8f4ea"],
-  gi: ["#f8fbff", "#112a58", "#151922", "#b61f2b", "#7d52ff", "#1d7d68"],
+  gi: ["#f8fbff", "#112a58", "#151922", "#7f8794", "#b61f2b", "#7d52ff", "#1d7d68"],
 };
 
 export const defaultMusicTracks = [

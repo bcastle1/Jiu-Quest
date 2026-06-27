@@ -219,25 +219,83 @@ code {
 
 .player-track-select {
   position: relative;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 0.45rem;
-  align-items: center;
-  min-height: 2.8rem;
-  border: 1px solid rgba(69, 163, 255, 0.28);
-  border-radius: var(--radius);
-  padding: 0 0.7rem;
-  background: rgba(7, 13, 24, 0.72);
-  color: var(--muted);
+  min-width: 15rem;
+  justify-self: stretch;
 }
 
-.player-track-select select {
-  min-width: 0;
-  border: 0;
-  padding: 0.45rem 0.2rem;
-  background: transparent;
+.player-track-trigger {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+  width: 100%;
+  min-height: 2.8rem;
+  border: 1px solid rgba(69, 163, 255, 0.32);
+  border-radius: var(--radius);
+  padding: 0 0.75rem;
+  background: rgba(7, 13, 24, 0.78);
   color: var(--text);
   font-weight: 800;
+  text-align: left;
+}
+
+.player-track-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-track-select.open .player-track-trigger {
+  border-color: rgba(246, 198, 91, 0.5);
+  box-shadow: 0 0 22px rgba(69, 163, 255, 0.2);
+}
+
+.player-track-menu {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  z-index: 40;
+  display: grid;
+  width: min(25rem, 88vw);
+  gap: 0.35rem;
+  border: 1px solid rgba(246, 198, 91, 0.3);
+  border-radius: var(--radius);
+  padding: 0.55rem;
+  background: rgba(4, 8, 14, 0.96);
+  box-shadow: 0 1.4rem 2.6rem rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(18px);
+}
+
+.player-track-menu small {
+  padding: 0.2rem 0.35rem 0.35rem;
+  color: var(--gold);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.player-track-menu button {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  border: 1px solid rgba(151, 164, 201, 0.16);
+  border-radius: 7px;
+  padding: 0.65rem 0.7rem;
+  background: rgba(8, 15, 27, 0.86);
+  color: var(--text);
+  text-align: left;
+}
+
+.player-track-menu button.active {
+  border-color: rgba(139, 92, 255, 0.8);
+  background: linear-gradient(135deg, rgba(82, 51, 218, 0.62), rgba(8, 22, 40, 0.92));
+}
+
+.player-track-menu em {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-style: normal;
 }
 
 .music-toggle .toggle-dot {
@@ -421,6 +479,57 @@ main {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+}
+
+.showcase-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.showcase-card {
+  position: relative;
+  margin: 0;
+  min-height: 12rem;
+  overflow: hidden;
+  border: 1px solid rgba(139, 92, 255, 0.22);
+  border-radius: var(--radius);
+  background: rgba(7, 13, 24, 0.76);
+  box-shadow: 0 0.9rem 1.8rem rgba(0, 0, 0, 0.24);
+}
+
+.showcase-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, transparent 38%, rgba(4, 8, 14, 0.82)),
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.16), transparent 42%);
+  pointer-events: none;
+}
+
+.showcase-card img {
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  object-fit: cover;
+  object-position: center 24%;
+  filter: saturate(1.08) contrast(1.05);
+  transform: scale(1.01);
+}
+
+.showcase-card figcaption {
+  position: absolute;
+  left: 0.62rem;
+  right: 0.62rem;
+  bottom: 0.62rem;
+  z-index: 2;
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow: 0 0.2rem 0.6rem rgba(0, 0, 0, 0.7);
 }
 
 .mode-card {
@@ -666,7 +775,9 @@ main {
   height: var(--fighter-h, 26rem);
   isolation: isolate;
   transform-origin: 50% 100%;
-  filter: drop-shadow(0 1rem 1.25rem rgba(0, 0, 0, 0.38));
+  filter:
+    drop-shadow(0 1rem 1.25rem rgba(0, 0, 0, 0.4))
+    drop-shadow(0 0 1.2rem color-mix(in srgb, var(--aura) 28%, transparent));
 }
 
 .fighter-art.facing-left {
@@ -683,25 +794,39 @@ main {
 }
 
 .fighter-art-aura {
-  inset: 8% 5% 2%;
+  inset: -6% -18% -2%;
   z-index: 0;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--aura) 52%, transparent), transparent 56%),
-    conic-gradient(from 20deg, transparent, color-mix(in srgb, var(--aura) 68%, transparent), transparent 33%, color-mix(in srgb, var(--aura) 44%, transparent), transparent 74%);
-  filter: blur(8px);
-  opacity: 0.58;
+    radial-gradient(ellipse at 50% 55%, color-mix(in srgb, var(--aura) 52%, transparent) 0 18%, color-mix(in srgb, var(--aura) 24%, transparent) 34%, transparent 63%),
+    conic-gradient(from 24deg at 50% 53%, transparent 0 8%, color-mix(in srgb, var(--aura) 74%, transparent) 10% 12%, transparent 16% 31%, color-mix(in srgb, #7ed5ff 45%, transparent) 34% 36%, transparent 41% 60%, color-mix(in srgb, var(--aura) 54%, transparent) 63% 65%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 55%, #000 0 52%, transparent 72%);
+  mask-image: radial-gradient(ellipse at 50% 55%, #000 0 52%, transparent 72%);
+  clip-path: ellipse(43% 50% at 50% 55%);
+  filter: blur(3px) saturate(1.42);
+  mix-blend-mode: screen;
+  opacity: 0.9;
+  animation: aura-breathe 4.5s ease-in-out infinite;
 }
 
 .fighter-art-base {
   z-index: 1;
   background-image: var(--fighter-src);
+  filter: brightness(1.12) contrast(1.07) saturate(1.1);
+  -webkit-mask-image: var(--body-mask);
+  mask-image: var(--body-mask);
+  -webkit-mask-position: center bottom;
+  mask-position: center bottom;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
 }
 
 .fighter-art-tint {
   z-index: 2;
-  opacity: 0.62;
-  mix-blend-mode: multiply;
+  opacity: 0.58;
+  mix-blend-mode: color;
   -webkit-mask-position: center bottom;
   mask-position: center bottom;
   -webkit-mask-repeat: no-repeat;
@@ -712,7 +837,8 @@ main {
 
 .fighter-art-skin {
   background: var(--skin);
-  opacity: 0.48;
+  opacity: 0.58;
+  mix-blend-mode: multiply;
   -webkit-mask-image: var(--skin-mask);
   mask-image: var(--skin-mask);
 }
@@ -726,13 +852,15 @@ main {
 }
 
 .fighter-art-jacket {
-  background: var(--gi-top);
+  background: color-mix(in srgb, var(--gi-top) 78%, #ffffff);
+  opacity: 0.46;
   -webkit-mask-image: var(--jacket-mask);
   mask-image: var(--jacket-mask);
 }
 
 .fighter-art-pants {
-  background: var(--gi-pants);
+  background: color-mix(in srgb, var(--gi-pants) 80%, #ffffff);
+  opacity: 0.46;
   -webkit-mask-image: var(--pants-mask);
   mask-image: var(--pants-mask);
 }
@@ -747,8 +875,17 @@ main {
 .fighter-art-detail {
   z-index: 3;
   background-image: var(--fighter-src);
-  opacity: 0.34;
-  mix-blend-mode: luminosity;
+  opacity: 0.46;
+  mix-blend-mode: soft-light;
+  filter: brightness(1.08) contrast(1.2) saturate(1.05);
+  -webkit-mask-image: var(--body-mask);
+  mask-image: var(--body-mask);
+  -webkit-mask-position: center bottom;
+  mask-position: center bottom;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
 }
 
 .fighter-art-emblem {
@@ -760,15 +897,15 @@ main {
 }
 
 .fighter-art-emblem.heart {
-  left: 56%;
-  top: 25%;
-  width: 12.5%;
+  left: 50%;
+  top: 30%;
+  width: 8.5%;
 }
 
 .fighter-art-emblem.lower-leg {
-  left: 57%;
-  top: 77%;
-  width: 10.5%;
+  left: 28%;
+  top: 76%;
+  width: 7%;
 }
 
 .fighter-art-emblem.pose-profile.heart {
@@ -781,6 +918,90 @@ main {
   left: 66%;
   top: 79%;
   width: 7.8%;
+}
+
+.fighter-art-emblem.pose-boxing.heart {
+  left: 48%;
+  top: 30%;
+  width: 7.2%;
+}
+
+.fighter-art-emblem.pose-boxing.lower-leg {
+  left: 24%;
+  top: 78%;
+  width: 6.8%;
+}
+
+.fighter-art-emblem.pose-capoeira.heart {
+  left: 48%;
+  top: 31%;
+  width: 7.2%;
+}
+
+.fighter-art-emblem.pose-capoeira.lower-leg {
+  left: 17%;
+  top: 78%;
+  width: 6.5%;
+}
+
+.fighter-art-emblem.pose-karate.heart {
+  left: 52%;
+  top: 30%;
+  width: 7.2%;
+}
+
+.fighter-art-emblem.pose-karate.lower-leg {
+  left: 25%;
+  top: 77%;
+  width: 6.5%;
+}
+
+.fighter-art-emblem.pose-muay-thai.heart {
+  left: 50%;
+  top: 29%;
+  width: 7%;
+}
+
+.fighter-art-emblem.pose-muay-thai.lower-leg {
+  left: 31%;
+  top: 78%;
+  width: 6.6%;
+}
+
+.fighter-art-emblem.pose-sambo.heart {
+  left: 52%;
+  top: 34%;
+  width: 7%;
+}
+
+.fighter-art-emblem.pose-sambo.lower-leg {
+  left: 22%;
+  top: 80%;
+  width: 6.6%;
+}
+
+.fighter-art-emblem.pose-sumo.heart {
+  left: 51%;
+  top: 31%;
+  width: 7.4%;
+}
+
+.fighter-art-emblem.pose-sumo.lower-leg {
+  left: 17%;
+  top: 77%;
+  width: 6.6%;
+}
+
+.fighter-art-emblem.pose-wrestling.heart {
+  left: 47%;
+  top: 32%;
+  width: 7%;
+}
+
+.fighter-art-emblem.pose-wrestling.lower-leg {
+  left: 25%;
+  top: 78%;
+  width: 6.6%;
 }
 
 .fighter-art-stripes {
@@ -2072,14 +2293,117 @@ main {
   padding: 0.5rem;
 }
 
+.arena-studio {
+  --arena-bg:
+    radial-gradient(circle at 18% 44%, rgba(137, 93, 255, 0.22), transparent 15rem),
+    linear-gradient(90deg, rgba(23, 38, 52, 0.92), rgba(11, 18, 30, 0.9)),
+    repeating-linear-gradient(90deg, transparent 0 7rem, rgba(255, 255, 255, 0.06) 7.1rem 7.2rem);
+  --arena-mat:
+    linear-gradient(90deg, rgba(43, 92, 123, 0.96), rgba(28, 59, 86, 0.96)),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0 1px, transparent 1px 5rem);
+  --arena-lights: radial-gradient(circle at 66% 18%, rgba(255,255,255,0.22), transparent 7rem);
+}
+
+.arena-tournament {
+  --arena-bg:
+    radial-gradient(circle at 50% 0%, rgba(246, 198, 91, 0.18), transparent 16rem),
+    repeating-radial-gradient(circle at 50% 3%, rgba(255,255,255,0.12) 0 0.2rem, transparent 0.24rem 1.1rem),
+    linear-gradient(180deg, rgba(29, 34, 56, 0.96), rgba(8, 13, 25, 0.92));
+  --arena-mat:
+    radial-gradient(circle at 50% 40%, rgba(255,255,255,0.12), transparent 12rem),
+    linear-gradient(90deg, rgba(91, 37, 46, 0.98), rgba(32, 59, 103, 0.98));
+  --arena-lights: linear-gradient(90deg, transparent 0 45%, rgba(255,255,255,0.35) 49% 51%, transparent 55%);
+}
+
+.arena-street {
+  --arena-bg:
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,0.18), transparent 8rem),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0 0.2rem, transparent 0.25rem 4rem),
+    linear-gradient(180deg, rgba(32, 36, 45, 0.96), rgba(12, 13, 18, 0.95));
+  --arena-mat:
+    linear-gradient(90deg, rgba(45, 47, 52, 0.98), rgba(31, 35, 42, 0.98)),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 3.8rem);
+  --arena-lights: radial-gradient(circle at 78% 18%, rgba(255, 79, 85, 0.18), transparent 9rem);
+}
+
+.arena-octagon {
+  --arena-bg:
+    radial-gradient(circle at 50% 18%, rgba(255,255,255,0.24), transparent 8rem),
+    repeating-radial-gradient(circle at 50% 35%, transparent 0 6.5rem, rgba(255,255,255,0.05) 6.6rem 6.8rem),
+    linear-gradient(180deg, rgba(7, 9, 15, 0.96), rgba(0, 0, 0, 0.98));
+  --arena-mat:
+    radial-gradient(circle, rgba(255,255,255,0.14), transparent 12rem),
+    linear-gradient(90deg, rgba(38, 45, 56, 0.98), rgba(19, 24, 34, 0.98));
+  --arena-lights: conic-gradient(from 45deg, transparent, rgba(255,255,255,0.22), transparent 18%, rgba(246,198,91,0.16), transparent 50%);
+}
+
+.arena-temple {
+  --arena-bg:
+    radial-gradient(circle at 74% 26%, rgba(153, 206, 255, 0.28), transparent 9rem),
+    linear-gradient(180deg, rgba(73, 48, 33, 0.9), rgba(17, 14, 20, 0.95)),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.07) 0 1px, transparent 1px 5rem);
+  --arena-mat:
+    linear-gradient(90deg, rgba(61, 74, 70, 0.98), rgba(32, 49, 52, 0.98)),
+    repeating-linear-gradient(90deg, rgba(246,198,91,0.12) 0 1px, transparent 1px 4.5rem);
+  --arena-lights: radial-gradient(circle at 78% 18%, rgba(210,235,255,0.2), transparent 12rem);
+}
+
 .grapple-scene {
   position: relative;
   min-height: 20rem;
   overflow: hidden;
+  background: rgba(5, 8, 14, 0.62);
+}
+
+.grapple-scene::before,
+.mat-window::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   background:
-    radial-gradient(circle at 28% 58%, color-mix(in srgb, var(--violet) 24%, transparent), transparent 18rem),
-    radial-gradient(circle at 70% 48%, rgba(255, 69, 79, 0.18), transparent 16rem),
-    rgba(5, 8, 14, 0.62);
+    var(--arena-lights),
+    var(--arena-bg);
+  background-blend-mode: screen, normal;
+}
+
+.grapple-scene::after,
+.mat-window::after {
+  content: "";
+  position: absolute;
+  left: -4%;
+  right: -4%;
+  bottom: -5%;
+  z-index: 1;
+  height: 42%;
+  background: var(--arena-mat);
+  clip-path: polygon(7% 16%, 93% 16%, 100% 100%, 0% 100%);
+  box-shadow: inset 0 1rem 2rem rgba(255, 255, 255, 0.08);
+}
+
+.arena-studio::before {
+  box-shadow:
+    inset 0 0 0 999px rgba(4, 8, 14, 0.24),
+    inset 22rem 0 8rem -18rem rgba(139, 92, 255, 0.28);
+}
+
+.arena-studio::after {
+  background:
+    linear-gradient(90deg, transparent 0 25%, rgba(255,255,255,0.1) 25.5% 26%, transparent 26.5% 74%, rgba(255,255,255,0.1) 74.5% 75%, transparent 75.5%),
+    var(--arena-mat);
+}
+
+.arena-temple::before {
+  content: "伝説   熟達   悟り";
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 1.15rem;
+  color: rgba(246, 198, 91, 0.22);
+  font-size: clamp(1.4rem, 3vw, 3.2rem);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-shadow: 0 0 24px rgba(246, 198, 91, 0.2);
 }
 
 .grapple-scene.compact {
@@ -2092,6 +2416,7 @@ main {
 }
 
 .mat-window.result-mode .grapple-scene {
+  z-index: 2;
   min-height: 27rem;
 }
 
@@ -2409,6 +2734,15 @@ main {
   text-shadow: 0 0 24px rgba(246, 198, 91, 0.54);
 }
 
+.round-core em {
+  color: var(--gold);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .mat-window {
   position: relative;
   display: grid;
@@ -2421,9 +2755,12 @@ main {
   border: 1px solid rgba(246, 198, 91, 0.24);
   border-radius: var(--radius);
   padding: 2rem;
-  background:
-    linear-gradient(180deg, rgba(4, 8, 14, 0.28), rgba(4, 8, 14, 0.9)),
-    url("/assets/phase-map-left.jpg") center / cover no-repeat;
+  background: rgba(5, 8, 14, 0.9);
+}
+
+.mat-window > * {
+  position: relative;
+  z-index: 2;
 }
 
 .mat-center {
@@ -2873,10 +3210,26 @@ input[type="range"] {
   }
 }
 
+@keyframes aura-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.96) rotate(-2deg);
+  }
+  50% {
+    opacity: 0.98;
+    transform: scale(1.05) rotate(4deg);
+  }
+}
+
 @media (max-width: 1120px) {
   .dashboard-grid,
   .training-grid {
     grid-template-columns: minmax(16rem, 22rem) 1fr;
+  }
+
+  .showcase-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .quest-rail,
@@ -2923,6 +3276,10 @@ input[type="range"] {
     width: 3.65rem;
     height: 3.65rem;
     font-size: 2.2rem;
+  }
+
+  .showcase-card {
+    min-height: 10rem;
   }
 }
 
@@ -2980,6 +3337,10 @@ input[type="range"] {
 
   .hero-stage {
     min-height: 34rem;
+  }
+
+  .showcase-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .form-grid,

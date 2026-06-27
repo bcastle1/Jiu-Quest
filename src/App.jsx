@@ -78,17 +78,17 @@ const stanceCopy = {
   "capoeira rhythm": "mobile feints, spinning lane",
 };
 
-const profileArt = "/assets/characters/profile-default.webp";
+const profileArt = "/assets/characters/profile-cutout.png";
 
 const fighterArtSources = {
   profile: { image: profileArt, mask: "profile" },
-  wrestling: { image: "/assets/stances/wrestling-stance.webp", mask: "wrestling" },
-  sumo: { image: "/assets/stances/sumo-stance.webp", mask: "sumo" },
-  boxing: { image: "/assets/stances/boxing-stance.webp", mask: "boxing" },
-  karate: { image: "/assets/stances/karate-stance.webp", mask: "karate" },
-  "muay-thai": { image: "/assets/stances/muay-thai-stance.webp", mask: "muay-thai" },
-  sambo: { image: "/assets/stances/sambo-stance.webp", mask: "sambo" },
-  capoeira: { image: "/assets/stances/capoeira-stance.webp", mask: "capoeira" },
+  wrestling: { image: "/assets/stances/wrestling-stance-cutout.png", mask: "wrestling" },
+  sumo: { image: "/assets/stances/sumo-stance-cutout.png", mask: "sumo" },
+  boxing: { image: "/assets/stances/boxing-stance-cutout.png", mask: "boxing" },
+  karate: { image: "/assets/stances/karate-stance-cutout.png", mask: "karate" },
+  "muay-thai": { image: "/assets/stances/muay-thai-stance-cutout.png", mask: "muay-thai" },
+  sambo: { image: "/assets/stances/sambo-stance-cutout.png", mask: "sambo" },
+  capoeira: { image: "/assets/stances/capoeira-stance-cutout.png", mask: "capoeira" },
 };
 
 const stancePose = {
@@ -103,15 +103,23 @@ const stancePose = {
 };
 
 const stanceArt = {
-  "wrestling stance": "/assets/stances/wrestling-stance.webp",
-  "sumo base": "/assets/stances/sumo-stance.webp",
-  "boxer shell": "/assets/stances/boxing-stance.webp",
-  "karate stance": "/assets/stances/karate-stance.webp",
-  "muay thai guard": "/assets/stances/muay-thai-stance.webp",
-  "combat base": "/assets/characters/profile-default.webp",
-  "sambo crouch": "/assets/stances/sambo-stance.webp",
-  "capoeira rhythm": "/assets/stances/capoeira-stance.webp",
+  "wrestling stance": "/assets/stances/wrestling-stance-cutout.png",
+  "sumo base": "/assets/stances/sumo-stance-cutout.png",
+  "boxer shell": "/assets/stances/boxing-stance-cutout.png",
+  "karate stance": "/assets/stances/karate-stance-cutout.png",
+  "muay thai guard": "/assets/stances/muay-thai-stance-cutout.png",
+  "combat base": "/assets/characters/profile-cutout.png",
+  "sambo crouch": "/assets/stances/sambo-stance-cutout.png",
+  "capoeira rhythm": "/assets/stances/capoeira-stance-cutout.png",
 };
+
+const showcaseFighters = [
+  { src: "/assets/showcase/challenger-1.png", label: "Crimson Guard" },
+  { src: "/assets/showcase/challenger-2.png", label: "Void Striker" },
+  { src: "/assets/showcase/challenger-3.png", label: "Blue Surge" },
+  { src: "/assets/showcase/challenger-4.png", label: "Emerald Guard" },
+  { src: "/assets/showcase/challenger-5.png", label: "Gold Hunter" },
+];
 
 const emblemAssets = {
   none: "/assets/emblems/none.png",
@@ -137,6 +145,22 @@ const countryFlagBackgrounds = {
   Nigeria: "linear-gradient(90deg, rgba(0,135,81,0.62) 0 33%, rgba(255,255,255,0.28) 33% 66%, rgba(0,135,81,0.62) 66%)",
   "United Kingdom":
     "linear-gradient(45deg, transparent 0 43%, rgba(255,255,255,0.35) 44% 49%, rgba(200,16,46,0.48) 50% 55%, transparent 56%), linear-gradient(-45deg, transparent 0 43%, rgba(255,255,255,0.35) 44% 49%, rgba(200,16,46,0.48) 50% 55%, transparent 56%), linear-gradient(90deg, rgba(1,33,105,0.68), rgba(1,33,105,0.5))",
+};
+
+const arenaSceneGroups = {
+  white: ["studio"],
+  blue: ["tournament"],
+  purple: ["street"],
+  brown: ["octagon"],
+  black: ["temple"],
+};
+
+const arenaSceneLabels = {
+  studio: "Academy Studio",
+  tournament: "Tournament Mat",
+  street: "Street Challenge",
+  octagon: "MMA Lights",
+  temple: "Temple Mastery",
 };
 
 const sourceReferenceTracks = [
@@ -213,6 +237,11 @@ function titleCase(value = "") {
 
 function getFighterPose(fighter, fallback = "profile") {
   return stancePose[fighter?.stance] ?? fallback;
+}
+
+function chooseArenaKey(belt = "white") {
+  const scenes = arenaSceneGroups[belt] ?? arenaSceneGroups.white;
+  return scenes[Math.floor(Math.random() * scenes.length)] ?? "studio";
 }
 
 function correctRatio(order, steps) {
@@ -668,6 +697,9 @@ function Header({
   selectMusicTrack,
   openAdmin,
 }) {
+  const [trackMenuOpen, setTrackMenuOpen] = useState(false);
+  const activeTrack = musicTracks.find((track) => track.id === activeTrackId) ?? musicTracks[0];
+
   return (
     <header className="topbar">
       <button className="brand-lockup" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
@@ -704,17 +736,32 @@ function Header({
         <Volume2 size={17} />
       </button>
       {musicTracks.length ? (
-        <label className="player-track-select">
-          <Headphones size={16} />
-          <select value={activeTrackId} onChange={(event) => selectMusicTrack(event.target.value)}>
-            {musicTracks.map((track) => (
-              <option key={track.id} value={track.id}>
-                {track.title}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={16} />
-        </label>
+        <div className={`player-track-select ${trackMenuOpen ? "open" : ""}`}>
+          <button type="button" className="player-track-trigger" onClick={() => setTrackMenuOpen((open) => !open)}>
+            <Headphones size={16} />
+            <span>{activeTrack?.title ?? "Select Track"}</span>
+            <ChevronDown size={16} />
+          </button>
+          {trackMenuOpen ? (
+            <div className="player-track-menu">
+              <small>Player Music Library</small>
+              {musicTracks.map((track) => (
+                <button
+                  key={track.id}
+                  type="button"
+                  className={track.id === activeTrack?.id ? "active" : ""}
+                  onClick={() => {
+                    selectMusicTrack(track.id);
+                    setTrackMenuOpen(false);
+                  }}
+                >
+                  <span>{track.title}</span>
+                  <em>{track.mood}</em>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       ) : null}
       <button className="ghost-button top-admin" onClick={openAdmin}>
         <Settings size={18} />
@@ -815,6 +862,14 @@ function Dashboard({
             </span>
             <ChevronRight size={28} />
           </button>
+        </div>
+        <div className="showcase-strip" aria-label="Example JiuQuest fighter styles">
+          {showcaseFighters.map((item) => (
+            <figure className="showcase-card" key={item.src}>
+              <img src={item.src} alt={`${item.label} fighter style`} />
+              <figcaption>{item.label}</figcaption>
+            </figure>
+          ))}
         </div>
       </section>
 
@@ -1136,6 +1191,8 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
   const combatStarted = combat.active || combat.phase === "ordering" || combat.phase === "selecting" || combat.round > 1;
   const playerPose = combatStarted ? getFighterPose(fighter) : "profile";
   const npcPose = combatStarted ? getFighterPose(combat.npc) : "profile";
+  const arenaKey = combat.arenaKey ?? "studio";
+  const arenaLabel = arenaSceneLabels[arenaKey] ?? arenaSceneLabels.studio;
 
   return (
     <section className="combat-grid">
@@ -1146,11 +1203,12 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
             <span>Round {combat.round}</span>
             <strong>{combat.phase === "ordering" ? combat.secondsLeft : "VS"}</strong>
             <small>{positionLabels[combat.position]}</small>
+            <em>{arenaLabel}</em>
           </div>
           <FighterCard fighter={combat.npc} beltStatus={{ belt: combat.npc.belt, stripes: combat.npc.stripes }} reverse />
         </div>
 
-        <div className={`mat-window ${combat.result ? "result-mode" : ""}`}>
+        <div className={`mat-window arena-${arenaKey} ${combat.result ? "result-mode" : ""}`}>
           {combat.result ? (
             <GrapplePositionScene
               move={combat.result.move}
@@ -1159,6 +1217,7 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
               opponent={combat.result.playerWins ? combat.npc : fighter}
               fighterBeltStatus={combat.result.playerWins ? beltStatus : { belt: combat.npc.belt, stripes: combat.npc.stripes }}
               opponentBeltStatus={combat.result.playerWins ? { belt: combat.npc.belt, stripes: combat.npc.stripes } : beltStatus}
+              arenaKey={arenaKey}
             />
           ) : (
             <>
@@ -1729,6 +1788,7 @@ Create an original instrumental JiuQuest background track for a Brazilian jiu-ji
 function createCombatState(npc) {
   return {
     npc,
+    arenaKey: chooseArenaKey(npc?.belt),
     active: false,
     phase: "idle",
     position: "standing",
@@ -1888,6 +1948,7 @@ function FighterArt({ fighter, beltStatus, pose = "profile", className = "", fac
     "--jacket-mask": `url("${maskBase}-jacket.png")`,
     "--pants-mask": `url("${maskBase}-pants.png")`,
     "--belt-mask": `url("${maskBase}-belt.png")`,
+    "--body-mask": `url("${maskBase}-body.png")`,
     "--skin": fighter.skinTone ?? "#d99b71",
     "--hair": fighter.hairColor ?? "#11131c",
     "--gi-top": fighter.giTop ?? "#f8fbff",
@@ -2007,7 +2068,7 @@ function TechniqueThumbnail({ move, fighter }) {
   );
 }
 
-function TechniqueSnapshot({ move, fighter, opponent, compact = false, fighterBeltStatus, opponentBeltStatus }) {
+function TechniqueSnapshot({ move, fighter, opponent, compact = false, fighterBeltStatus, opponentBeltStatus, arenaKey = "studio" }) {
   const rival = opponent ?? {
     name: "Training Rival",
     skinTone: "#a86b4d",
@@ -2030,19 +2091,20 @@ function TechniqueSnapshot({ move, fighter, opponent, compact = false, fighterBe
         fighterBeltStatus={attackerStatus}
         opponentBeltStatus={rivalStatus}
         compact={compact}
+        arenaKey={arenaKey}
       />
       <p>{move.isSubmission ? `${move.name} finish: rival is forced to tap.` : `${move.name} changes the position to ${positionLabels[move.endsIn] ?? move.endsIn}.`}</p>
     </div>
   );
 }
 
-function GrapplePositionScene({ move, position, fighter, opponent, fighterBeltStatus, opponentBeltStatus, compact = false }) {
+function GrapplePositionScene({ move, position, fighter, opponent, fighterBeltStatus, opponentBeltStatus, compact = false, arenaKey = "studio" }) {
   const positionKey = position ?? move?.endsIn ?? "standing";
   const attackerPose = positionKey === "standing" || positionKey === "clinch" || positionKey === "scramble" ? getFighterPose(fighter) : "sambo";
   const defenderPose = positionKey === "standing" || positionKey === "clinch" || positionKey === "scramble" ? getFighterPose(opponent) : "profile";
 
   return (
-    <div className={`grapple-scene position-${positionKey} ${compact ? "compact" : ""}`}>
+    <div className={`grapple-scene arena-${arenaKey} position-${positionKey} ${compact ? "compact" : ""}`}>
       <FighterArt fighter={fighter} beltStatus={fighterBeltStatus} pose={attackerPose} className="grapple-fighter attacker" facing="right" />
       <div className="impact-ring">
         <strong>{move.category}</strong>
