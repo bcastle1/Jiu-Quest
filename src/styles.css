@@ -41,7 +41,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -59,7 +60,8 @@ button:not(:disabled) {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   border: 1px solid rgba(151, 164, 201, 0.22);
   border-radius: var(--radius);
@@ -71,6 +73,11 @@ select {
 
 select {
   appearance: none;
+}
+
+textarea {
+  min-height: 6.5rem;
+  resize: vertical;
 }
 
 small {
@@ -118,7 +125,7 @@ code {
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: auto minmax(15rem, 1fr) auto;
+  grid-template-columns: auto minmax(15rem, 1fr) auto minmax(13rem, 17rem);
   gap: 1rem;
   align-items: center;
   padding: 0.9rem clamp(1rem, 3vw, 2rem);
@@ -208,6 +215,29 @@ code {
 .music-toggle {
   min-width: 12rem;
   justify-self: end;
+}
+
+.player-track-select {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.45rem;
+  align-items: center;
+  min-height: 2.8rem;
+  border: 1px solid rgba(69, 163, 255, 0.28);
+  border-radius: var(--radius);
+  padding: 0 0.7rem;
+  background: rgba(7, 13, 24, 0.72);
+  color: var(--muted);
+}
+
+.player-track-select select {
+  min-width: 0;
+  border: 0;
+  padding: 0.45rem 0.2rem;
+  background: transparent;
+  color: var(--text);
+  font-weight: 800;
 }
 
 .music-toggle .toggle-dot {
@@ -1003,9 +1033,19 @@ main {
   background:
     radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.58)),
     rgba(255, 255, 255, 0.72);
-  color: #111521;
-  font-size: 0.62rem;
-  font-weight: 900;
+  overflow: hidden;
+}
+
+.emblem-mark {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.patch .emblem-mark {
+  width: 90%;
+  height: 90%;
 }
 
 .arm {
@@ -1389,7 +1429,7 @@ main {
 
 .profile-grid {
   display: grid;
-  grid-template-columns: minmax(20rem, 34rem) 1fr;
+  grid-template-columns: minmax(22rem, 38rem) 1fr;
   gap: 1rem;
   align-items: start;
 }
@@ -1397,11 +1437,136 @@ main {
 .profile-stage {
   position: sticky;
   top: 6.2rem;
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
   overflow: hidden;
-  min-height: 45rem;
+  background: linear-gradient(180deg, rgba(8, 13, 24, 0.76), rgba(8, 13, 24, 0.96));
+}
+
+.profile-art {
+  position: relative;
+  min-height: 43rem;
+  overflow: hidden;
+  border: 1px solid rgba(151, 164, 201, 0.18);
+  border-radius: var(--radius);
   background:
-    linear-gradient(180deg, rgba(8, 13, 24, 0.35), rgba(8, 13, 24, 0.95)),
-    url("/assets/jiuquest-reference.jpeg") center / cover no-repeat;
+    radial-gradient(circle at 33% 32%, rgba(255, 255, 255, 0.1), transparent 21rem),
+    #07101d;
+}
+
+.profile-art::before,
+.profile-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.profile-art::before {
+  background: var(--country-flag);
+  filter: saturate(1.08) contrast(1.08);
+  opacity: 0.72;
+}
+
+.profile-art::after {
+  background:
+    radial-gradient(circle at 28% 20%, rgba(255, 255, 255, 0.2), transparent 18rem),
+    linear-gradient(90deg, rgba(4, 8, 14, 0.08), transparent 44%, rgba(4, 8, 14, 0.62)),
+    linear-gradient(180deg, transparent 58%, rgba(4, 8, 14, 0.72));
+}
+
+.profile-character-shell {
+  position: absolute;
+  left: -4%;
+  bottom: -2%;
+  z-index: 2;
+  width: 70%;
+  height: 101%;
+}
+
+.profile-character-art {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 1.4rem 1.5rem rgba(0, 0, 0, 0.42));
+}
+
+.profile-art-emblem {
+  position: absolute;
+  z-index: 3;
+  object-fit: contain;
+  filter: drop-shadow(0 0.12rem 0.12rem rgba(0, 0, 0, 0.42));
+}
+
+.profile-art-emblem.chest {
+  left: 50%;
+  top: 25%;
+  width: 17%;
+}
+
+.profile-art-emblem.leg {
+  left: 34%;
+  bottom: 17%;
+  width: 12%;
+}
+
+.stance-reference-card {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 4;
+  display: grid;
+  width: 31%;
+  min-width: 10rem;
+  max-width: 13.5rem;
+  gap: 0.35rem;
+  padding: 0.72rem;
+  border: 1px solid rgba(246, 198, 91, 0.28);
+  border-radius: var(--radius);
+  background: rgba(5, 8, 14, 0.76);
+  box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(14px);
+}
+
+.stance-reference-card span,
+.profile-art-tags span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.stance-reference-card strong {
+  line-height: 1.05;
+}
+
+.stance-reference-card img {
+  width: 100%;
+  height: 10.5rem;
+  object-fit: contain;
+  object-position: center bottom;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.profile-art-tags {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.profile-art-tags span {
+  padding: 0.45rem 0.62rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(5, 8, 14, 0.68);
 }
 
 .profile-rank {
@@ -1459,6 +1624,76 @@ main {
   font-size: 0.82rem;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.image-select {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+
+.image-select-trigger,
+.image-select-menu button {
+  display: grid;
+  grid-template-columns: 3.7rem minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  width: 100%;
+  border: 1px solid rgba(151, 164, 201, 0.22);
+  border-radius: var(--radius);
+  padding: 0.5rem;
+  text-align: left;
+  background: rgba(5, 10, 18, 0.8);
+}
+
+.image-select.compact .image-select-trigger,
+.image-select.compact .image-select-menu button {
+  grid-template-columns: 2.65rem minmax(0, 1fr) auto;
+}
+
+.image-select img {
+  width: 100%;
+  height: 3.4rem;
+  border-radius: 6px;
+  object-fit: contain;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04)),
+    rgba(255, 255, 255, 0.08);
+}
+
+.image-select.compact img {
+  height: 2.45rem;
+  padding: 0.12rem;
+}
+
+.image-select strong,
+.image-select small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-select-menu {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 0.45rem;
+  max-height: 21rem;
+  overflow: auto;
+  border: 1px solid rgba(139, 92, 255, 0.46);
+  border-radius: var(--radius);
+  padding: 0.55rem;
+  background: rgba(5, 9, 17, 0.96);
+  box-shadow: 0 1.2rem 2.8rem rgba(0, 0, 0, 0.42);
+}
+
+.image-select-menu button.active {
+  border-color: rgba(246, 198, 91, 0.74);
+  background: rgba(246, 198, 91, 0.11);
 }
 
 .segmented {
@@ -2019,6 +2254,122 @@ main {
   gap: 1rem;
 }
 
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+}
+
+.music-generator-page .workflow-panel,
+.music-generator-page .music-library {
+  grid-column: span 2;
+}
+
+.workflow-panel,
+.music-library {
+  display: grid;
+  gap: 1rem;
+}
+
+.source-reference-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.source-reference-list div {
+  border: 1px solid rgba(151, 164, 201, 0.16);
+  border-radius: var(--radius);
+  padding: 0.85rem;
+  background: rgba(7, 13, 24, 0.68);
+}
+
+.source-reference-list strong,
+.source-reference-list small {
+  display: block;
+}
+
+.source-reference-list p {
+  margin: 0.55rem 0 0;
+  color: var(--muted);
+}
+
+.workflow-steps {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding-left: 1.35rem;
+  color: var(--muted);
+}
+
+.workflow-steps li::marker {
+  color: var(--gold);
+  font-weight: 900;
+}
+
+.workflow-prompt {
+  overflow: auto;
+  margin: 0;
+  border: 1px solid rgba(69, 163, 255, 0.2);
+  border-radius: var(--radius);
+  padding: 0.95rem;
+  background: rgba(4, 8, 14, 0.72);
+  color: #c9f6ff;
+  white-space: pre-wrap;
+}
+
+.music-controls {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) minmax(14rem, 1fr);
+  gap: 1rem;
+  align-items: end;
+}
+
+.track-editor-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.track-card {
+  display: grid;
+  gap: 0.8rem;
+  border: 1px solid rgba(151, 164, 201, 0.18);
+  border-radius: var(--radius);
+  padding: 0.85rem;
+  background: rgba(7, 13, 24, 0.66);
+}
+
+.track-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.track-permission {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.track-permission input {
+  width: auto;
+  accent-color: var(--violet);
+}
+
+.track-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.track-notes {
+  grid-column: 1 / -1;
+}
+
 .slider-grid {
   display: grid;
   gap: 0.75rem;
@@ -2235,6 +2586,11 @@ input[type="range"] {
     order: 3;
   }
 
+  .player-track-select {
+    grid-column: 1 / -1;
+    order: 4;
+  }
+
   .ghost-button.top-admin {
     display: none;
   }
@@ -2258,7 +2614,9 @@ input[type="range"] {
   .progress-table,
   .admin-hero,
   .npc-admin,
-  .deploy-admin {
+  .deploy-admin,
+  .music-generator-page .workflow-panel,
+  .music-generator-page .music-library {
     grid-column: auto;
   }
 
@@ -2286,6 +2644,12 @@ input[type="range"] {
 
   .npc-editor {
     grid-template-columns: auto 1fr;
+  }
+
+  .source-reference-list,
+  .music-controls,
+  .track-fields {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -2315,6 +2679,10 @@ input[type="range"] {
 
   .music-toggle span:not(.toggle-dot) {
     display: none;
+  }
+
+  .player-track-select {
+    min-width: 0;
   }
 
   .fighter-rail,
@@ -2378,6 +2746,32 @@ input[type="range"] {
 
   .swatch-row {
     grid-template-columns: 1fr;
+  }
+
+  .profile-art {
+    min-height: 34rem;
+  }
+
+  .profile-character-shell {
+    left: -8%;
+    width: 72%;
+  }
+
+  .stance-reference-card {
+    top: 0.65rem;
+    right: 0.65rem;
+    min-width: 8.5rem;
+    width: 38%;
+    padding: 0.58rem;
+  }
+
+  .stance-reference-card img {
+    height: 8rem;
+  }
+
+  .image-select-menu {
+    position: static;
+    margin-top: 0.45rem;
   }
 
   .bottom-nav {

@@ -41,6 +41,7 @@ import {
   createFighter,
   customizationOptions,
   defaultAdminSettings,
+  defaultMusicTracks,
   defaultNpcs,
   getBeltStatus,
   getTrainingTotals,
@@ -77,6 +78,76 @@ const stanceCopy = {
   "capoeira rhythm": "mobile feints, spinning lane",
 };
 
+const profileArt = "/assets/characters/profile-default.webp";
+
+const stanceArt = {
+  "wrestling stance": "/assets/stances/wrestling-stance.webp",
+  "sumo base": "/assets/stances/sumo-stance.webp",
+  "boxer shell": "/assets/stances/boxing-stance.webp",
+  "karate stance": "/assets/stances/karate-stance.webp",
+  "muay thai guard": "/assets/stances/muay-thai-stance.webp",
+  "combat base": "/assets/characters/profile-default.webp",
+  "sambo crouch": "/assets/stances/sambo-stance.webp",
+  "capoeira rhythm": "/assets/stances/capoeira-stance.webp",
+};
+
+const emblemAssets = {
+  triangle: "/assets/emblems/triangle.png",
+  lion: "/assets/emblems/lion.png",
+  wave: "/assets/emblems/wave.png",
+  star: "/assets/emblems/star.png",
+  phoenix: "/assets/emblems/phoenix.png",
+  mountain: "/assets/emblems/mountain.png",
+};
+
+const countryFlagBackgrounds = {
+  "United States":
+    "radial-gradient(circle at 18% 24%, rgba(60,59,110,0.68) 0 20%, transparent 21%), repeating-linear-gradient(180deg, rgba(178,34,52,0.44) 0 8%, rgba(248,248,248,0.26) 8% 16%)",
+  Brazil:
+    "radial-gradient(circle at 69% 34%, rgba(0,39,118,0.68) 0 12%, transparent 13%), linear-gradient(135deg, transparent 0 21%, rgba(255,223,0,0.52) 22% 40%, transparent 41%), linear-gradient(90deg, rgba(0,156,59,0.7), rgba(0,86,42,0.58))",
+  Japan: "radial-gradient(circle at 62% 34%, rgba(188,0,45,0.58) 0 17%, transparent 18%), linear-gradient(120deg, rgba(255,255,255,0.46), rgba(210,214,224,0.24))",
+  Mexico: "linear-gradient(90deg, rgba(0,104,71,0.62) 0 33%, rgba(255,255,255,0.28) 33% 66%, rgba(206,17,38,0.56) 66%)",
+  Canada: "linear-gradient(90deg, rgba(255,0,0,0.58) 0 25%, rgba(255,255,255,0.28) 25% 75%, rgba(255,0,0,0.58) 75%)",
+  Philippines:
+    "linear-gradient(135deg, rgba(255,255,255,0.4) 0 28%, transparent 29%), linear-gradient(180deg, rgba(0,56,168,0.62) 0 50%, rgba(206,17,38,0.58) 50%), radial-gradient(circle at 24% 50%, rgba(252,209,22,0.52) 0 9%, transparent 10%)",
+  France: "linear-gradient(90deg, rgba(0,35,149,0.62) 0 33%, rgba(255,255,255,0.26) 33% 66%, rgba(237,41,57,0.58) 66%)",
+  Nigeria: "linear-gradient(90deg, rgba(0,135,81,0.62) 0 33%, rgba(255,255,255,0.28) 33% 66%, rgba(0,135,81,0.62) 66%)",
+  "United Kingdom":
+    "linear-gradient(45deg, transparent 0 43%, rgba(255,255,255,0.35) 44% 49%, rgba(200,16,46,0.48) 50% 55%, transparent 56%), linear-gradient(-45deg, transparent 0 43%, rgba(255,255,255,0.35) 44% 49%, rgba(200,16,46,0.48) 50% 55%, transparent 56%), linear-gradient(90deg, rgba(1,33,105,0.68), rgba(1,33,105,0.5))",
+};
+
+const sourceReferenceTracks = [
+  {
+    label: "Ascension Gate",
+    source: "C:/Users/Owner/Desktop/01 Believer.mp3",
+    instruction: "Use only broad energy, tension, and pacing as reference. Do not copy the melody, lyrics, vocal sound, or beat pattern.",
+  },
+  {
+    label: "Power Clash",
+    source: "C:/Users/Owner/Desktop/01 Boom Boom Pow.mp3",
+    instruction: "Use only broad club/combat intensity as reference. Do not copy the hook, lyrics, vocal sound, or beat pattern.",
+  },
+  {
+    label: "Paradise Circuit",
+    source: "C:/Users/Owner/Desktop/03 Paradise.mp3",
+    instruction: "Use only broad uplifting build energy as reference. Do not copy the melody, lyrics, vocal sound, or beat pattern.",
+  },
+];
+
+const musicWorkflowSteps = [
+  "Use only audio the admin owns or has permission to transform. For commercial songs, treat files as broad reference only unless licensed for remix use.",
+  "All JiuQuest game tracks must be instrumental: no singing, no lyrical vocals, no lead vocal lines, and no recognizable vocal hooks.",
+  "Extract or analyze the reference audio with FFmpeg when permitted, then save tempo, loudness, and rough section notes in JSON.",
+  "If stems are legally permitted, use Demucs to separate vocals, drums, bass, and other stems. Remove vocals from the final game track.",
+  "Create a new dark techno, cyberpunk combat, or boss-fight arrangement at 135 to 150 BPM. Default to 145 BPM for Ground Combat.",
+  "Replace the source beat with original four-on-the-floor drums, tight claps, fast hats, fills, risers, impacts, sidechain pumping, and distorted bass.",
+  "Use only tiny transformed non-vocal textures when legally permitted, such as reversed atmosphere, filtered chords, or abstract rhythmic texture.",
+  "Do not make karaoke, a speed-up, or a normal remix with a beat added on top. The result should sound like a new game soundtrack cue.",
+  "Export a full version and a loopable version as WAV and MP3 when possible, with clean loudness, no clipping, and game-ready loop points.",
+  "Recommended folders: input, extracted, stems, processed, and output. Include README notes, required tools, install steps, and error handling.",
+  "If no samples or stem tools are available, generate synthetic drums, bass, synth stabs, drones, and impacts so the workflow still produces a usable instrumental loop.",
+];
+
 const beltOrderBonus = {
   white: 0,
   blue: 6,
@@ -110,6 +181,10 @@ function moveItem(list, from, to) {
 
 function formatPercent(value) {
   return `${Math.round(value)}%`;
+}
+
+function titleCase(value = "") {
+  return value.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function correctRatio(order, steps) {
@@ -149,6 +224,24 @@ function App() {
     () => allMoves.filter((move) => isMoveUnlocked(fighter, move)),
     [fighter],
   );
+  const musicTracks = useMemo(() => {
+    const tracks = store.adminSettings.music?.tracks;
+    return Array.isArray(tracks) && tracks.length ? tracks : defaultMusicTracks;
+  }, [store.adminSettings.music?.tracks]);
+  const playerMusicTracks = useMemo(
+    () => musicTracks.filter((track) => track.playerEnabled !== false),
+    [musicTracks],
+  );
+  const activeMusicTrack = useMemo(() => {
+    const activeId = store.adminSettings.music?.activeTrackId;
+    return (
+      playerMusicTracks.find((track) => track.id === activeId) ??
+      playerMusicTracks[0] ??
+      musicTracks.find((track) => track.id === activeId) ??
+      musicTracks[0] ??
+      defaultMusicTracks[0]
+    );
+  }, [musicTracks, playerMusicTracks, store.adminSettings.music?.activeTrackId]);
 
   useEffect(() => saveState(store), [store]);
 
@@ -164,9 +257,9 @@ function App() {
       stopAudio(audioRef);
       return;
     }
-    startAudio(audioRef, view, store.adminSettings.music.volume);
+    startAudio(audioRef, view, store.adminSettings.music.volume, activeMusicTrack);
     return () => stopAudio(audioRef);
-  }, [musicOn, view, store.adminSettings.music.volume]);
+  }, [activeMusicTrack, musicOn, view, store.adminSettings.music.volume]);
 
   useEffect(() => {
     if (!combat.active || combat.phase !== "ordering") return;
@@ -386,6 +479,19 @@ function App() {
     });
   };
 
+  const selectMusicTrack = (activeTrackId) => {
+    setStore((current) => ({
+      ...current,
+      adminSettings: {
+        ...current.adminSettings,
+        music: {
+          ...current.adminSettings.music,
+          activeTrackId,
+        },
+      },
+    }));
+  };
+
   return (
     <div className={`app-shell view-${view}`}>
       <div className="energy-field" aria-hidden="true" />
@@ -397,6 +503,9 @@ function App() {
         beltStatus={beltStatus}
         musicOn={musicOn}
         setMusicOn={setMusicOn}
+        musicTracks={playerMusicTracks}
+        activeTrackId={activeMusicTrack.id}
+        selectMusicTrack={selectMusicTrack}
         openAdmin={openAdmin}
       />
 
@@ -502,7 +611,19 @@ function App() {
   );
 }
 
-function Header({ fighter, fighters, selectedId, setStore, beltStatus, musicOn, setMusicOn, openAdmin }) {
+function Header({
+  fighter,
+  fighters,
+  selectedId,
+  setStore,
+  beltStatus,
+  musicOn,
+  setMusicOn,
+  musicTracks,
+  activeTrackId,
+  selectMusicTrack,
+  openAdmin,
+}) {
   return (
     <header className="topbar">
       <button className="brand-lockup" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
@@ -538,6 +659,19 @@ function Header({ fighter, fighters, selectedId, setStore, beltStatus, musicOn, 
         <span className="toggle-dot" />
         <Volume2 size={17} />
       </button>
+      {musicTracks.length ? (
+        <label className="player-track-select">
+          <Headphones size={16} />
+          <select value={activeTrackId} onChange={(event) => selectMusicTrack(event.target.value)}>
+            {musicTracks.map((track) => (
+              <option key={track.id} value={track.id}>
+                {track.title}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={16} />
+        </label>
+      ) : null}
       <button className="ghost-button top-admin" onClick={openAdmin}>
         <Settings size={18} />
         Admin
@@ -709,12 +843,12 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
   return (
     <section className="profile-grid">
       <div className="profile-stage panel">
-        <Avatar fighter={fighter} beltStatus={beltStatus} size="profile" />
+        <FighterProfileArt fighter={fighter} beltStatus={beltStatus} />
         <div className="profile-rank">
           <Belt belt={beltStatus.belt} stripes={beltStatus.stripes} />
           <div>
             <h1>{fighter.name || "Unnamed Fighter"}</h1>
-            <p>{fighter.country} · {fighter.stance}</p>
+            <p>{fighter.country} - {fighter.stance}</p>
           </div>
         </div>
       </div>
@@ -764,11 +898,14 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
             </select>
           </Field>
           <Field label="Fighting Stance">
-            <select value={fighter.stance} onChange={(event) => updateFighter({ stance: event.target.value })}>
-              {customizationOptions.stances.map((stance) => (
-                <option key={stance}>{stance}</option>
-              ))}
-            </select>
+            <ImageSelect
+              value={fighter.stance}
+              options={customizationOptions.stances}
+              onChange={(stance) => updateFighter({ stance })}
+              getImage={(stance) => stanceArt[stance] ?? stanceArt["combat base"]}
+              getLabel={titleCase}
+              getMeta={(stance) => stanceCopy[stance]}
+            />
             <small>{stanceCopy[fighter.stance]}</small>
           </Field>
         </div>
@@ -787,11 +924,15 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
             </select>
           </Field>
           <Field label="Patch Emblem">
-            <select value={fighter.emblem} onChange={(event) => updateFighter({ emblem: event.target.value })}>
-              {customizationOptions.emblems.map((emblem) => (
-                <option key={emblem}>{emblem}</option>
-              ))}
-            </select>
+            <ImageSelect
+              value={fighter.emblem}
+              options={customizationOptions.emblems}
+              onChange={(emblem) => updateFighter({ emblem })}
+              getImage={(emblem) => emblemAssets[emblem] ?? emblemAssets.triangle}
+              getLabel={titleCase}
+              getMeta={(emblem) => `${titleCase(emblem)} patch`}
+              compact
+            />
           </Field>
         </div>
 
@@ -852,7 +993,7 @@ function Training({
                 <TechniqueThumbnail move={move} fighter={fighter} />
                 <span>
                   <strong>{move.name}</strong>
-                  <small>{move.category} · {move.phase}</small>
+                  <small>{move.category} - {move.phase}</small>
                   <ProgressBar value={(count / 50) * 100} mini />
                 </span>
                 {move.preview ? <Lock size={15} /> : learned ? <Check size={16} /> : <span className="rep-count">{count}/5</span>}
@@ -986,7 +1127,7 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
               >
                 {npcs.map((npc) => (
                   <option key={npc.id} value={npc.id}>
-                    {npc.name} · {beltLabels[npc.belt]} {npc.stripes ? `${npc.stripes} stripe` : ""}
+                    {npc.name} - {beltLabels[npc.belt]} {npc.stripes ? `${npc.stripes} stripe` : ""}
                   </option>
                 ))}
               </select>
@@ -1044,7 +1185,7 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
                     disabled={combat.phase === "ordering"}
                   >
                     <span>{move.name}</span>
-                    <small>{move.category} · {move.steps.length} steps</small>
+                    <small>{move.category} - {move.steps.length} steps</small>
                   </button>
                 ))}
               </div>
@@ -1135,7 +1276,7 @@ function ProgressLab({ fighter, beltStatus }) {
             <div key={move.id} className="progress-row">
               <span>
                 <strong>{move.name}</strong>
-                <small>{beltLabels[move.belt]} · {move.category}</small>
+                <small>{beltLabels[move.belt]} - {move.category}</small>
               </span>
               <ProgressBar value={(count / 50) * 100} label={`${count}/50`} />
             </div>
@@ -1145,7 +1286,7 @@ function ProgressLab({ fighter, beltStatus }) {
       <div className="panel combat-bonus">
         <h2>Combat Instinct</h2>
         <p>Every match adds a tiny permanent arena-read bonus, capped at 10% after 1,000 matches.</p>
-        <ProgressBar value={Math.min(100, fighter.matches / 10)} label={`${fighter.matches}/1000 matches · ${Math.min(10, fighter.matches / 100).toFixed(2)}% bonus`} />
+        <ProgressBar value={Math.min(100, fighter.matches / 10)} label={`${fighter.matches}/1000 matches - ${Math.min(10, fighter.matches / 100).toFixed(2)}% bonus`} />
         <div className="stats-strip">
           <Stat icon={Swords} label="Matches" value={fighter.matches} />
           <Stat icon={Trophy} label="Wins" value={fighter.wins} />
@@ -1157,6 +1298,10 @@ function ProgressLab({ fighter, beltStatus }) {
 }
 
 function AdminPanel({ store, setStore, setView }) {
+  const [adminMode, setAdminMode] = useState("console");
+  const music = store.adminSettings.music ?? defaultAdminSettings.music;
+  const tracks = Array.isArray(music.tracks) && music.tracks.length ? music.tracks : defaultMusicTracks;
+
   const updateAlgorithm = (key, value) => {
     setStore((current) => ({
       ...current,
@@ -1200,6 +1345,67 @@ function AdminPanel({ store, setStore, setView }) {
     setStore((current) => ({ ...current, npcs: [...current.npcs, npc] }));
   };
 
+  const updateMusic = (patch) => {
+    setStore((current) => ({
+      ...current,
+      adminSettings: {
+        ...current.adminSettings,
+        music: {
+          ...current.adminSettings.music,
+          ...patch,
+        },
+      },
+    }));
+  };
+
+  const updateTrack = (id, patch) => {
+    updateMusic({
+      tracks: tracks.map((track) => (track.id === id ? { ...track, ...patch } : track)),
+    });
+  };
+
+  const addTrack = () => {
+    const id = `track-${Date.now()}`;
+    updateMusic({
+      tracks: [
+        ...tracks,
+        {
+          id,
+          title: "New Instrumental Combat Track",
+          bpm: 145,
+          mood: "Dark techno combat",
+          source: "Admin generated",
+          url: "",
+          playerEnabled: false,
+          notes: "Instrumental only; no singing, no lyrics, and no lead vocal lines.",
+        },
+      ],
+    });
+  };
+
+  const removeTrack = (id) => {
+    const nextTracks = tracks.filter((track) => track.id !== id);
+    updateMusic({
+      tracks: nextTracks.length ? nextTracks : tracks,
+      activeTrackId: music.activeTrackId === id ? nextTracks[0]?.id ?? tracks[0]?.id : music.activeTrackId,
+    });
+  };
+
+  if (adminMode === "music") {
+    return (
+      <MusicGeneratorPage
+        music={music}
+        tracks={tracks}
+        updateMusic={updateMusic}
+        updateTrack={updateTrack}
+        addTrack={addTrack}
+        removeTrack={removeTrack}
+        setAdminMode={setAdminMode}
+        setView={setView}
+      />
+    );
+  }
+
   return (
     <section className="admin-grid">
       <div className="panel admin-hero">
@@ -1207,10 +1413,16 @@ function AdminPanel({ store, setStore, setView }) {
           <h1>Admin Console</h1>
           <p>Tune rivals, music, move weighting, and scenario math without touching the code.</p>
         </div>
-        <button className="secondary-button" onClick={() => setView("dashboard")}>
-          <Home size={18} />
-          Back to App
-        </button>
+        <div className="admin-actions">
+          <button className="primary-button" onClick={() => setAdminMode("music")}>
+            <Headphones size={18} />
+            Music Generator
+          </button>
+          <button className="secondary-button" onClick={() => setView("dashboard")}>
+            <Home size={18} />
+            Back to App
+          </button>
+        </div>
       </div>
 
       <div className="panel">
@@ -1316,6 +1528,143 @@ function AdminPanel({ store, setStore, setView }) {
   );
 }
 
+function MusicGeneratorPage({ music, tracks, updateMusic, updateTrack, addTrack, removeTrack, setAdminMode, setView }) {
+  const activeTrackId = music.activeTrackId ?? tracks[0]?.id;
+
+  return (
+    <section className="admin-grid music-generator-page">
+      <div className="panel admin-hero music-hero">
+        <div>
+          <h1>Music Generator</h1>
+          <p>Create and curate instrumental combat tracks for the JiuQuest background music library.</p>
+        </div>
+        <div className="admin-actions">
+          <button className="secondary-button" onClick={() => setAdminMode("console")}>
+            <Settings size={18} />
+            Admin Console
+          </button>
+          <button className="secondary-button" onClick={() => setView("dashboard")}>
+            <Home size={18} />
+            Back to App
+          </button>
+        </div>
+      </div>
+
+      <div className="panel workflow-panel">
+        <div className="section-heading">
+          <span>
+            <h2>Generation Rules</h2>
+            <p>These instructions keep the game music punchy, loopable, original, and safe for a public app.</p>
+          </span>
+          <Headphones size={28} />
+        </div>
+        <div className="source-reference-list">
+          {sourceReferenceTracks.map((track) => (
+            <div key={track.label}>
+              <strong>{track.label}</strong>
+              <small>{track.source}</small>
+              <p>{track.instruction}</p>
+            </div>
+          ))}
+        </div>
+        <ol className="workflow-steps">
+          {musicWorkflowSteps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+        <pre className="workflow-prompt">
+{`Prompt for an outside music generator:
+Create an original instrumental JiuQuest background track for a Brazilian jiu-jitsu combat game. Style: dark techno, cyberpunk boss fight, gaming arena, driving kick, heavy bass, distorted synths, risers, impacts, glitch fills, and sidechain pumping. Target 135-150 BPM, default 145 BPM. No singing. No lyrics. No lead vocals. Do not copy melody, hook, drums, lyrics, vocal sound, or recognizable beat pattern from any reference song. Use reference files only for broad energy and pacing when legally permitted. Export a full version and a seamless loop as WAV and MP3.`}
+        </pre>
+      </div>
+
+      <div className="panel music-library">
+        <div className="section-heading">
+          <span>
+            <h2>Admin Music Library</h2>
+            <p>Choose which tracks players can select, set the default, and point tracks to hosted audio files.</p>
+          </span>
+          <button className="primary-button" onClick={addTrack}>
+            <Plus size={18} />
+            Add Track
+          </button>
+        </div>
+
+        <div className="music-controls">
+          <Field label="Default Track">
+            <select value={activeTrackId} onChange={(event) => updateMusic({ activeTrackId: event.target.value })}>
+              {tracks.map((track) => (
+                <option key={track.id} value={track.id}>
+                  {track.title}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <label className="field">
+            <span>Game Volume</span>
+            <input
+              type="range"
+              min="0"
+              max="0.8"
+              step="0.02"
+              value={music.volume}
+              onChange={(event) => updateMusic({ volume: Number(event.target.value) })}
+            />
+            <small>{Math.round((music.volume ?? 0) * 100)}%</small>
+          </label>
+        </div>
+
+        <div className="track-editor-list">
+          {tracks.map((track) => (
+            <div className="track-card" key={track.id}>
+              <div className="track-card-head">
+                <label className="track-permission">
+                  <input
+                    type="checkbox"
+                    checked={track.playerEnabled !== false}
+                    onChange={(event) => updateTrack(track.id, { playerEnabled: event.target.checked })}
+                  />
+                  Show to players
+                </label>
+                <button className="icon-button" onClick={() => removeTrack(track.id)} disabled={tracks.length <= 1}>
+                  <Trash2 size={16} />
+                </button>
+              </div>
+              <div className="track-fields">
+                <Field label="Title">
+                  <input value={track.title} onChange={(event) => updateTrack(track.id, { title: event.target.value })} />
+                </Field>
+                <Field label="BPM">
+                  <input
+                    type="number"
+                    min="90"
+                    max="180"
+                    value={track.bpm}
+                    onChange={(event) => updateTrack(track.id, { bpm: Number(event.target.value) })}
+                  />
+                </Field>
+                <Field label="Mood">
+                  <input value={track.mood} onChange={(event) => updateTrack(track.id, { mood: event.target.value })} />
+                </Field>
+                <Field label="Audio URL or Path">
+                  <input value={track.url} onChange={(event) => updateTrack(track.id, { url: event.target.value })} />
+                </Field>
+                <Field label="Source Reference">
+                  <input value={track.source} onChange={(event) => updateTrack(track.id, { source: event.target.value })} />
+                </Field>
+                <label className="field track-notes">
+                  <span>Notes</span>
+                  <textarea value={track.notes} onChange={(event) => updateTrack(track.id, { notes: event.target.value })} />
+                </label>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function createCombatState(npc) {
   return {
     npc,
@@ -1383,16 +1732,30 @@ function scoreNpc({ npc, move, position, settings }) {
   };
 }
 
-function startAudio(audioRef, view, volume) {
+function startAudio(audioRef, view, volume, track) {
   if (audioRef.current) return;
+  const hostedUrl = track?.url?.trim();
+  if (hostedUrl) {
+    const audio = new Audio(hostedUrl);
+    audio.loop = true;
+    audio.volume = volume;
+    audio.play().catch(() => {
+      audio.pause();
+    });
+    audioRef.current = { audio };
+    return;
+  }
   const AudioContext = window.AudioContext || window.webkitAudioContext;
   if (!AudioContext) return;
   const context = new AudioContext();
   const gain = context.createGain();
   gain.gain.value = volume;
   gain.connect(context.destination);
-  const tempo = view === "combat" ? 0.18 : view === "training" ? 0.28 : 0.42;
-  const oscillators = [110, 146.83, 220].map((frequency, index) => {
+  const bpm = Math.max(90, Math.min(180, Number(track?.bpm) || 132));
+  const beatSeconds = 60 / bpm;
+  const tempo = view === "combat" ? beatSeconds / 2 : view === "training" ? beatSeconds : beatSeconds * 1.5;
+  const root = track?.id === "paradise-circuit" ? 123.47 : track?.id === "power-clash" ? 98 : 110;
+  const oscillators = [root, root * 1.334, root * 2].map((frequency, index) => {
     const osc = context.createOscillator();
     const oscGain = context.createGain();
     osc.type = index === 0 ? "sine" : "triangle";
@@ -1414,11 +1777,45 @@ function startAudio(audioRef, view, volume) {
 
 function stopAudio(audioRef) {
   if (!audioRef.current) return;
-  const { context, oscillators, pulse } = audioRef.current;
+  const { audio, context, oscillators = [], pulse } = audioRef.current;
+  if (audio) {
+    audio.pause();
+    audio.currentTime = 0;
+    audioRef.current = null;
+    return;
+  }
   window.clearInterval(pulse);
   oscillators.forEach(({ osc }) => osc.stop());
-  context.close();
+  context?.close();
   audioRef.current = null;
+}
+
+function EmblemMark({ emblem, className = "" }) {
+  const src = emblemAssets[emblem] ?? emblemAssets.triangle;
+  return <img className={`emblem-mark ${className}`.trim()} src={src} alt={`${titleCase(emblem)} emblem`} />;
+}
+
+function FighterProfileArt({ fighter, beltStatus }) {
+  const stanceSrc = stanceArt[fighter.stance] ?? stanceArt["combat base"];
+  const countryBackground = countryFlagBackgrounds[fighter.country] ?? countryFlagBackgrounds["United States"];
+  return (
+    <div className="profile-art" style={{ "--country-flag": countryBackground }}>
+      <div className="profile-character-shell">
+        <img className="profile-character-art" src={profileArt} alt={`${fighter.name || "Fighter"} profile`} />
+        <EmblemMark emblem={fighter.emblem} className="profile-art-emblem chest" />
+        <EmblemMark emblem={fighter.emblem} className="profile-art-emblem leg" />
+      </div>
+      <aside className="stance-reference-card">
+        <span>Starting Stance</span>
+        <strong>{titleCase(fighter.stance)}</strong>
+        <img src={stanceSrc} alt={`${fighter.stance} reference`} />
+      </aside>
+      <div className="profile-art-tags">
+        <span>{fighter.country}</span>
+        <span>{beltLabels[beltStatus.belt]}</span>
+      </div>
+    </div>
+  );
 }
 
 function Avatar({ fighter, beltStatus, size = "profile", facing = "front" }) {
@@ -1456,7 +1853,9 @@ function Avatar({ fighter, beltStatus, size = "profile", facing = "front" }) {
         <span className="gi-fold fold-a" />
         <span className="gi-fold fold-b" />
         <span className="gi-fold fold-c" />
-        <span className="patch">{fighter.emblem?.slice(0, 1)?.toUpperCase()}</span>
+        <span className="patch">
+          <EmblemMark emblem={fighter.emblem} />
+        </span>
       </span>
       <span className="arm arm-left" />
       <span className="arm arm-right" />
@@ -1538,7 +1937,7 @@ function FighterCard({ fighter, beltStatus, reverse = false }) {
       <span>
         <strong>{fighter.name}</strong>
         <small>
-          {beltLabels[beltStatus.belt]} {beltStatus.stripes ? `· ${beltStatus.stripes} stripe` : ""}
+          {beltLabels[beltStatus.belt]} {beltStatus.stripes ? `- ${beltStatus.stripes} stripe` : ""}
         </small>
       </span>
     </div>
@@ -1596,6 +1995,44 @@ function Segmented({ value, options, onChange }) {
           {option}
         </button>
       ))}
+    </span>
+  );
+}
+
+function ImageSelect({ value, options, onChange, getImage, getLabel, getMeta, compact = false }) {
+  const [open, setOpen] = useState(false);
+  const selectedImage = getImage(value);
+  return (
+    <span className={`image-select ${open ? "open" : ""} ${compact ? "compact" : ""}`}>
+      <button type="button" className="image-select-trigger" onClick={() => setOpen((current) => !current)}>
+        <img src={selectedImage} alt="" />
+        <span>
+          <strong>{getLabel(value)}</strong>
+          {getMeta ? <small>{getMeta(value)}</small> : null}
+        </span>
+        <ChevronDown size={18} />
+      </button>
+      {open ? (
+        <span className="image-select-menu">
+          {options.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={option === value ? "active" : ""}
+              onClick={() => {
+                onChange(option);
+                setOpen(false);
+              }}
+            >
+              <img src={getImage(option)} alt="" />
+              <span>
+                <strong>{getLabel(option)}</strong>
+                {getMeta ? <small>{getMeta(option)}</small> : null}
+              </span>
+            </button>
+          ))}
+        </span>
+      ) : null}
     </span>
   );
 }
