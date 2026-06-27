@@ -62,7 +62,7 @@ export const customizationOptions = {
   countries: ["United States", "Brazil", "Japan", "Mexico", "Canada", "Philippines", "France", "Nigeria", "United Kingdom"],
   stances: ["wrestling stance", "sumo base", "boxer shell", "karate stance", "muay thai guard", "combat base", "sambo crouch", "capoeira rhythm"],
   auras: ["void violet", "mat gold", "blue flame", "red surge", "emerald focus"],
-  emblems: ["triangle", "lion", "wave", "star", "phoenix", "mountain"],
+  emblems: ["none", "triangle", "lion", "wave", "star", "phoenix", "mountain"],
 };
 
 export const defaultAdminSettings = {

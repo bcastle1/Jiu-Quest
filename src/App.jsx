@@ -80,6 +80,28 @@ const stanceCopy = {
 
 const profileArt = "/assets/characters/profile-default.webp";
 
+const fighterArtSources = {
+  profile: { image: profileArt, mask: "profile" },
+  wrestling: { image: "/assets/stances/wrestling-stance.webp", mask: "wrestling" },
+  sumo: { image: "/assets/stances/sumo-stance.webp", mask: "sumo" },
+  boxing: { image: "/assets/stances/boxing-stance.webp", mask: "boxing" },
+  karate: { image: "/assets/stances/karate-stance.webp", mask: "karate" },
+  "muay-thai": { image: "/assets/stances/muay-thai-stance.webp", mask: "muay-thai" },
+  sambo: { image: "/assets/stances/sambo-stance.webp", mask: "sambo" },
+  capoeira: { image: "/assets/stances/capoeira-stance.webp", mask: "capoeira" },
+};
+
+const stancePose = {
+  "wrestling stance": "wrestling",
+  "sumo base": "sumo",
+  "boxer shell": "boxing",
+  "karate stance": "karate",
+  "muay thai guard": "muay-thai",
+  "combat base": "profile",
+  "sambo crouch": "sambo",
+  "capoeira rhythm": "capoeira",
+};
+
 const stanceArt = {
   "wrestling stance": "/assets/stances/wrestling-stance.webp",
   "sumo base": "/assets/stances/sumo-stance.webp",
@@ -92,6 +114,7 @@ const stanceArt = {
 };
 
 const emblemAssets = {
+  none: "/assets/emblems/none.png",
   triangle: "/assets/emblems/triangle.png",
   lion: "/assets/emblems/lion.png",
   wave: "/assets/emblems/wave.png",
@@ -184,7 +207,12 @@ function formatPercent(value) {
 }
 
 function titleCase(value = "") {
+  if (value === "none") return "No Patch";
   return value.replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function getFighterPose(fighter, fallback = "profile") {
+  return stancePose[fighter?.stance] ?? fallback;
 }
 
 function correctRatio(order, steps) {
@@ -260,6 +288,22 @@ function App() {
     startAudio(audioRef, view, store.adminSettings.music.volume, activeMusicTrack);
     return () => stopAudio(audioRef);
   }, [activeMusicTrack, musicOn, view, store.adminSettings.music.volume]);
+
+  useEffect(() => {
+    if (!playerMusicTracks.length) return;
+    const activeId = store.adminSettings.music?.activeTrackId;
+    if (playerMusicTracks.some((track) => track.id === activeId)) return;
+    setStore((current) => ({
+      ...current,
+      adminSettings: {
+        ...current.adminSettings,
+        music: {
+          ...current.adminSettings.music,
+          activeTrackId: playerMusicTracks[0].id,
+        },
+      },
+    }));
+  }, [playerMusicTracks, store.adminSettings.music?.activeTrackId]);
 
   useEffect(() => {
     if (!combat.active || combat.phase !== "ordering") return;
@@ -813,9 +857,9 @@ function Dashboard({
         <div className="panel combat-card">
           <h2>Combat Arena</h2>
           <div className="versus-preview">
-            <Avatar fighter={fighter} beltStatus={beltStatus} size="duel" facing="right" />
+            <FighterArt fighter={fighter} beltStatus={beltStatus} pose="profile" className="duel-fighter" facing="right" />
             <span>VS</span>
-            <Avatar fighter={npcs[0]} beltStatus={{ belt: npcs[0].belt, stripes: npcs[0].stripes }} size="duel" facing="left" />
+            <FighterArt fighter={npcs[0]} beltStatus={{ belt: npcs[0].belt, stripes: npcs[0].stripes }} pose="profile" className="duel-fighter" facing="left" />
           </div>
           <button
             className="danger-button full"
@@ -930,7 +974,7 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
               onChange={(emblem) => updateFighter({ emblem })}
               getImage={(emblem) => emblemAssets[emblem] ?? emblemAssets.triangle}
               getLabel={titleCase}
-              getMeta={(emblem) => `${titleCase(emblem)} patch`}
+              getMeta={(emblem) => (emblem === "none" ? "No patch emblem" : `${titleCase(emblem)} patch`)}
               compact
             />
           </Field>
@@ -1015,7 +1059,7 @@ function Training({
             <small>clean reps</small>
           </div>
         </div>
-        <TechniqueSnapshot move={selectedMove} fighter={fighter} opponent={null} />
+        <TechniqueSnapshot move={selectedMove} fighter={fighter} opponent={null} fighterBeltStatus={beltStatus} />
         <div className="scenario-box">
           <h3>Ideal Scenario</h3>
           <p>{selectedMove.scenario}</p>
@@ -1075,7 +1119,7 @@ function Training({
           </div>
         )}
         <div className="belt-mini">
-          <Avatar fighter={fighter} beltStatus={beltStatus} size="mini" />
+          <FighterArt fighter={fighter} beltStatus={beltStatus} pose="profile" className="mini-fighter" />
           <Belt belt={beltStatus.belt} stripes={beltStatus.stripes} />
         </div>
       </div>
@@ -1089,6 +1133,9 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
     acc[move.belt] = [...(acc[move.belt] ?? []), move];
     return acc;
   }, {});
+  const combatStarted = combat.active || combat.phase === "ordering" || combat.phase === "selecting" || combat.round > 1;
+  const playerPose = combatStarted ? getFighterPose(fighter) : "profile";
+  const npcPose = combatStarted ? getFighterPose(combat.npc) : "profile";
 
   return (
     <section className="combat-grid">
@@ -1103,16 +1150,25 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
           <FighterCard fighter={combat.npc} beltStatus={{ belt: combat.npc.belt, stripes: combat.npc.stripes }} reverse />
         </div>
 
-        <div className="mat-window">
-          <Avatar fighter={fighter} beltStatus={beltStatus} size="combat" facing="right" />
-          <div className="mat-center">
-            {combat.result ? (
-              <TechniqueSnapshot move={combat.result.move} fighter={combat.result.playerWins ? fighter : combat.npc} opponent={combat.result.playerWins ? combat.npc : fighter} compact />
-            ) : (
-              <span className="versus-burst">VS</span>
-            )}
-          </div>
-          <Avatar fighter={combat.npc} beltStatus={{ belt: combat.npc.belt, stripes: combat.npc.stripes }} size="combat" facing="left" />
+        <div className={`mat-window ${combat.result ? "result-mode" : ""}`}>
+          {combat.result ? (
+            <GrapplePositionScene
+              move={combat.result.move}
+              position={combat.position}
+              fighter={combat.result.playerWins ? fighter : combat.npc}
+              opponent={combat.result.playerWins ? combat.npc : fighter}
+              fighterBeltStatus={combat.result.playerWins ? beltStatus : { belt: combat.npc.belt, stripes: combat.npc.stripes }}
+              opponentBeltStatus={combat.result.playerWins ? { belt: combat.npc.belt, stripes: combat.npc.stripes } : beltStatus}
+            />
+          ) : (
+            <>
+              <FighterArt fighter={fighter} beltStatus={beltStatus} pose={playerPose} className="arena-fighter" facing="right" />
+              <div className="mat-center">
+                <span className="versus-burst">VS</span>
+              </div>
+              <FighterArt fighter={combat.npc} beltStatus={{ belt: combat.npc.belt, stripes: combat.npc.stripes }} pose={npcPose} className="arena-fighter" facing="left" />
+            </>
+          )}
         </div>
 
         <div className="combat-actions">
@@ -1245,7 +1301,7 @@ function ProgressLab({ fighter, beltStatus }) {
   return (
     <section className="progress-grid">
       <div className="panel progress-hero">
-        <Avatar fighter={fighter} beltStatus={beltStatus} size="profile" />
+        <FighterProfileArt fighter={fighter} beltStatus={beltStatus} className="progress-profile-art" />
         <div>
           <h1>{fighter.name}'s Rank Path</h1>
           <p>{beltStatus.next}</p>
@@ -1471,7 +1527,12 @@ function AdminPanel({ store, setStore, setView }) {
         </div>
         {store.npcs.map((npc) => (
           <div className="npc-editor" key={npc.id}>
-            <Avatar fighter={npc} beltStatus={{ belt: npc.belt, stripes: npc.stripes }} size="mini" />
+            <FighterArt
+              fighter={npc}
+              beltStatus={{ belt: npc.belt, stripes: npc.stripes }}
+              pose={getFighterPose(npc)}
+              className="admin-npc-fighter"
+            />
             <input value={npc.name} onChange={(event) => updateNpc(npc.id, { name: event.target.value })} />
             <select value={npc.belt} onChange={(event) => updateNpc(npc.id, { belt: event.target.value })}>
               {BELTS.map((belt) => (
@@ -1791,30 +1852,72 @@ function stopAudio(audioRef) {
 }
 
 function EmblemMark({ emblem, className = "" }) {
+  if (!emblem || emblem === "none") return null;
   const src = emblemAssets[emblem] ?? emblemAssets.triangle;
   return <img className={`emblem-mark ${className}`.trim()} src={src} alt={`${titleCase(emblem)} emblem`} />;
 }
 
-function FighterProfileArt({ fighter, beltStatus }) {
-  const stanceSrc = stanceArt[fighter.stance] ?? stanceArt["combat base"];
+function FighterProfileArt({ fighter, beltStatus, className = "" }) {
+  const stancePoseId = getFighterPose(fighter);
   const countryBackground = countryFlagBackgrounds[fighter.country] ?? countryFlagBackgrounds["United States"];
   return (
-    <div className="profile-art" style={{ "--country-flag": countryBackground }}>
+    <div className={`profile-art ${className}`.trim()} style={{ "--country-flag": countryBackground }}>
       <div className="profile-character-shell">
-        <img className="profile-character-art" src={profileArt} alt={`${fighter.name || "Fighter"} profile`} />
-        <EmblemMark emblem={fighter.emblem} className="profile-art-emblem chest" />
-        <EmblemMark emblem={fighter.emblem} className="profile-art-emblem leg" />
+        <FighterArt fighter={fighter} beltStatus={beltStatus} pose="profile" className="profile-main-fighter" />
       </div>
       <aside className="stance-reference-card">
         <span>Starting Stance</span>
         <strong>{titleCase(fighter.stance)}</strong>
-        <img src={stanceSrc} alt={`${fighter.stance} reference`} />
+        <FighterArt fighter={fighter} beltStatus={beltStatus} pose={stancePoseId} className="stance-reference-fighter" showAura={false} showPatches={false} />
       </aside>
       <div className="profile-art-tags">
         <span>{fighter.country}</span>
         <span>{beltLabels[beltStatus.belt]}</span>
       </div>
     </div>
+  );
+}
+
+function FighterArt({ fighter, beltStatus, pose = "profile", className = "", facing = "front", showAura = true, showPatches = true }) {
+  const source = fighterArtSources[pose] ?? fighterArtSources.profile;
+  const maskBase = `/assets/characters/masks/${source.mask}`;
+  const artStyle = {
+    "--fighter-src": `url("${source.image}")`,
+    "--skin-mask": `url("${maskBase}-skin.png")`,
+    "--hair-mask": `url("${maskBase}-hair.png")`,
+    "--jacket-mask": `url("${maskBase}-jacket.png")`,
+    "--pants-mask": `url("${maskBase}-pants.png")`,
+    "--belt-mask": `url("${maskBase}-belt.png")`,
+    "--skin": fighter.skinTone ?? "#d99b71",
+    "--hair": fighter.hairColor ?? "#11131c",
+    "--gi-top": fighter.giTop ?? "#f8fbff",
+    "--gi-pants": fighter.giPants ?? "#f8fbff",
+    "--belt-color": beltColors[beltStatus?.belt ?? fighter.belt ?? "white"],
+    "--aura": auraColors[fighter.aura] ?? "#8a5cff",
+  };
+
+  return (
+    <span className={`fighter-art fighter-pose-${source.mask} facing-${facing} ${className}`.trim()} style={artStyle} aria-label={`${fighter.name} fighter art`}>
+      {showAura ? <span className="fighter-art-aura" /> : null}
+      <span className="fighter-art-layer fighter-art-base" />
+      <span className="fighter-art-layer fighter-art-tint fighter-art-skin" />
+      <span className="fighter-art-layer fighter-art-tint fighter-art-hair" />
+      <span className="fighter-art-layer fighter-art-tint fighter-art-jacket" />
+      <span className="fighter-art-layer fighter-art-tint fighter-art-pants" />
+      <span className="fighter-art-layer fighter-art-tint fighter-art-belt" />
+      <span className="fighter-art-layer fighter-art-detail" />
+      {showPatches ? (
+        <>
+          <EmblemMark emblem={fighter.emblem} className={`fighter-art-emblem heart pose-${source.mask}`} />
+          <EmblemMark emblem={fighter.emblem} className={`fighter-art-emblem lower-leg pose-${source.mask}`} />
+        </>
+      ) : null}
+      <span className="fighter-art-stripes">
+        {Array.from({ length: beltStatus?.stripes ?? fighter.stripes ?? 0 }).map((_, index) => (
+          <i key={index} />
+        ))}
+      </span>
+    </span>
   );
 }
 
@@ -1904,7 +2007,7 @@ function TechniqueThumbnail({ move, fighter }) {
   );
 }
 
-function TechniqueSnapshot({ move, fighter, opponent, compact = false }) {
+function TechniqueSnapshot({ move, fighter, opponent, compact = false, fighterBeltStatus, opponentBeltStatus }) {
   const rival = opponent ?? {
     name: "Training Rival",
     skinTone: "#a86b4d",
@@ -1915,17 +2018,38 @@ function TechniqueSnapshot({ move, fighter, opponent, compact = false }) {
     stance: "wrestling stance",
     emblem: "star",
   };
+  const attackerStatus = fighterBeltStatus ?? { belt: fighter.belt ?? "white", stripes: fighter.stripes ?? 0 };
+  const rivalStatus = opponentBeltStatus ?? { belt: rival.belt ?? "white", stripes: rival.stripes ?? 0 };
   return (
     <div className={`technique-snapshot ${compact ? "compact" : ""} ${move.category}`}>
-      <div className="snapshot-mat">
-        <Avatar fighter={fighter} beltStatus={{ belt: fighter.belt ?? "white", stripes: fighter.stripes ?? 0 }} size="snapshot" facing="right" />
-        <div className="impact-ring">
-          <strong>{move.category}</strong>
-          <span>{move.phase}</span>
-        </div>
-        <Avatar fighter={rival} beltStatus={{ belt: rival.belt ?? "white", stripes: rival.stripes ?? 0 }} size="snapshot" facing="left" />
-      </div>
+      <GrapplePositionScene
+        move={move}
+        position={move.endsIn}
+        fighter={fighter}
+        opponent={rival}
+        fighterBeltStatus={attackerStatus}
+        opponentBeltStatus={rivalStatus}
+        compact={compact}
+      />
       <p>{move.isSubmission ? `${move.name} finish: rival is forced to tap.` : `${move.name} changes the position to ${positionLabels[move.endsIn] ?? move.endsIn}.`}</p>
+    </div>
+  );
+}
+
+function GrapplePositionScene({ move, position, fighter, opponent, fighterBeltStatus, opponentBeltStatus, compact = false }) {
+  const positionKey = position ?? move?.endsIn ?? "standing";
+  const attackerPose = positionKey === "standing" || positionKey === "clinch" || positionKey === "scramble" ? getFighterPose(fighter) : "sambo";
+  const defenderPose = positionKey === "standing" || positionKey === "clinch" || positionKey === "scramble" ? getFighterPose(opponent) : "profile";
+
+  return (
+    <div className={`grapple-scene position-${positionKey} ${compact ? "compact" : ""}`}>
+      <FighterArt fighter={fighter} beltStatus={fighterBeltStatus} pose={attackerPose} className="grapple-fighter attacker" facing="right" />
+      <div className="impact-ring">
+        <strong>{move.category}</strong>
+        <span>{positionLabels[positionKey] ?? positionKey}</span>
+      </div>
+      <FighterArt fighter={opponent} beltStatus={opponentBeltStatus} pose={defenderPose} className="grapple-fighter defender" facing="left" />
+      {move.isSubmission ? <span className="tap-out">Tap</span> : null}
     </div>
   );
 }

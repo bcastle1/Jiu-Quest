@@ -659,6 +659,183 @@ main {
   clip-path: polygon(4% 66%, 12% 28%, 21% 50%, 32% 8%, 43% 43%, 54% 3%, 66% 41%, 78% 11%, 95% 62%, 80% 56%, 70% 86%, 59% 62%, 47% 96%, 34% 60%, 18% 84%);
 }
 
+.fighter-art {
+  position: relative;
+  display: block;
+  width: var(--fighter-w, 13rem);
+  height: var(--fighter-h, 26rem);
+  isolation: isolate;
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 1rem 1.25rem rgba(0, 0, 0, 0.38));
+}
+
+.fighter-art.facing-left {
+  transform: scaleX(-1);
+}
+
+.fighter-art-layer,
+.fighter-art-aura {
+  position: absolute;
+  inset: 0;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.fighter-art-aura {
+  inset: 8% 5% 2%;
+  z-index: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--aura) 52%, transparent), transparent 56%),
+    conic-gradient(from 20deg, transparent, color-mix(in srgb, var(--aura) 68%, transparent), transparent 33%, color-mix(in srgb, var(--aura) 44%, transparent), transparent 74%);
+  filter: blur(8px);
+  opacity: 0.58;
+}
+
+.fighter-art-base {
+  z-index: 1;
+  background-image: var(--fighter-src);
+}
+
+.fighter-art-tint {
+  z-index: 2;
+  opacity: 0.62;
+  mix-blend-mode: multiply;
+  -webkit-mask-position: center bottom;
+  mask-position: center bottom;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.fighter-art-skin {
+  background: var(--skin);
+  opacity: 0.48;
+  -webkit-mask-image: var(--skin-mask);
+  mask-image: var(--skin-mask);
+}
+
+.fighter-art-hair {
+  background: var(--hair);
+  opacity: 0.76;
+  mix-blend-mode: normal;
+  -webkit-mask-image: var(--hair-mask);
+  mask-image: var(--hair-mask);
+}
+
+.fighter-art-jacket {
+  background: var(--gi-top);
+  -webkit-mask-image: var(--jacket-mask);
+  mask-image: var(--jacket-mask);
+}
+
+.fighter-art-pants {
+  background: var(--gi-pants);
+  -webkit-mask-image: var(--pants-mask);
+  mask-image: var(--pants-mask);
+}
+
+.fighter-art-belt {
+  background: var(--belt-color);
+  opacity: 0.86;
+  -webkit-mask-image: var(--belt-mask);
+  mask-image: var(--belt-mask);
+}
+
+.fighter-art-detail {
+  z-index: 3;
+  background-image: var(--fighter-src);
+  opacity: 0.34;
+  mix-blend-mode: luminosity;
+}
+
+.fighter-art-emblem {
+  position: absolute;
+  z-index: 6;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 0.08rem 0.12rem rgba(0, 0, 0, 0.48));
+}
+
+.fighter-art-emblem.heart {
+  left: 56%;
+  top: 25%;
+  width: 12.5%;
+}
+
+.fighter-art-emblem.lower-leg {
+  left: 57%;
+  top: 77%;
+  width: 10.5%;
+}
+
+.fighter-art-emblem.pose-profile.heart {
+  left: 55%;
+  top: 24%;
+  width: 8.5%;
+}
+
+.fighter-art-emblem.pose-profile.lower-leg {
+  left: 66%;
+  top: 79%;
+  width: 7.8%;
+}
+
+.fighter-art-stripes {
+  position: absolute;
+  left: 58%;
+  top: 48.5%;
+  z-index: 7;
+  display: flex;
+  gap: 0.08rem;
+  transform: rotate(5deg);
+}
+
+.fighter-art-stripes i {
+  display: block;
+  width: 0.16rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  background: #111;
+}
+
+.profile-main-fighter {
+  width: 100%;
+  height: 100%;
+}
+
+.stance-reference-fighter {
+  --fighter-w: 100%;
+  --fighter-h: 10.5rem;
+}
+
+.duel-fighter {
+  --fighter-w: 5.2rem;
+  --fighter-h: 10.8rem;
+  align-self: end;
+  justify-self: center;
+}
+
+.mini-fighter {
+  --fighter-w: 4.8rem;
+  --fighter-h: 10rem;
+}
+
+.admin-npc-fighter {
+  --fighter-w: 5.6rem;
+  --fighter-h: 10.8rem;
+  justify-self: center;
+}
+
+.arena-fighter {
+  --fighter-w: min(18rem, 100%);
+  --fighter-h: 23rem;
+  align-self: end;
+  justify-self: center;
+}
+
 .avatar {
   position: relative;
   width: var(--avatar-w, 13rem);
@@ -1041,6 +1218,11 @@ main {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.emblem-mark.fighter-art-emblem {
+  height: auto;
+  aspect-ratio: 1;
 }
 
 .patch .emblem-mark {
@@ -1543,7 +1725,8 @@ main {
   line-height: 1.05;
 }
 
-.stance-reference-card img {
+.stance-reference-card img,
+.stance-reference-card .fighter-art {
   width: 100%;
   height: 10.5rem;
   object-fit: contain;
@@ -1889,6 +2072,167 @@ main {
   padding: 0.5rem;
 }
 
+.grapple-scene {
+  position: relative;
+  min-height: 20rem;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 28% 58%, color-mix(in srgb, var(--violet) 24%, transparent), transparent 18rem),
+    radial-gradient(circle at 70% 48%, rgba(255, 69, 79, 0.18), transparent 16rem),
+    rgba(5, 8, 14, 0.62);
+}
+
+.grapple-scene.compact {
+  min-height: 10rem;
+}
+
+.mat-window.result-mode {
+  display: block;
+  padding: 0;
+}
+
+.mat-window.result-mode .grapple-scene {
+  min-height: 27rem;
+}
+
+.grapple-fighter {
+  position: absolute;
+  z-index: 2;
+  --fighter-w: 12rem;
+  --fighter-h: 20rem;
+}
+
+.grapple-scene.compact .grapple-fighter {
+  --fighter-w: 6.2rem;
+  --fighter-h: 10rem;
+}
+
+.grapple-scene .impact-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+}
+
+.position-standing .attacker,
+.position-kneeling .attacker,
+.position-scramble .attacker,
+.position-clinch .attacker {
+  left: 13%;
+  bottom: 1rem;
+}
+
+.position-standing .defender,
+.position-kneeling .defender,
+.position-scramble .defender,
+.position-clinch .defender {
+  right: 13%;
+  bottom: 1rem;
+  transform: scaleX(-1);
+}
+
+.position-clinch .attacker {
+  left: 28%;
+}
+
+.position-clinch .defender {
+  right: 28%;
+}
+
+.position-mount-top .attacker,
+.position-mount-bottom .defender {
+  left: 45%;
+  bottom: 2.3rem;
+  z-index: 4;
+  transform: translateX(-50%) rotate(-7deg) scale(0.86);
+}
+
+.position-mount-top .defender,
+.position-mount-bottom .attacker {
+  left: 54%;
+  bottom: -1.1rem;
+  z-index: 2;
+  transform: translateX(-50%) rotate(82deg) scale(0.74);
+  opacity: 0.9;
+}
+
+.position-guard-top .attacker,
+.position-side-top .attacker {
+  left: 41%;
+  bottom: 0.8rem;
+  z-index: 4;
+  transform: translateX(-50%) rotate(-17deg) scale(0.82);
+}
+
+.position-guard-top .defender,
+.position-side-top .defender {
+  left: 58%;
+  bottom: -0.8rem;
+  z-index: 2;
+  transform: translateX(-50%) rotate(64deg) scale(0.76);
+  opacity: 0.9;
+}
+
+.position-guard-bottom .attacker,
+.position-side-bottom .attacker {
+  left: 42%;
+  bottom: -0.8rem;
+  z-index: 2;
+  transform: translateX(-50%) rotate(64deg) scale(0.76);
+}
+
+.position-guard-bottom .defender,
+.position-side-bottom .defender {
+  left: 58%;
+  bottom: 0.8rem;
+  z-index: 4;
+  transform: translateX(-50%) rotate(-17deg) scaleX(-1) scale(0.82);
+}
+
+.position-back-control .attacker {
+  left: 43%;
+  bottom: 1.6rem;
+  z-index: 4;
+  transform: translateX(-50%) scale(0.9);
+}
+
+.position-back-control .defender {
+  left: 56%;
+  bottom: 0.2rem;
+  z-index: 3;
+  transform: translateX(-50%) scale(0.82);
+  opacity: 0.92;
+}
+
+.position-headlock .attacker {
+  left: 40%;
+  bottom: 1rem;
+  z-index: 4;
+  transform: translateX(-50%) rotate(-12deg) scale(0.86);
+}
+
+.position-headlock .defender {
+  left: 58%;
+  bottom: 0.1rem;
+  z-index: 3;
+  transform: translateX(-50%) rotate(18deg) scaleX(-1) scale(0.82);
+}
+
+.tap-out {
+  position: absolute;
+  right: 1rem;
+  top: 1rem;
+  z-index: 6;
+  border: 1px solid rgba(255, 69, 79, 0.55);
+  border-radius: 999px;
+  padding: 0.45rem 0.75rem;
+  color: #fff;
+  background: rgba(255, 69, 79, 0.3);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .impact-ring {
   align-self: center;
   display: grid;
@@ -2184,9 +2528,14 @@ main {
 
 .progress-hero {
   display: grid;
+  grid-template-columns: minmax(18rem, 26rem) 1fr;
   gap: 1rem;
   align-items: center;
   padding: 1rem;
+}
+
+.progress-profile-art {
+  min-height: 34rem;
 }
 
 .belt-roadmap {
@@ -2393,7 +2742,7 @@ input[type="range"] {
 
 .npc-editor {
   display: grid;
-  grid-template-columns: auto minmax(9rem, 1fr) 9rem 4.5rem minmax(7rem, 1fr) auto auto auto;
+  grid-template-columns: 6.4rem minmax(9rem, 1fr) 9rem 4.5rem minmax(7rem, 1fr) auto auto auto;
   gap: 0.55rem;
   align-items: center;
   margin-top: 0.65rem;
@@ -2401,6 +2750,7 @@ input[type="range"] {
   border-radius: var(--radius);
   padding: 0.65rem;
   background: rgba(7, 13, 24, 0.64);
+  min-height: 9.5rem;
 }
 
 .deploy-admin {
@@ -2642,6 +2992,10 @@ input[type="range"] {
     grid-template-columns: auto 1fr;
   }
 
+  .progress-hero {
+    grid-template-columns: 1fr;
+  }
+
   .npc-editor {
     grid-template-columns: auto 1fr;
   }
@@ -2765,7 +3119,8 @@ input[type="range"] {
     padding: 0.58rem;
   }
 
-  .stance-reference-card img {
+  .stance-reference-card img,
+  .stance-reference-card .fighter-art {
     height: 8rem;
   }
 
