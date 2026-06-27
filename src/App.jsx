@@ -616,9 +616,10 @@ function Dashboard({
         </button>
       </aside>
 
-      <section className="hero-stage">
-        <div className="dojo-backdrop" />
-        <Avatar fighter={fighter} beltStatus={beltStatus} size="hero" />
+      <section className="dashboard-center">
+        <div className="hero-stage">
+          <div className="dojo-backdrop" />
+        </div>
         <div className="mode-cards">
           <button className="mode-card skill" onClick={() => setView("training")}>
             <span className="mode-mark">△</span>

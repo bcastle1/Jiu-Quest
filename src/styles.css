@@ -359,17 +359,23 @@ main {
   background: rgba(151, 164, 201, 0.14);
 }
 
+.dashboard-center {
+  display: grid;
+  gap: 1rem;
+  align-self: start;
+}
+
 .hero-stage {
   position: relative;
   align-self: start;
-  height: min(44rem, calc(100vh - 8rem));
-  min-height: 37rem;
+  height: min(34rem, calc(100vh - 17rem));
+  min-height: 28rem;
   overflow: hidden;
   border: 1px solid rgba(139, 92, 255, 0.28);
   border-radius: var(--radius);
   background:
     linear-gradient(180deg, rgba(4, 8, 16, 0.16), rgba(4, 8, 16, 0.82)),
-    url("/assets/jiuquest-concept.png") center / cover no-repeat;
+    url("/assets/jiuquest-concept.png") 40% 24% / auto 150% no-repeat;
   box-shadow: var(--shadow);
 }
 
@@ -382,10 +388,6 @@ main {
 }
 
 .mode-cards {
-  position: absolute;
-  left: 4%;
-  right: 4%;
-  bottom: 9rem;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
@@ -396,7 +398,7 @@ main {
   grid-template-columns: auto 1fr auto;
   gap: 1rem;
   align-items: center;
-  min-height: 8.2rem;
+  min-height: 7.5rem;
   border-radius: var(--radius);
   padding: 1rem 1.25rem;
   text-align: left;
@@ -2201,9 +2203,7 @@ input[type="range"] {
 
 @media (max-width: 1500px) {
   .mode-cards {
-    grid-template-columns: 1fr;
-    left: 1rem;
-    right: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
   }
 
   .mode-card {
@@ -2271,16 +2271,7 @@ input[type="range"] {
   }
 
   .hero-stage {
-    min-height: 42rem;
-  }
-
-  .avatar-hero {
-    left: 50%;
-    top: 5%;
-  }
-
-  .mode-cards {
-    grid-template-columns: 1fr;
+    min-height: 34rem;
   }
 
   .form-grid,
@@ -2346,13 +2337,8 @@ input[type="range"] {
   }
 
   .hero-stage {
-    min-height: 39rem;
-  }
-
-  .avatar-hero {
-    --avatar-w: 13rem;
-    --avatar-h: 27rem;
-    top: 7%;
+    height: min(28rem, calc(100vh - 18rem));
+    min-height: 24rem;
   }
 
   .avatar-profile {
