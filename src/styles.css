@@ -3263,15 +3263,96 @@ input[type="range"] {
 
 .npc-editor {
   display: grid;
-  grid-template-columns: 6.4rem minmax(9rem, 1fr) 9rem 4.5rem minmax(7rem, 1fr) auto auto auto;
-  gap: 0.55rem;
-  align-items: center;
+  grid-template-columns: 7rem minmax(0, 1fr) 2.6rem;
+  gap: 0.8rem;
+  align-items: start;
   margin-top: 0.65rem;
   border: 1px solid rgba(151, 164, 201, 0.16);
   border-radius: var(--radius);
-  padding: 0.65rem;
+  padding: 0.75rem;
   background: rgba(7, 13, 24, 0.64);
-  min-height: 9.5rem;
+  min-height: 11.5rem;
+}
+
+.npc-preview-card {
+  display: grid;
+  min-height: 10.5rem;
+  place-items: center;
+  border-radius: calc(var(--radius) - 0.25rem);
+  background: radial-gradient(circle at 50% 26%, rgba(139, 92, 255, 0.2), rgba(69, 163, 255, 0.1), rgba(3, 7, 13, 0.35) 70%);
+  overflow: hidden;
+}
+
+.npc-admin-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(8.5rem, 1fr));
+  gap: 0.65rem;
+  align-items: end;
+  min-width: 0;
+}
+
+.npc-field {
+  display: grid;
+  gap: 0.32rem;
+  min-width: 0;
+}
+
+.npc-field > span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.npc-field input,
+.npc-field select {
+  min-width: 0;
+  min-height: 2.45rem;
+  padding: 0.55rem 0.65rem;
+}
+
+.npc-field-wide {
+  grid-column: span 2;
+}
+
+.npc-field .image-select {
+  width: 100%;
+}
+
+.npc-field .image-select-trigger {
+  min-height: 3.95rem;
+}
+
+.npc-field .image-select-menu {
+  z-index: 42;
+}
+
+.npc-swatch-field .tiny-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-content: center;
+  min-height: 2.45rem;
+}
+
+.npc-swatch-field .tiny-swatches button {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.npc-difficulty-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.npc-difficulty-label strong {
+  color: var(--gold);
+}
+
+.npc-delete {
+  justify-self: end;
 }
 
 .deploy-admin {
@@ -3542,7 +3623,19 @@ input[type="range"] {
   }
 
   .npc-editor {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 6.4rem minmax(0, 1fr);
+  }
+
+  .npc-admin-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .npc-field-wide {
+    grid-column: span 2;
+  }
+
+  .npc-delete {
+    grid-column: 1 / -1;
   }
 
   .source-reference-list,
@@ -3582,6 +3675,16 @@ input[type="range"] {
 
   .player-track-select {
     min-width: 0;
+  }
+
+  .npc-editor,
+  .npc-admin-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .npc-field-wide,
+  .npc-delete {
+    grid-column: auto;
   }
 
   .fighter-rail,

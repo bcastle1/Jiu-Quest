@@ -324,6 +324,13 @@ function App() {
   }, [selectedMove, trainingOrder.length]);
 
   useEffect(() => {
+    setCombat((current) => {
+      const nextNpc = store.npcs.find((npc) => npc.id === current.npc?.id) ?? store.npcs[0];
+      return nextNpc && nextNpc !== current.npc ? { ...current, npc: nextNpc } : current;
+    });
+  }, [store.npcs]);
+
+  useEffect(() => {
     if (!musicOn) {
       stopAudio(audioRef);
       return;
@@ -1202,9 +1209,8 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
     acc[move.belt] = [...(acc[move.belt] ?? []), move];
     return acc;
   }, {});
-  const combatStarted = combat.active || combat.phase === "ordering" || combat.phase === "selecting" || combat.round > 1;
-  const playerPose = combatStarted ? getFighterPose(fighter) : "profile";
-  const npcPose = combatStarted ? getFighterPose(combat.npc) : "profile";
+  const playerPose = getFighterPose(fighter);
+  const npcPose = getFighterPose(combat.npc);
   const arenaKey = combat.arenaKey ?? "studio";
   const arenaLabel = arenaSceneLabels[arenaKey] ?? arenaSceneLabels.studio;
 
@@ -1600,42 +1606,137 @@ function AdminPanel({ store, setStore, setView }) {
         </div>
         {store.npcs.map((npc) => (
           <div className="npc-editor" key={npc.id}>
-            <FighterArt
-              fighter={npc}
-              beltStatus={{ belt: npc.belt, stripes: npc.stripes }}
-              pose={getFighterPose(npc)}
-              className="admin-npc-fighter"
-            />
-            <input value={npc.name} onChange={(event) => updateNpc(npc.id, { name: event.target.value })} />
-            <select value={npc.belt} onChange={(event) => updateNpc(npc.id, { belt: event.target.value })}>
-              {BELTS.map((belt) => (
-                <option key={belt} value={belt}>
-                  {beltLabels[belt]}
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min="0"
-              max="4"
-              value={npc.stripes}
-              onChange={(event) => updateNpc(npc.id, { stripes: Number(event.target.value) })}
-              aria-label="NPC stripes"
-            />
-            <input
-              type="range"
-              min="20"
-              max="98"
-              value={npc.difficulty}
-              onChange={(event) => updateNpc(npc.id, { difficulty: Number(event.target.value) })}
-              aria-label="NPC difficulty"
-            />
-            <SwatchInput value={npc.giTop} onChange={(giTop) => updateNpc(npc.id, { giTop })} />
-            <SwatchInput value={npc.giPants} onChange={(giPants) => updateNpc(npc.id, { giPants })} />
+            <div className="npc-preview-card">
+              <FighterArt
+                fighter={npc}
+                beltStatus={{ belt: npc.belt, stripes: npc.stripes }}
+                pose={getFighterPose(npc)}
+                className="admin-npc-fighter"
+              />
+            </div>
+            <div className="npc-admin-fields">
+              <label className="npc-field">
+                <span>Name</span>
+                <input value={npc.name} onChange={(event) => updateNpc(npc.id, { name: event.target.value })} />
+              </label>
+              <label className="npc-field">
+                <span>Country</span>
+                <select value={npc.country ?? "United States"} onChange={(event) => updateNpc(npc.id, { country: event.target.value })}>
+                  {customizationOptions.countries.map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="npc-field">
+                <span>Belt</span>
+                <select value={npc.belt} onChange={(event) => updateNpc(npc.id, { belt: event.target.value })}>
+                  {BELTS.map((belt) => (
+                    <option key={belt} value={belt}>
+                      {beltLabels[belt]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="npc-field">
+                <span>Stripes</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="4"
+                  value={npc.stripes}
+                  onChange={(event) => updateNpc(npc.id, { stripes: Math.max(0, Math.min(4, Number(event.target.value) || 0)) })}
+                  aria-label="NPC stripes"
+                />
+              </label>
+              <div className="npc-field npc-field-wide">
+                <span>Fighting Stance</span>
+                <ImageSelect
+                  compact
+                  value={npc.stance ?? customizationOptions.stances[0]}
+                  options={customizationOptions.stances}
+                  onChange={(stance) => updateNpc(npc.id, { stance })}
+                  getImage={(stance) => stanceArt[stance] ?? stanceArt["wrestling stance"]}
+                  getLabel={(stance) => titleCase(stance)}
+                  getMeta={(stance) => stanceCopy[stance]}
+                />
+              </div>
+              <label className="npc-field">
+                <span>Gender</span>
+                <select value={npc.gender ?? "boy"} onChange={(event) => updateNpc(npc.id, { gender: event.target.value })}>
+                  {customizationOptions.genders.map((gender) => (
+                    <option key={gender} value={gender}>
+                      {gender}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="npc-field">
+                <span>Hair Style</span>
+                <select value={npc.hairStyle ?? "shadow spikes"} onChange={(event) => updateNpc(npc.id, { hairStyle: event.target.value })}>
+                  {customizationOptions.hairStyles.map((style) => (
+                    <option key={style} value={style}>
+                      {style}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="npc-field">
+                <span>Aura</span>
+                <select value={npc.aura ?? "void violet"} onChange={(event) => updateNpc(npc.id, { aura: event.target.value })}>
+                  {customizationOptions.auras.map((aura) => (
+                    <option key={aura} value={aura}>
+                      {aura}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="npc-field">
+                <span>Patch</span>
+                <select value={npc.emblem ?? "triangle"} onChange={(event) => updateNpc(npc.id, { emblem: event.target.value })}>
+                  {customizationOptions.emblems.map((emblem) => (
+                    <option key={emblem} value={emblem}>
+                      {emblem}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="npc-field npc-swatch-field">
+                <span>Skin</span>
+                <SwatchInput options={customizationOptions.skinTones} value={npc.skinTone} onChange={(skinTone) => updateNpc(npc.id, { skinTone })} label="NPC skin tone" />
+              </div>
+              <div className="npc-field npc-swatch-field">
+                <span>Hair</span>
+                <SwatchInput options={customizationOptions.hairColors} value={npc.hairColor} onChange={(hairColor) => updateNpc(npc.id, { hairColor })} label="NPC hair color" />
+              </div>
+              <div className="npc-field npc-swatch-field">
+                <span>Gi Jacket</span>
+                <SwatchInput options={customizationOptions.giColors} value={npc.giTop} onChange={(giTop) => updateNpc(npc.id, { giTop })} label="NPC gi jacket" />
+              </div>
+              <div className="npc-field npc-swatch-field">
+                <span>Gi Pants</span>
+                <SwatchInput options={customizationOptions.giColors} value={npc.giPants} onChange={(giPants) => updateNpc(npc.id, { giPants })} label="NPC gi pants" />
+              </div>
+              <label className="npc-field npc-field-wide">
+                <span className="npc-difficulty-label">
+                  Difficulty <strong>{npc.difficulty}</strong>
+                </span>
+                <input
+                  type="range"
+                  min="20"
+                  max="98"
+                  value={npc.difficulty}
+                  onChange={(event) => updateNpc(npc.id, { difficulty: Number(event.target.value) })}
+                  aria-label="NPC difficulty"
+                />
+              </label>
+            </div>
             <button
-              className="icon-button"
+              className="icon-button npc-delete"
               onClick={() => setStore((current) => ({ ...current, npcs: current.npcs.filter((item) => item.id !== npc.id) }))}
               disabled={store.npcs.length <= 1}
+              aria-label={`Delete ${npc.name}`}
             >
               <Trash2 size={16} />
             </button>
@@ -2120,17 +2221,34 @@ function TechniqueSnapshot({ move, fighter, opponent, compact = false, fighterBe
 
 function GrapplePositionScene({ move, position, fighter, opponent, fighterBeltStatus, opponentBeltStatus, compact = false, arenaKey = "studio" }) {
   const positionKey = position ?? move?.endsIn ?? "standing";
-  const attackerPose = positionKey === "standing" || positionKey === "clinch" || positionKey === "scramble" ? getFighterPose(fighter) : "sambo";
-  const defenderPose = positionKey === "standing" || positionKey === "clinch" || positionKey === "scramble" ? getFighterPose(opponent) : "profile";
+  const isStanceScene = positionKey === "standing" || positionKey === "kneeling" || positionKey === "clinch" || positionKey === "scramble";
+  const attackerPose = isStanceScene ? getFighterPose(fighter) : "sambo";
+  const defenderPose = isStanceScene ? getFighterPose(opponent) : "profile";
 
   return (
     <div className={`grapple-scene arena-${arenaKey} position-${positionKey} ${compact ? "compact" : ""}`}>
-      <FighterArt fighter={fighter} beltStatus={fighterBeltStatus} pose={attackerPose} className="grapple-fighter attacker" facing="right" />
+      <FighterArt
+        fighter={fighter}
+        beltStatus={fighterBeltStatus}
+        pose={attackerPose}
+        className="grapple-fighter attacker"
+        facing="right"
+        showPatches={isStanceScene}
+        showPatchCovers={isStanceScene}
+      />
       <div className="impact-ring">
         <strong>{move.category}</strong>
         <span>{positionLabels[positionKey] ?? positionKey}</span>
       </div>
-      <FighterArt fighter={opponent} beltStatus={opponentBeltStatus} pose={defenderPose} className="grapple-fighter defender" facing="left" />
+      <FighterArt
+        fighter={opponent}
+        beltStatus={opponentBeltStatus}
+        pose={defenderPose}
+        className="grapple-fighter defender"
+        facing="left"
+        showPatches={isStanceScene}
+        showPatchCovers={isStanceScene}
+      />
       {move.isSubmission ? <span className="tap-out">Tap</span> : null}
     </div>
   );
@@ -2263,16 +2381,17 @@ function Swatches({ label, value, options, onChange }) {
   );
 }
 
-function SwatchInput({ value, onChange }) {
+function SwatchInput({ value, onChange, options = customizationOptions.giColors, label = "Set color" }) {
   return (
     <span className="tiny-swatches">
-      {customizationOptions.giColors.map((option) => (
+      {options.map((option) => (
         <button
           key={option}
+          type="button"
           className={value === option ? "active" : ""}
           style={{ background: option }}
           onClick={() => onChange(option)}
-          aria-label={`Set color ${option}`}
+          aria-label={`${label} ${option}`}
         />
       ))}
     </span>
