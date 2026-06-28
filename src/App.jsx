@@ -118,6 +118,13 @@ const showcaseFighters = [
   { src: "/assets/showcase/challenger-5.png", label: "Gold Hunter" },
 ];
 
+const techniqueArtwork = {
+  guard: { src: "/assets/techniques/guard-position.png", label: "Guard Position" },
+  headlock: { src: "/assets/techniques/headlock-position.png", label: "Headlock Position" },
+  mount: { src: "/assets/techniques/mount-position.png", label: "Mount Position" },
+  rearChoke: { src: "/assets/techniques/rear-choke-position.png", label: "Rear Choke Position" },
+};
+
 const emblemAssets = {
   none: "/assets/emblems/none.png",
   triangle: "/assets/emblems/triangle.png",
@@ -234,6 +241,26 @@ function titleCase(value = "") {
 
 function getFighterPose(fighter, fallback = "profile") {
   return stancePose[fighter?.stance] ?? stancePose["wrestling stance"] ?? fallback;
+}
+
+function techniqueArtworkForMove(move) {
+  if (!move) return null;
+  const text = `${move.id} ${move.name} ${move.lesson} ${move.category} ${move.phase}`.toLowerCase();
+  const positions = [...(move.starts ?? []), ...(move.good ?? []), move.endsIn ?? ""].join(" ").toLowerCase();
+
+  if (text.includes("headlock") || positions.includes("headlock")) {
+    return techniqueArtwork.headlock;
+  }
+  if (move.id === "rear-naked-choke" || text.includes("rear naked choke") || positions.includes("back-control")) {
+    return techniqueArtwork.rearChoke;
+  }
+  if (positions.includes("mount") || text.includes("mount")) {
+    return techniqueArtwork.mount;
+  }
+  if (positions.includes("guard") || text.includes("guard")) {
+    return techniqueArtwork.guard;
+  }
+  return null;
 }
 
 function chooseArenaKey(belt = "white") {
@@ -2230,18 +2257,11 @@ function TechniqueSnapshot({ move, fighter, opponent, compact = false, fighterBe
   };
   const attackerStatus = fighterBeltStatus ?? { belt: fighter.belt ?? "white", stripes: fighter.stripes ?? 0 };
   const rivalStatus = opponentBeltStatus ?? { belt: rival.belt ?? "white", stripes: rival.stripes ?? 0 };
+  const artwork = techniqueArtworkForMove(move);
   return (
     <div className={`technique-snapshot ${compact ? "compact" : ""} ${move.category} technique-${move.id}`}>
-      {move.id === "rear-naked-choke" ? (
-        <RearChokeScene
-          move={move}
-          fighter={fighter}
-          opponent={rival}
-          fighterBeltStatus={attackerStatus}
-          opponentBeltStatus={rivalStatus}
-          compact={compact}
-          arenaKey={arenaKey}
-        />
+      {artwork ? (
+        <TechniqueArtworkScene artwork={artwork} move={move} compact={compact} />
       ) : (
         <GrapplePositionScene
           move={move}
@@ -2255,6 +2275,18 @@ function TechniqueSnapshot({ move, fighter, opponent, compact = false, fighterBe
         />
       )}
       <p>{move.isSubmission ? `${move.name} finish: rival is forced to tap.` : `${move.name} changes the position to ${positionLabels[move.endsIn] ?? move.endsIn}.`}</p>
+    </div>
+  );
+}
+
+function TechniqueArtworkScene({ artwork, move, compact = false }) {
+  return (
+    <div className={`technique-art-scene ${compact ? "compact" : ""}`}>
+      <img src={artwork.src} alt={`${move.name} - ${artwork.label}`} />
+      <span className="technique-art-badge">
+        <strong>{move.category}</strong>
+        <small>{artwork.label}</small>
+      </span>
     </div>
   );
 }
