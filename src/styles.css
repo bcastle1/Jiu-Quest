@@ -718,54 +718,41 @@ main {
 
 .mini-portrait {
   position: relative;
-  display: grid;
   width: 3.6rem;
   height: 3.6rem;
-  place-items: center;
+  flex: 0 0 auto;
   overflow: hidden;
   border: 1px solid rgba(139, 92, 255, 0.46);
   border-radius: var(--radius);
   background:
-    radial-gradient(circle at 50% 18%, rgba(139, 92, 255, 0.42), transparent 42%),
+    radial-gradient(circle at 50% 16%, rgba(246, 198, 91, 0.22), transparent 24%),
+    radial-gradient(circle at 50% 36%, color-mix(in srgb, var(--portrait-aura) 46%, transparent), transparent 54%),
     linear-gradient(140deg, rgba(6, 12, 22, 0.95), rgba(19, 32, 54, 0.92));
 }
 
-.mini-portrait span {
-  position: relative;
-  width: 62%;
-  height: 88%;
-  filter: drop-shadow(0 0.45rem 0.55rem rgba(0, 0, 0, 0.42));
+.mini-portrait-crop {
+  position: absolute;
+  inset: 0;
+  background-image: var(--portrait-src);
+  background-position: center -0.4rem;
+  background-repeat: no-repeat;
+  background-size: 150% auto;
+  filter:
+    drop-shadow(0 0.3rem 0.45rem rgba(0, 0, 0, 0.55))
+    brightness(1.08)
+    contrast(1.06);
 }
 
-.mini-portrait span::before,
-.mini-portrait span::after {
+.mini-portrait::after {
   content: "";
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.mini-portrait span::before {
-  top: 8%;
-  width: 48%;
-  height: 34%;
-  border-radius: 48% 48% 54% 54%;
+  inset: 0;
+  border-radius: inherit;
   background:
-    linear-gradient(120deg, rgba(255, 255, 255, 0.22), transparent 45%),
-    var(--skin);
-  box-shadow:
-    0 0 0 1px rgba(10, 12, 18, 0.18),
-    0 1.35rem 0 -0.42rem var(--gi-top),
-    0 1.7rem 0 0.1rem color-mix(in srgb, var(--gi-top) 82%, #07101d);
-}
-
-.mini-portrait span::after {
-  top: 0;
-  width: 72%;
-  height: 30%;
-  border-radius: 56% 58% 30% 30%;
-  background: var(--hair);
-  clip-path: polygon(4% 66%, 12% 28%, 21% 50%, 32% 8%, 43% 43%, 54% 3%, 66% 41%, 78% 11%, 95% 62%, 80% 56%, 70% 86%, 59% 62%, 47% 96%, 34% 60%, 18% 84%);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.18), transparent 38%),
+    radial-gradient(circle at 50% 18%, transparent 0 48%, rgba(5, 8, 14, 0.24) 80%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  pointer-events: none;
 }
 
 .fighter-art {
@@ -2532,7 +2519,8 @@ main {
   --arena-lights: radial-gradient(circle at 78% 18%, rgba(210,235,255,0.2), transparent 12rem);
 }
 
-.grapple-scene {
+.grapple-scene,
+.rear-choke-scene {
   position: relative;
   min-height: 20rem;
   overflow: hidden;
@@ -2540,6 +2528,7 @@ main {
 }
 
 .grapple-scene::before,
+.rear-choke-scene::before,
 .mat-window::before {
   content: "";
   position: absolute;
@@ -2552,6 +2541,7 @@ main {
 }
 
 .grapple-scene::after,
+.rear-choke-scene::after,
 .mat-window::after {
   content: "";
   position: absolute;
@@ -2622,6 +2612,100 @@ main {
   top: 50%;
   z-index: 5;
   transform: translate(-50%, -50%);
+}
+
+.rear-choke-scene .impact-ring {
+  position: absolute;
+  left: 51%;
+  top: 44%;
+  z-index: 7;
+  transform: translate(-50%, -50%);
+}
+
+.rear-choke-fighter {
+  position: absolute;
+  z-index: 3;
+  --fighter-w: 12.2rem;
+  --fighter-h: 24rem;
+}
+
+.rear-choke-attacker {
+  left: 36%;
+  bottom: -1rem;
+  z-index: 3;
+  filter:
+    drop-shadow(0 1rem 1.25rem rgba(0, 0, 0, 0.48))
+    drop-shadow(0 0 1.3rem color-mix(in srgb, var(--aura) 36%, transparent));
+}
+
+.rear-choke-defender {
+  left: 48%;
+  bottom: -1.5rem;
+  z-index: 4;
+  transform: scaleX(-1) scale(0.95);
+  opacity: 0.96;
+}
+
+.rear-choke-arm {
+  position: absolute;
+  z-index: 6;
+  height: 0.72rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--attacker-skin) 76%, #ffffff), var(--attacker-skin) 62%, color-mix(in srgb, var(--attacker-skin) 70%, #29150c));
+  box-shadow:
+    0 0.14rem 0.22rem rgba(0, 0, 0, 0.42),
+    inset 0 0.08rem 0 rgba(255, 255, 255, 0.24);
+}
+
+.rear-choke-arm.choking-arm {
+  left: 45%;
+  top: 38.5%;
+  width: 8.9rem;
+  transform: rotate(-8deg);
+}
+
+.rear-choke-arm.support-arm {
+  left: 48%;
+  top: 43.2%;
+  width: 6.2rem;
+  transform: rotate(18deg);
+}
+
+.rear-choke-scene .tap-out {
+  right: 1.15rem;
+  top: 1.15rem;
+}
+
+.rear-choke-scene.compact {
+  min-height: 10rem;
+}
+
+.rear-choke-scene.compact .rear-choke-fighter {
+  --fighter-w: 6.2rem;
+  --fighter-h: 12.2rem;
+}
+
+.rear-choke-scene.compact .rear-choke-attacker {
+  left: 34%;
+  bottom: -0.6rem;
+}
+
+.rear-choke-scene.compact .rear-choke-defender {
+  left: 51%;
+  bottom: -0.85rem;
+}
+
+.rear-choke-scene.compact .rear-choke-arm.choking-arm {
+  left: 42%;
+  top: 39%;
+  width: 4.7rem;
+}
+
+.rear-choke-scene.compact .rear-choke-arm.support-arm {
+  left: 46%;
+  top: 44%;
+  width: 3.6rem;
 }
 
 .position-standing .attacker,

@@ -728,7 +728,7 @@ function Header({
         <span>JiuQuest</span>
       </button>
       <label className="fighter-select">
-        <MiniPortrait fighter={fighter} />
+        <MiniPortrait fighter={fighter} beltStatus={beltStatus} />
         <span>
           <strong>{fighter.name}</strong>
           <small>{beltLabels[beltStatus.belt]}</small>
@@ -821,7 +821,7 @@ function Dashboard({
               className={`fighter-slot ${item.id === fighter.id ? "selected" : ""}`}
               onClick={() => setStore((current) => ({ ...current, selectedFighterId: item.id }))}
             >
-              <MiniPortrait fighter={item} />
+              <MiniPortrait fighter={item} beltStatus={getBeltStatus(item)} />
               <span>
                 <strong>{item.name}</strong>
                 <small>{beltLabels[getBeltStatus(item).belt]}</small>
@@ -933,9 +933,17 @@ function Dashboard({
         <div className="panel combat-card">
           <h2>Combat Arena</h2>
           <div className="versus-preview">
-            <FighterArt fighter={fighter} beltStatus={beltStatus} pose="profile" className="duel-fighter" facing="right" />
+            <FighterArt fighter={fighter} beltStatus={beltStatus} pose="profile" className="duel-fighter" facing="right" showPatches={false} showPatchCovers={false} />
             <span>VS</span>
-            <FighterArt fighter={npcs[0]} beltStatus={{ belt: npcs[0].belt, stripes: npcs[0].stripes }} pose="profile" className="duel-fighter" facing="left" />
+            <FighterArt
+              fighter={npcs[0]}
+              beltStatus={{ belt: npcs[0].belt, stripes: npcs[0].stripes }}
+              pose="profile"
+              className="duel-fighter"
+              facing="left"
+              showPatches={false}
+              showPatchCovers={false}
+            />
           </div>
           <button
             className="danger-button full"
@@ -1241,11 +1249,27 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
             />
           ) : (
             <>
-              <FighterArt fighter={fighter} beltStatus={beltStatus} pose={playerPose} className="arena-fighter" facing="right" />
+              <FighterArt
+                fighter={fighter}
+                beltStatus={beltStatus}
+                pose={playerPose}
+                className="arena-fighter"
+                facing="right"
+                showPatches={false}
+                showPatchCovers={false}
+              />
               <div className="mat-center">
                 <span className="versus-burst">VS</span>
               </div>
-              <FighterArt fighter={combat.npc} beltStatus={{ belt: combat.npc.belt, stripes: combat.npc.stripes }} pose={npcPose} className="arena-fighter" facing="left" />
+              <FighterArt
+                fighter={combat.npc}
+                beltStatus={{ belt: combat.npc.belt, stripes: combat.npc.stripes }}
+                pose={npcPose}
+                className="arena-fighter"
+                facing="left"
+                showPatches={false}
+                showPatchCovers={false}
+              />
             </>
           )}
         </div>
@@ -2160,10 +2184,14 @@ function Avatar({ fighter, beltStatus, size = "profile", facing = "front" }) {
   );
 }
 
-function MiniPortrait({ fighter }) {
+function MiniPortrait({ fighter, beltStatus }) {
   return (
-    <span className="mini-portrait" style={{ "--skin": fighter.skinTone, "--hair": fighter.hairColor, "--gi-top": fighter.giTop }}>
-      <span />
+    <span
+      className="mini-portrait"
+      style={{ "--portrait-src": `url("${profileArt}")`, "--portrait-aura": auraColors[fighter.aura] ?? "#8a5cff" }}
+      aria-label={`${fighter.name} portrait`}
+    >
+      <span className="mini-portrait-crop" />
     </span>
   );
 }
@@ -2203,18 +2231,63 @@ function TechniqueSnapshot({ move, fighter, opponent, compact = false, fighterBe
   const attackerStatus = fighterBeltStatus ?? { belt: fighter.belt ?? "white", stripes: fighter.stripes ?? 0 };
   const rivalStatus = opponentBeltStatus ?? { belt: rival.belt ?? "white", stripes: rival.stripes ?? 0 };
   return (
-    <div className={`technique-snapshot ${compact ? "compact" : ""} ${move.category}`}>
-      <GrapplePositionScene
-        move={move}
-        position={move.endsIn}
-        fighter={fighter}
-        opponent={rival}
-        fighterBeltStatus={attackerStatus}
-        opponentBeltStatus={rivalStatus}
-        compact={compact}
-        arenaKey={arenaKey}
-      />
+    <div className={`technique-snapshot ${compact ? "compact" : ""} ${move.category} technique-${move.id}`}>
+      {move.id === "rear-naked-choke" ? (
+        <RearChokeScene
+          move={move}
+          fighter={fighter}
+          opponent={rival}
+          fighterBeltStatus={attackerStatus}
+          opponentBeltStatus={rivalStatus}
+          compact={compact}
+          arenaKey={arenaKey}
+        />
+      ) : (
+        <GrapplePositionScene
+          move={move}
+          position={move.endsIn}
+          fighter={fighter}
+          opponent={rival}
+          fighterBeltStatus={attackerStatus}
+          opponentBeltStatus={rivalStatus}
+          compact={compact}
+          arenaKey={arenaKey}
+        />
+      )}
       <p>{move.isSubmission ? `${move.name} finish: rival is forced to tap.` : `${move.name} changes the position to ${positionLabels[move.endsIn] ?? move.endsIn}.`}</p>
+    </div>
+  );
+}
+
+function RearChokeScene({ move, fighter, opponent, fighterBeltStatus, opponentBeltStatus, compact = false, arenaKey = "studio" }) {
+  return (
+    <div
+      className={`rear-choke-scene arena-${arenaKey} ${compact ? "compact" : ""}`}
+      style={{ "--attacker-skin": fighter.skinTone ?? "#d99b71" }}
+    >
+      <FighterArt
+        fighter={fighter}
+        beltStatus={fighterBeltStatus}
+        pose="profile"
+        className="rear-choke-fighter rear-choke-attacker"
+        showPatches={false}
+        showPatchCovers={false}
+      />
+      <FighterArt
+        fighter={opponent}
+        beltStatus={opponentBeltStatus}
+        pose="profile"
+        className="rear-choke-fighter rear-choke-defender"
+        showPatches={false}
+        showPatchCovers={false}
+      />
+      <span className="rear-choke-arm choking-arm" />
+      <span className="rear-choke-arm support-arm" />
+      <div className="impact-ring rear-choke-ring">
+        <strong>{move.category}</strong>
+        <span>Rear Choke</span>
+      </div>
+      <span className="tap-out">Tap</span>
     </div>
   );
 }
@@ -2233,8 +2306,8 @@ function GrapplePositionScene({ move, position, fighter, opponent, fighterBeltSt
         pose={attackerPose}
         className="grapple-fighter attacker"
         facing="right"
-        showPatches={isStanceScene}
-        showPatchCovers={isStanceScene}
+        showPatches={false}
+        showPatchCovers={false}
       />
       <div className="impact-ring">
         <strong>{move.category}</strong>
@@ -2246,8 +2319,8 @@ function GrapplePositionScene({ move, position, fighter, opponent, fighterBeltSt
         pose={defenderPose}
         className="grapple-fighter defender"
         facing="left"
-        showPatches={isStanceScene}
-        showPatchCovers={isStanceScene}
+        showPatches={false}
+        showPatchCovers={false}
       />
       {move.isSubmission ? <span className="tap-out">Tap</span> : null}
     </div>
@@ -2257,7 +2330,7 @@ function GrapplePositionScene({ move, position, fighter, opponent, fighterBeltSt
 function FighterCard({ fighter, beltStatus, reverse = false }) {
   return (
     <div className={`fighter-card ${reverse ? "reverse" : ""}`}>
-      <MiniPortrait fighter={fighter} />
+      <MiniPortrait fighter={fighter} beltStatus={beltStatus} />
       <span>
         <strong>{fighter.name}</strong>
         <small>
