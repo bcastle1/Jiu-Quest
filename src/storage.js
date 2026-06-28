@@ -10,6 +10,11 @@ const palette = {
   gi: ["#f8fbff", "#112a58", "#151922", "#7f8794", "#b61f2b", "#7d52ff", "#1d7d68"],
 };
 
+const fightingStances = ["wrestling stance", "sumo base", "boxer shell", "karate stance", "muay thai guard", "sambo crouch", "capoeira rhythm"];
+const defaultFightingStance = "wrestling stance";
+
+const normalizeStance = (stance) => (fightingStances.includes(stance) ? stance : defaultFightingStance);
+
 export const defaultMusicTracks = [
   {
     id: "ascension-gate",
@@ -60,7 +65,7 @@ export const customizationOptions = {
   genders: ["boy", "girl", "non-binary"],
   hairStyles: ["shadow spikes", "short fade", "braided top", "curly guard", "wave cut", "storm tail"],
   countries: ["United States", "Brazil", "Japan", "Mexico", "Canada", "Philippines", "France", "Nigeria", "United Kingdom"],
-  stances: ["wrestling stance", "sumo base", "boxer shell", "karate stance", "muay thai guard", "combat base", "sambo crouch", "capoeira rhythm"],
+  stances: fightingStances,
   auras: ["void violet", "mat gold", "blue flame", "red surge", "emerald focus"],
   emblems: ["none", "triangle", "lion", "wave", "star", "phoenix", "mountain"],
 };
@@ -125,7 +130,7 @@ export const defaultNpcs = [
     gender: "girl",
     giTop: "#f8fbff",
     giPants: "#151922",
-    stance: "combat base",
+    stance: "sumo base",
     aura: "mat gold",
     emblem: "lion",
   },
@@ -166,7 +171,7 @@ export function createFighter(overrides = {}) {
     hairStyle: overrides.hairStyle ?? "shadow spikes",
     giTop: overrides.giTop ?? palette.gi[0],
     giPants: overrides.giPants ?? palette.gi[0],
-    stance: overrides.stance ?? "combat base",
+    stance: normalizeStance(overrides.stance),
     aura: overrides.aura ?? "void violet",
     emblem: overrides.emblem ?? "triangle",
     startPose: overrides.startPose ?? "standing",
@@ -190,7 +195,7 @@ const seedFighters = () => [
     skinTone: "#d99b71",
     hairColor: "#11131c",
     hairStyle: "shadow spikes",
-    stance: "combat base",
+    stance: "wrestling stance",
     aura: "void violet",
     progress: {
       "take-the-back-mount": 4,
@@ -214,7 +219,14 @@ function normalizeState(state) {
   const normalizedFighters = fighters.map((fighter) => ({
     ...createFighter(fighter),
     ...fighter,
+    stance: normalizeStance(fighter.stance),
     progress: { ...defaultProgress(), ...(fighter.progress ?? {}) },
+  }));
+  const rawNpcs = Array.isArray(state?.npcs) && state.npcs.length ? state.npcs : fallback.npcs;
+  const normalizedNpcs = rawNpcs.map((npc, index) => ({
+    ...(fallback.npcs[index % fallback.npcs.length] ?? fallback.npcs[0]),
+    ...npc,
+    stance: normalizeStance(npc.stance),
   }));
   const rawMusic = state?.adminSettings?.music ?? {};
   const rawTracks = Array.isArray(rawMusic.tracks) && rawMusic.tracks.length ? rawMusic.tracks : [];
@@ -253,7 +265,7 @@ function normalizeState(state) {
     selectedFighterId:
       normalizedFighters.some((fighter) => fighter.id === state?.selectedFighterId) ? state.selectedFighterId : normalizedFighters[0].id,
     fighters: normalizedFighters,
-    npcs: Array.isArray(state?.npcs) && state.npcs.length ? state.npcs : fallback.npcs,
+    npcs: normalizedNpcs,
     adminSettings: {
       ...defaultAdminSettings,
       ...(state?.adminSettings ?? {}),

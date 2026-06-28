@@ -73,7 +73,6 @@ const stanceCopy = {
   "boxer shell": "hands high, sharp angle",
   "karate stance": "long range, quick entry",
   "muay thai guard": "upright clinch threat",
-  "combat base": "one knee ready, mat aware",
   "sambo crouch": "low hooks, takedown chain",
   "capoeira rhythm": "mobile feints, spinning lane",
 };
@@ -97,7 +96,6 @@ const stancePose = {
   "boxer shell": "boxing",
   "karate stance": "karate",
   "muay thai guard": "muay-thai",
-  "combat base": "profile",
   "sambo crouch": "sambo",
   "capoeira rhythm": "capoeira",
 };
@@ -108,7 +106,6 @@ const stanceArt = {
   "boxer shell": "/assets/stances/boxing-stance-cutout.png",
   "karate stance": "/assets/stances/karate-stance-cutout.png",
   "muay thai guard": "/assets/stances/muay-thai-stance-cutout.png",
-  "combat base": "/assets/characters/profile-cutout.png",
   "sambo crouch": "/assets/stances/sambo-stance-cutout.png",
   "capoeira rhythm": "/assets/stances/capoeira-stance-cutout.png",
 };
@@ -236,7 +233,7 @@ function titleCase(value = "") {
 }
 
 function getFighterPose(fighter, fallback = "profile") {
-  return stancePose[fighter?.stance] ?? fallback;
+  return stancePose[fighter?.stance] ?? stancePose["wrestling stance"] ?? fallback;
 }
 
 function chooseArenaKey(belt = "white") {
@@ -301,6 +298,23 @@ function App() {
   }, [musicTracks, playerMusicTracks, store.adminSettings.music?.activeTrackId]);
 
   useEffect(() => saveState(store), [store]);
+
+  useEffect(() => {
+    const urls = new Set([
+      ...Object.values(fighterArtSources).map((source) => source.image),
+      ...Object.values(stanceArt),
+    ]);
+    Object.values(fighterArtSources).forEach((source) => {
+      ["body", "skin", "hair", "jacket", "pants", "belt"].forEach((mask) => {
+        urls.add(`/assets/characters/masks/${source.mask}-${mask}.png`);
+      });
+    });
+    urls.forEach((url) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = url;
+    });
+  }, []);
 
   useEffect(() => {
     if (!trainingOrder.length || selectedMove.steps.some((step) => !trainingOrder.includes(step))) {
@@ -1001,11 +1015,11 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
               value={fighter.stance}
               options={customizationOptions.stances}
               onChange={(stance) => updateFighter({ stance })}
-              getImage={(stance) => stanceArt[stance] ?? stanceArt["combat base"]}
+              getImage={(stance) => stanceArt[stance] ?? stanceArt["wrestling stance"]}
               getLabel={titleCase}
               getMeta={(stance) => stanceCopy[stance]}
             />
-            <small>{stanceCopy[fighter.stance]}</small>
+            <small>{stanceCopy[fighter.stance] ?? stanceCopy["wrestling stance"]}</small>
           </Field>
         </div>
 
@@ -1928,7 +1942,7 @@ function FighterProfileArt({ fighter, beltStatus, className = "" }) {
       <aside className="stance-reference-card">
         <span>Starting Stance</span>
         <strong>{titleCase(fighter.stance)}</strong>
-        <FighterArt fighter={fighter} beltStatus={beltStatus} pose={stancePoseId} className="stance-reference-fighter" showAura={false} showPatches={false} />
+        <FighterArt fighter={fighter} beltStatus={beltStatus} pose={stancePoseId} className="stance-reference-fighter" showAura={false} />
       </aside>
       <div className="profile-art-tags">
         <span>{fighter.country}</span>
@@ -1938,7 +1952,7 @@ function FighterProfileArt({ fighter, beltStatus, className = "" }) {
   );
 }
 
-function FighterArt({ fighter, beltStatus, pose = "profile", className = "", facing = "front", showAura = true, showPatches = true }) {
+function FighterArt({ fighter, beltStatus, pose = "profile", className = "", facing = "front", showAura = true, showPatches = true, showPatchCovers = true }) {
   const source = fighterArtSources[pose] ?? fighterArtSources.profile;
   const maskBase = `/assets/characters/masks/${source.mask}`;
   const artStyle = {
@@ -1967,6 +1981,12 @@ function FighterArt({ fighter, beltStatus, pose = "profile", className = "", fac
       <span className="fighter-art-layer fighter-art-tint fighter-art-pants" />
       <span className="fighter-art-layer fighter-art-tint fighter-art-belt" />
       <span className="fighter-art-layer fighter-art-detail" />
+      {showPatchCovers ? (
+        <>
+          <span className={`fighter-art-patch-cover heart pose-${source.mask}`} />
+          <span className={`fighter-art-patch-cover lower-leg pose-${source.mask}`} />
+        </>
+      ) : null}
       {showPatches ? (
         <>
           <EmblemMark emblem={fighter.emblem} className={`fighter-art-emblem heart pose-${source.mask}`} />

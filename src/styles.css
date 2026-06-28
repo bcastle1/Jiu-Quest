@@ -812,7 +812,7 @@ main {
 .fighter-art-base {
   z-index: 1;
   background-image: var(--fighter-src);
-  filter: brightness(1.12) contrast(1.07) saturate(1.1);
+  filter: brightness(1.06) contrast(1.04) saturate(1.04);
   -webkit-mask-image: var(--body-mask);
   mask-image: var(--body-mask);
   -webkit-mask-position: center bottom;
@@ -852,15 +852,17 @@ main {
 }
 
 .fighter-art-jacket {
-  background: color-mix(in srgb, var(--gi-top) 78%, #ffffff);
-  opacity: 0.46;
+  background: var(--gi-top);
+  opacity: 0.92;
+  mix-blend-mode: multiply;
   -webkit-mask-image: var(--jacket-mask);
   mask-image: var(--jacket-mask);
 }
 
 .fighter-art-pants {
-  background: color-mix(in srgb, var(--gi-pants) 80%, #ffffff);
-  opacity: 0.46;
+  background: var(--gi-pants);
+  opacity: 0.92;
+  mix-blend-mode: multiply;
   -webkit-mask-image: var(--pants-mask);
   mask-image: var(--pants-mask);
 }
@@ -875,9 +877,9 @@ main {
 .fighter-art-detail {
   z-index: 3;
   background-image: var(--fighter-src);
-  opacity: 0.46;
-  mix-blend-mode: soft-light;
-  filter: brightness(1.08) contrast(1.2) saturate(1.05);
+  opacity: 0.34;
+  mix-blend-mode: multiply;
+  filter: grayscale(1) brightness(1.16) contrast(1.34);
   -webkit-mask-image: var(--body-mask);
   mask-image: var(--body-mask);
   -webkit-mask-position: center bottom;
@@ -888,11 +890,28 @@ main {
   mask-size: contain;
 }
 
+.fighter-art-patch-cover,
 .fighter-art-emblem {
   position: absolute;
-  z-index: 6;
   object-fit: contain;
   pointer-events: none;
+}
+
+.fighter-art-patch-cover {
+  z-index: 5;
+  border-radius: 34%;
+  background: color-mix(in srgb, var(--gi-top) 88%, #ffffff);
+  opacity: 0.98;
+  filter: blur(0.35px);
+}
+
+.fighter-art-patch-cover.lower-leg,
+.fighter-art-patch-cover.source-leg {
+  background: color-mix(in srgb, var(--gi-pants) 88%, #ffffff);
+}
+
+.fighter-art-emblem {
+  z-index: 6;
   filter: drop-shadow(0 0.08rem 0.12rem rgba(0, 0, 0, 0.48));
 }
 
@@ -915,9 +934,9 @@ main {
 }
 
 .fighter-art-emblem.pose-profile.lower-leg {
-  left: 66%;
-  top: 79%;
-  width: 7.8%;
+  left: 27%;
+  top: 80.2%;
+  width: 8.8%;
 }
 
 .fighter-art-emblem.pose-boxing.heart {
@@ -927,9 +946,9 @@ main {
 }
 
 .fighter-art-emblem.pose-boxing.lower-leg {
-  left: 24%;
-  top: 78%;
-  width: 6.8%;
+  left: 11%;
+  top: 73.8%;
+  width: 7.2%;
 }
 
 .fighter-art-emblem.pose-capoeira.heart {
@@ -939,9 +958,9 @@ main {
 }
 
 .fighter-art-emblem.pose-capoeira.lower-leg {
-  left: 17%;
-  top: 78%;
-  width: 6.5%;
+  left: 13.5%;
+  top: 74.5%;
+  width: 7%;
 }
 
 .fighter-art-emblem.pose-karate.heart {
@@ -951,9 +970,9 @@ main {
 }
 
 .fighter-art-emblem.pose-karate.lower-leg {
-  left: 25%;
-  top: 77%;
-  width: 6.5%;
+  left: 13%;
+  top: 74.6%;
+  width: 7%;
 }
 
 .fighter-art-emblem.pose-muay-thai.heart {
@@ -963,9 +982,9 @@ main {
 }
 
 .fighter-art-emblem.pose-muay-thai.lower-leg {
-  left: 31%;
-  top: 78%;
-  width: 6.6%;
+  left: 12%;
+  top: 74.8%;
+  width: 7.2%;
 }
 
 .fighter-art-emblem.pose-sambo.heart {
@@ -975,9 +994,9 @@ main {
 }
 
 .fighter-art-emblem.pose-sambo.lower-leg {
-  left: 22%;
-  top: 80%;
-  width: 6.6%;
+  left: 13.4%;
+  top: 74.8%;
+  width: 7.2%;
 }
 
 .fighter-art-emblem.pose-sumo.heart {
@@ -987,9 +1006,9 @@ main {
 }
 
 .fighter-art-emblem.pose-sumo.lower-leg {
-  left: 17%;
-  top: 77%;
-  width: 6.6%;
+  left: 11.4%;
+  top: 73.8%;
+  width: 7.2%;
 }
 
 .fighter-art-emblem.pose-wrestling.heart {
@@ -999,9 +1018,174 @@ main {
 }
 
 .fighter-art-emblem.pose-wrestling.lower-leg {
-  left: 25%;
-  top: 78%;
-  width: 6.6%;
+  left: 12.2%;
+  top: 74.4%;
+  width: 7.2%;
+}
+
+.fighter-art-patch-cover.heart {
+  left: 49%;
+  top: 29%;
+  width: 9.8%;
+  aspect-ratio: 1;
+}
+
+.fighter-art-patch-cover.lower-leg {
+  left: 11%;
+  top: 74%;
+  width: 8.8%;
+  aspect-ratio: 1;
+}
+
+.fighter-art-patch-cover.source-leg {
+  left: 18%;
+  top: 76%;
+  width: 10.5%;
+  aspect-ratio: 1;
+}
+
+.fighter-art-patch-cover.pose-profile.heart {
+  left: 53.8%;
+  top: 23.6%;
+  width: 10.4%;
+}
+
+.fighter-art-patch-cover.pose-profile.lower-leg {
+  left: 23.4%;
+  top: 79.2%;
+  width: 13%;
+}
+
+.fighter-art-patch-cover.pose-profile.source-leg {
+  left: 17.8%;
+  top: 76.5%;
+  width: 13%;
+}
+
+.fighter-art-patch-cover.pose-boxing.heart {
+  left: 47.1%;
+  top: 27.8%;
+  width: 9%;
+}
+
+.fighter-art-patch-cover.pose-boxing.lower-leg {
+  left: 10.1%;
+  top: 73%;
+  width: 8.6%;
+}
+
+.fighter-art-patch-cover.pose-boxing.source-leg {
+  left: 9.2%;
+  top: 72.5%;
+  width: 11%;
+}
+
+.fighter-art-patch-cover.pose-capoeira.heart {
+  left: 47%;
+  top: 29%;
+  width: 9%;
+}
+
+.fighter-art-patch-cover.pose-capoeira.lower-leg {
+  left: 12.6%;
+  top: 73.8%;
+  width: 8.5%;
+}
+
+.fighter-art-patch-cover.pose-capoeira.source-leg {
+  left: 6.5%;
+  top: 73%;
+  width: 10.8%;
+}
+
+.fighter-art-patch-cover.pose-karate.heart {
+  left: 50.8%;
+  top: 28.4%;
+  width: 9%;
+}
+
+.fighter-art-patch-cover.pose-karate.lower-leg {
+  left: 12.1%;
+  top: 73.8%;
+  width: 8.5%;
+}
+
+.fighter-art-patch-cover.pose-karate.source-leg {
+  left: 9%;
+  top: 72.5%;
+  width: 10.8%;
+}
+
+.fighter-art-patch-cover.pose-muay-thai.heart {
+  left: 48.6%;
+  top: 28.2%;
+  width: 8.8%;
+}
+
+.fighter-art-patch-cover.pose-muay-thai.lower-leg {
+  left: 11.1%;
+  top: 74%;
+  width: 8.6%;
+}
+
+.fighter-art-patch-cover.pose-muay-thai.source-leg {
+  left: 16.5%;
+  top: 73.5%;
+  width: 10.5%;
+}
+
+.fighter-art-patch-cover.pose-sambo.heart {
+  left: 50.8%;
+  top: 33%;
+  width: 8.8%;
+}
+
+.fighter-art-patch-cover.pose-sambo.lower-leg {
+  left: 12.5%;
+  top: 74%;
+  width: 8.6%;
+}
+
+.fighter-art-patch-cover.pose-sambo.source-leg {
+  left: 4.8%;
+  top: 73.5%;
+  width: 10.5%;
+}
+
+.fighter-art-patch-cover.pose-sumo.heart {
+  left: 49.6%;
+  top: 29.8%;
+  width: 9.2%;
+}
+
+.fighter-art-patch-cover.pose-sumo.lower-leg {
+  left: 10.5%;
+  top: 73%;
+  width: 8.6%;
+}
+
+.fighter-art-patch-cover.pose-sumo.source-leg {
+  left: 4.8%;
+  top: 72%;
+  width: 10.6%;
+}
+
+.fighter-art-patch-cover.pose-wrestling.heart {
+  left: 45.8%;
+  top: 30.8%;
+  width: 8.8%;
+}
+
+.fighter-art-patch-cover.pose-wrestling.lower-leg {
+  left: 11.4%;
+  top: 73.6%;
+  width: 8.6%;
+}
+
+.fighter-art-patch-cover.pose-wrestling.source-leg {
+  left: 8.8%;
+  top: 72.8%;
+  width: 10.8%;
 }
 
 .fighter-art-stripes {
