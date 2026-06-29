@@ -1,0 +1,20 @@
+{
+  "note": "Placeholder GLB slots. Replace these files with final paired BJJ mocap GLB clips using the same names.",
+  "animations": {
+    "standing_stance": "/animations/bjj/standing_stance.glb",
+    "grip_fighting": "/animations/bjj/grip_fighting.glb",
+    "single_leg": "/animations/bjj/single_leg.glb",
+    "double_leg": "/animations/bjj/double_leg.glb",
+    "guard_pull": "/animations/bjj/guard_pull.glb",
+    "closed_guard": "/animations/bjj/closed_guard.glb",
+    "guard_pass": "/animations/bjj/guard_pass.glb",
+    "side_control": "/animations/bjj/side_control.glb",
+    "mount": "/animations/bjj/mount.glb",
+    "back_control": "/animations/bjj/back_control.glb",
+    "armbar": "/animations/bjj/armbar.glb",
+    "triangle_choke": "/animations/bjj/triangle_choke.glb",
+    "rear_naked_choke": "/animations/bjj/rear_naked_choke.glb",
+    "tap_out": "/animations/bjj/tap_out.glb",
+    "reset_neutral": "/animations/bjj/reset_neutral.glb"
+  }
+}

@@ -50,12 +50,20 @@ import {
   MAX_FIGHTERS,
   saveState,
 } from "./storage";
+import GrapplingAnimationStage from "./components/GrapplingAnimationStage";
+import {
+  BJJ_ANIMATION_KEYS,
+  bjjAnimationCatalog,
+  getBjjAnimationForMove,
+  getBjjAnimationKeyForMove,
+} from "./animation/bjjAnimationMap";
 
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: Home },
   { id: "profile", label: "Fighter", icon: User },
   { id: "training", label: "Skill Development", icon: BookOpen },
   { id: "combat", label: "Ground Combat", icon: Swords },
+  { id: "grappling", label: "Grappling Lab", icon: Activity },
   { id: "progress", label: "Progress", icon: Trophy },
 ];
 
@@ -327,6 +335,10 @@ function App() {
   useEffect(() => saveState(store), [store]);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [view]);
+
+  useEffect(() => {
     const urls = new Set([
       ...Object.values(fighterArtSources).map((source) => source.image),
       ...Object.values(stanceArt),
@@ -505,12 +517,17 @@ function App() {
   const chooseCombatMove = (move) => {
     setCombat((current) => ({
       ...current,
+      active: true,
       selectedMoveId: move.id,
       order: shuffle(move.steps),
       secondsLeft: 10,
       phase: "ordering",
       result: null,
-      log: [`${move.name} selected. Put the incantation in order before the clock burns out.`, ...current.log].slice(0, 8),
+      log: [
+        `${move.name} selected. Put the incantation in order before the clock burns out.`,
+        ...(current.active ? [] : [`Gate opened from ${positionLabels[current.position]}.`]),
+        ...current.log,
+      ].slice(0, 8),
     }));
   };
 
@@ -535,10 +552,13 @@ function App() {
       const finished = submission || current.round >= 8;
       const didWin = playerWins && finished;
       const didLose = !playerWins && finished;
+      const animationKey = getBjjAnimationKeyForMove(winnerMove);
       const result = {
         playerWins,
         finished,
         move: winnerMove,
+        animationKey,
+        animationSignal: `${winnerMove.id}-${current.round}-${Date.now()}`,
         playerScore,
         npcScore,
         line: playerWins
@@ -686,6 +706,13 @@ function App() {
             chooseCombatMove={chooseCombatMove}
             resolveCombatTurn={resolveCombatTurn}
             startCombat={startCombat}
+          />
+        )}
+
+        {view === "grappling" && (
+          <GrapplingLab
+            fighter={fighter}
+            opponent={combat.npc}
           />
         )}
 
@@ -1121,6 +1148,9 @@ function Training({
 }) {
   const selectedProgress = fighter.progress?.[selectedMove.id] ?? 0;
   const lockedFullPath = selectedMove.belt !== "blue" && selectedMove.preview;
+  const animationRef = useRef(null);
+  const [animationLocked, setAnimationLocked] = useState(false);
+  const selectedAnimation = getBjjAnimationForMove(selectedMove);
 
   return (
     <section className="training-grid">
@@ -1171,6 +1201,30 @@ function Training({
           </div>
         </div>
         <TechniqueSnapshot move={selectedMove} fighter={fighter} opponent={null} fighterBeltStatus={beltStatus} />
+        <div className="training-animation-card">
+          <div className="training-animation-head">
+            <span>
+              <h3>Move Animation</h3>
+              <p>{selectedAnimation.label} paired grappler sequence.</p>
+            </span>
+            <button
+              className="secondary-button"
+              onClick={() => animationRef.current?.playMove(selectedAnimation.key)}
+              disabled={animationLocked}
+            >
+              <Activity size={18} />
+              {animationLocked ? "Animating" : "Show Animation"}
+            </button>
+          </div>
+          <GrapplingAnimationStage
+            ref={animationRef}
+            move={selectedMove}
+            fighter={fighter}
+            compact
+            title="Skill Animation"
+            onLockChange={setAnimationLocked}
+          />
+        </div>
         <div className="scenario-box">
           <h3>Ideal Scenario</h3>
           <p>{selectedMove.scenario}</p>
@@ -1240,6 +1294,8 @@ function Training({
 
 function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMoves, chooseCombatMove, resolveCombatTurn, startCombat }) {
   const selectedMove = combat.selectedMoveId ? allMoves.find((move) => move.id === combat.selectedMoveId) : null;
+  const combatAnimationRef = useRef(null);
+  const [combatAnimationLocked, setCombatAnimationLocked] = useState(false);
   const grouped = unlockedMoves.reduce((acc, move) => {
     acc[move.belt] = [...(acc[move.belt] ?? []), move];
     return acc;
@@ -1265,14 +1321,15 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
 
         <div className={`mat-window arena-${arenaKey} ${combat.result ? "result-mode" : ""}`}>
           {combat.result ? (
-            <GrapplePositionScene
+            <GrapplingAnimationStage
+              ref={combatAnimationRef}
               move={combat.result.move}
-              position={combat.position}
+              animationKey={combat.result.animationKey}
+              autoPlaySignal={combat.result.animationSignal}
               fighter={combat.result.playerWins ? fighter : combat.npc}
               opponent={combat.result.playerWins ? combat.npc : fighter}
-              fighterBeltStatus={combat.result.playerWins ? beltStatus : { belt: combat.npc.belt, stripes: combat.npc.stripes }}
-              opponentBeltStatus={combat.result.playerWins ? { belt: combat.npc.belt, stripes: combat.npc.stripes } : beltStatus}
-              arenaKey={arenaKey}
+              title={`${combat.result.move.name} lands`}
+              onLockChange={setCombatAnimationLocked}
             />
           ) : (
             <>
@@ -1326,7 +1383,7 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
             </>
           ) : combat.phase === "ordering" ? (
             <>
-              <button className="danger-button" onClick={resolveCombatTurn}>
+              <button className="danger-button" onClick={resolveCombatTurn} disabled={combatAnimationLocked}>
                 Execute Technique
               </button>
               <span className="clock-pill">{combat.secondsLeft}s remaining</span>
@@ -1334,6 +1391,7 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
           ) : (
             <button
               className="primary-button"
+              disabled={combatAnimationLocked}
               onClick={() =>
                 setCombat((current) => ({
                   ...current,
@@ -1344,7 +1402,7 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
                 }))
               }
             >
-              Prepare Next Action
+              {combatAnimationLocked ? "Animation Playing" : "Prepare Next Action"}
             </button>
           )}
         </div>
@@ -1368,7 +1426,7 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
                     key={move.id}
                     className={combat.selectedMoveId === move.id ? "selected" : ""}
                     onClick={() => chooseCombatMove(move)}
-                    disabled={combat.phase === "ordering"}
+                    disabled={combat.phase === "ordering" || combatAnimationLocked}
                   >
                     <span>{move.name}</span>
                     <small>{move.category} - {move.steps.length} steps</small>
@@ -1395,10 +1453,10 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
                   <span>{index + 1}</span>
                   <p>{step}</p>
                   <div>
-                    <button onClick={() => setCombat((current) => ({ ...current, order: moveItem(current.order, index, index - 1) }))}>
+                    <button disabled={combatAnimationLocked} onClick={() => setCombat((current) => ({ ...current, order: moveItem(current.order, index, index - 1) }))}>
                       <ChevronLeft size={16} />
                     </button>
-                    <button onClick={() => setCombat((current) => ({ ...current, order: moveItem(current.order, index, index + 1) }))}>
+                    <button disabled={combatAnimationLocked} onClick={() => setCombat((current) => ({ ...current, order: moveItem(current.order, index, index + 1) }))}>
                       <ChevronRight size={16} />
                     </button>
                   </div>
@@ -1419,6 +1477,147 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
           {combat.log.map((line, index) => (
             <p key={`${line}-${index}`}>{line}</p>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GrapplingLab({ fighter, opponent }) {
+  const stageRef = useRef(null);
+  const stagePanelRef = useRef(null);
+  const [selectedKey, setSelectedKey] = useState("standing_stance");
+  const [selectedMoveId, setSelectedMoveId] = useState(null);
+  const [locked, setLocked] = useState(false);
+  const selectedMove = allMoves.find((move) => move.id === selectedMoveId);
+  const activeAnimation = selectedMove ? getBjjAnimationForMove(selectedMove) : { key: selectedKey, ...bjjAnimationCatalog[selectedKey] };
+
+  const scrollStageIntoView = () => {
+    window.requestAnimationFrame(() => {
+      stagePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const playTemplate = (key) => {
+    setSelectedKey(key);
+    setSelectedMoveId(null);
+    stageRef.current?.playMove(key);
+    scrollStageIntoView();
+  };
+
+  const playTechnique = (move) => {
+    const animationKey = getBjjAnimationKeyForMove(move);
+    setSelectedMoveId(move.id);
+    setSelectedKey(animationKey);
+    stageRef.current?.playMove(animationKey, { move });
+    scrollStageIntoView();
+  };
+
+  const replayCurrent = () => {
+    stageRef.current?.playMove(activeAnimation.key, { move: selectedMove });
+    scrollStageIntoView();
+  };
+
+  const resetStage = () => {
+    stageRef.current?.resetToNeutral();
+    scrollStageIntoView();
+  };
+
+  return (
+    <section className="grappling-lab-grid">
+      <div className="panel grappling-lab-hero">
+        <span>
+          <h1>Grappling Animation Lab</h1>
+          <p>Three.js paired-animation layer for Brazilian jiu-jitsu transitions, takedowns, controls, submissions, tap-outs, and neutral resets.</p>
+        </span>
+        <div className="lab-status-card">
+          <strong>{activeAnimation.label}</strong>
+          <small>{activeAnimation.asset}</small>
+          <em>{locked ? "Input locked while grapplers sync" : "Ready for playMove(...)"}</em>
+        </div>
+      </div>
+
+      <div className="panel lab-stage-panel" ref={stagePanelRef}>
+        <GrapplingAnimationStage
+          ref={stageRef}
+          move={selectedMove}
+          animationKey={activeAnimation.key}
+          fighter={fighter}
+          opponent={opponent}
+          title="BJJ Pair System"
+          onLockChange={setLocked}
+        />
+        <div className="lab-command-row">
+          <button className="primary-button" onClick={replayCurrent} disabled={locked}>
+            <Activity size={18} />
+            Replay Current
+          </button>
+          <button className="secondary-button" onClick={() => playTemplate("tap_out")} disabled={locked}>
+            Tap Out
+          </button>
+          <button className="secondary-button" onClick={resetStage} disabled={locked}>
+            Reset Neutral
+          </button>
+        </div>
+      </div>
+
+      <div className="panel lab-template-panel">
+        <div className="section-heading">
+          <span>
+            <h2>Core BJJ Animation Templates</h2>
+            <p>These are the placeholder slots that can later be replaced by real paired GLB/FBX mocap clips.</p>
+          </span>
+          <Dumbbell size={28} />
+        </div>
+        <div className="animation-template-grid">
+          {BJJ_ANIMATION_KEYS.map((key) => (
+            <button
+              key={key}
+              className={activeAnimation.key === key && !selectedMove ? "selected" : ""}
+              onClick={() => playTemplate(key)}
+              disabled={locked}
+            >
+              <strong>{bjjAnimationCatalog[key].label}</strong>
+              <small>{key}</small>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel lab-technique-panel">
+        <div className="section-heading">
+          <span>
+            <h2>Curriculum Technique Coverage</h2>
+            <p>Every move in JiuQuest maps to one of the grappling animation templates, including preview belts.</p>
+          </span>
+          <BookOpen size={28} />
+        </div>
+        <div className="lab-technique-groups">
+          {BELTS.map((belt) => {
+            const beltTechniques = allMoves.filter((move) => move.belt === belt);
+            if (!beltTechniques.length) return null;
+            return (
+              <div key={belt} className="lab-technique-group">
+                <h3>{beltLabels[belt]}</h3>
+                <div>
+                  {beltTechniques.map((move) => {
+                    const animation = getBjjAnimationForMove(move);
+                    return (
+                      <button
+                        key={move.id}
+                        className={selectedMoveId === move.id ? "selected" : ""}
+                        onClick={() => playTechnique(move)}
+                        disabled={locked}
+                      >
+                        <span>{move.name}</span>
+                        <small>{animation.label}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>
