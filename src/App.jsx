@@ -59,12 +59,12 @@ import {
 } from "./animation/bjjAnimationMap";
 
 const navItems = [
-  { id: "dashboard", label: "Dashboard", icon: Home },
-  { id: "profile", label: "Fighter", icon: User },
-  { id: "training", label: "Skill Development", icon: BookOpen },
-  { id: "combat", label: "Ground Combat", icon: Swords },
-  { id: "grappling", label: "Grappling Lab", icon: Activity },
-  { id: "progress", label: "Progress", icon: Trophy },
+  { id: "dashboard", label: "Overview", icon: Home },
+  { id: "profile", label: "Profile", icon: User },
+  { id: "training", label: "Training", icon: BookOpen },
+  { id: "combat", label: "Arena", icon: Swords },
+  { id: "grappling", label: "Lab", icon: Activity },
+  { id: "progress", label: "Insights", icon: Trophy },
 ];
 
 const auraColors = {
@@ -650,6 +650,8 @@ function App() {
         openAdmin={openAdmin}
       />
 
+      <BottomNav view={view} setView={setView} />
+
       <main>
         {view === "dashboard" && (
           <Dashboard
@@ -727,8 +729,6 @@ function App() {
         )}
       </main>
 
-      <BottomNav view={view} setView={setView} />
-
       <button className="corner-admin" onClick={openAdmin}>
         Admin
       </button>
@@ -778,7 +778,7 @@ function Header({
   return (
     <header className="topbar">
       <button className="brand-lockup" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
-        <span className="brand-sigil">△</span>
+        <span className="brand-sigil">JQ</span>
         <span>JiuQuest</span>
       </button>
       <label className="fighter-select">
@@ -867,7 +867,7 @@ function Dashboard({
   return (
     <section className="dashboard-grid">
       <aside className="fighter-rail panel">
-        <h2>My Fighters</h2>
+        <h2>Roster</h2>
         <div className="fighter-slots">
           {fighters.map((item) => (
             <button
@@ -900,7 +900,7 @@ function Dashboard({
                 <Plus size={30} />
               </span>
               <span>
-                <strong>Create Fighter</strong>
+                <strong>New Fighter</strong>
                 <small>{MAX_FIGHTERS - fighters.length} slot{MAX_FIGHTERS - fighters.length === 1 ? "" : "s"} open</small>
               </span>
             </button>
@@ -908,32 +908,53 @@ function Dashboard({
         </div>
         <button className="primary-button full" onClick={createNewFighter} disabled={fighters.length >= MAX_FIGHTERS}>
           <BadgePlus size={18} />
-          Create Fighter
+          New Fighter
         </button>
         <button className="secondary-button full" onClick={() => setView("profile")}>
           <User size={18} />
-          Edit Fighter
+          Manage Profile
         </button>
       </aside>
 
       <section className="dashboard-center">
         <div className="hero-stage">
           <div className="dojo-backdrop" />
+          <div className="hero-content">
+            <span className="dashboard-kicker">JiuQuest Platform</span>
+            <h1>Training command center</h1>
+            <p>
+              Manage fighters, structure skill development, and bring tested techniques into scenario-based rounds.
+            </p>
+            <div className="hero-metrics">
+              <span>
+                <small>Clean reps</small>
+                <em>{trainingTotals.attempts}</em>
+              </span>
+              <span>
+                <small>Learned moves</small>
+                <em>{trainingTotals.learned}</em>
+              </span>
+              <span>
+                <small>Rank path</small>
+                <em>{beltLabels[beltStatus.belt]}</em>
+              </span>
+            </div>
+          </div>
         </div>
         <div className="mode-cards">
           <button className="mode-card skill" onClick={() => setView("training")}>
-            <span className="mode-mark">△</span>
+            <span className="mode-mark">01</span>
             <span>
               <strong>Skill Development</strong>
-              <small>Build your technique</small>
+              <small>Run structured reps</small>
             </span>
             <ChevronRight size={28} />
           </button>
           <button className="mode-card combat" onClick={() => setView("combat")}>
-            <span className="mode-mark fist">◆</span>
+            <span className="mode-mark fist">02</span>
             <span>
               <strong>Ground Combat</strong>
-              <small>Test your skills</small>
+              <small>Test scenario decisions</small>
             </span>
             <ChevronRight size={28} />
           </button>
@@ -959,7 +980,7 @@ function Dashboard({
         </div>
 
         <div className="panel quest-list">
-          <h2>Training Quests</h2>
+          <h2>Technique Pipeline</h2>
           {featuredMoves.map((move) => (
             <button
               className="quest-row"
@@ -979,13 +1000,13 @@ function Dashboard({
             </button>
           ))}
           <button className="secondary-button full" onClick={() => setView("training")}>
-            View All Quests
+            Open Training
             <ChevronRight size={18} />
           </button>
         </div>
 
         <div className="panel combat-card">
-          <h2>Combat Arena</h2>
+          <h2>Scenario Readiness</h2>
           <div className="versus-preview">
             <FighterArt fighter={fighter} beltStatus={beltStatus} pose="profile" className="duel-fighter" facing="right" showPatches={false} showPatchCovers={false} />
             <span>VS</span>
@@ -1007,7 +1028,7 @@ function Dashboard({
             }}
           >
             <Swords size={20} />
-            Ground Combat
+            Open Arena
           </button>
         </div>
 
