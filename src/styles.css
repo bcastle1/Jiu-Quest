@@ -3251,21 +3251,44 @@ main {
   position: relative;
   width: 100%;
   max-width: 100%;
-  min-height: 25rem;
+  min-height: 27rem;
   overflow: hidden;
   isolation: isolate;
+  border: 1px solid rgba(108, 232, 255, 0.38);
+  border-radius: calc(var(--radius) + 0.15rem);
+  background:
+    radial-gradient(circle at 50% 18%, rgba(119, 92, 255, 0.22), transparent 38%),
+    linear-gradient(145deg, #08172c, #030712 62%);
+  box-shadow:
+    0 1.3rem 3.5rem rgba(0, 0, 0, 0.42),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 0 -4rem 5rem rgba(4, 11, 22, 0.3);
+}
+
+.grappling-animation-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.34;
+  background:
+    linear-gradient(90deg, rgba(108, 232, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(rgba(108, 232, 255, 0.04) 1px, transparent 1px);
+  background-size: 2.5rem 2.5rem;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.72), transparent 74%);
 }
 
 .grappling-animation-stage.compact {
-  min-height: 17rem;
+  min-height: 19rem;
 }
 
 .animation-canvas {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 0;
   background:
-    radial-gradient(circle at 50% 32%, rgba(139, 92, 255, 0.2), transparent 19rem),
+    radial-gradient(circle at 50% 24%, rgba(139, 92, 255, 0.26), transparent 20rem),
     linear-gradient(180deg, rgba(13, 24, 40, 0.92), rgba(3, 7, 13, 0.98));
 }
 
@@ -3277,23 +3300,107 @@ main {
 
 .animation-overlay,
 .animation-meta {
-  position: relative;
-  z-index: 2;
+  position: absolute;
+  z-index: 3;
   display: flex;
   gap: 0.75rem;
   align-items: center;
   justify-content: space-between;
-  margin: 0.75rem;
   pointer-events: none;
 }
 
-.animation-overlay span,
+.animation-overlay {
+  top: 0;
+  right: 0;
+  left: 0;
+  padding: 0.85rem;
+}
+
+.animation-title-card,
+.animation-state,
 .animation-meta span {
   border: 1px solid rgba(151, 164, 201, 0.18);
-  border-radius: 999px;
-  padding: 0.45rem 0.65rem;
-  background: rgba(5, 8, 14, 0.68);
-  backdrop-filter: blur(10px);
+  background: linear-gradient(135deg, rgba(5, 10, 20, 0.82), rgba(9, 18, 34, 0.62));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.05), 0 0.5rem 1.4rem rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(14px);
+}
+
+.animation-title-card {
+  min-width: min(15rem, 68%);
+  padding: 0.56rem 0.72rem 0.6rem;
+  border-radius: 0.75rem;
+}
+
+.animation-title-card small,
+.animation-title-card strong,
+.animation-title-card em {
+  display: block;
+  line-height: 1.1;
+}
+
+.animation-title-card small {
+  margin-bottom: 0.2rem;
+  color: #75e8ff;
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.animation-title-card strong {
+  color: #f6fbff;
+  font-size: clamp(0.82rem, 1.4vw, 1.02rem);
+}
+
+.animation-title-card em {
+  margin-top: 0.2rem;
+  color: var(--gold);
+  font-size: 0.67rem;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.animation-state {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.1rem 0.42rem;
+  align-items: center;
+  min-width: 11.3rem;
+  padding: 0.48rem 0.64rem;
+  border-radius: 0.75rem;
+  color: #c9f6ff;
+}
+
+.animation-state-led {
+  grid-row: span 2;
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 50%;
+  background: #66f2d5;
+  box-shadow: 0 0 0.85rem rgba(102, 242, 213, 0.8);
+}
+
+.animation-state strong,
+.animation-state small {
+  display: block;
+  min-width: 0;
+}
+
+.animation-state strong {
+  color: #f5fbff;
+  font-size: 0.69rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.animation-state small {
+  color: var(--muted);
+  font-size: 0.58rem;
+  line-height: 1.15;
 }
 
 .animation-overlay strong,
@@ -3303,33 +3410,37 @@ main {
 }
 
 .animation-overlay small {
-  margin-top: 0.14rem;
-  color: var(--gold);
-  font-size: 0.7rem;
-  font-weight: 900;
-  text-transform: uppercase;
+  margin-top: 0;
 }
 
 .animation-state {
-  color: #c9f6ff;
   font-size: 0.72rem;
   font-weight: 900;
   text-transform: uppercase;
 }
 
 .animation-state.locked {
-  color: var(--gold);
-  box-shadow: 0 0 22px rgba(246, 198, 91, 0.16);
+  border-color: rgba(246, 198, 91, 0.5);
+  box-shadow: 0 0 1.7rem rgba(246, 198, 91, 0.16), inset 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.animation-state.locked .animation-state-led {
+  background: var(--gold);
+  box-shadow: 0 0 0.9rem rgba(246, 198, 91, 0.86);
 }
 
 .animation-meta {
-  position: absolute;
   right: 0;
   bottom: 0;
   left: 0;
-  margin-top: 0;
+  padding: 0 0.85rem 0.8rem;
   color: var(--muted);
   font-size: 0.68rem;
+}
+
+.animation-meta span {
+  padding: 0.38rem 0.56rem;
+  border-radius: 999px;
 }
 
 .animation-meta span:last-child {
@@ -3339,9 +3450,59 @@ main {
   white-space: nowrap;
 }
 
+.animation-progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  height: 0.19rem;
+  overflow: hidden;
+  background: rgba(130, 153, 194, 0.22);
+}
+
+.animation-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #55e4ff, #9a72ff 62%, var(--gold));
+  box-shadow: 0 0 1rem rgba(85, 228, 255, 0.86);
+  transition: width 240ms ease;
+}
+
+.grappling-animation-stage .animation-title-card small {
+  color: #75e8ff;
+  font-size: 0.58rem;
+}
+
+.grappling-animation-stage .animation-state {
+  color: #c9f6ff;
+}
+
+.grappling-animation-stage .animation-state small {
+  color: var(--muted);
+  font-size: 0.58rem;
+  text-transform: none;
+}
+
 .mat-window.result-mode {
   grid-template-columns: 1fr;
   padding: 0;
+}
+
+.mat-window.cinematic-mode {
+  display: block;
+  min-height: 27rem;
+  padding: 0;
+  background: #030712;
+}
+
+.mat-window.cinematic-mode .grappling-animation-stage {
+  z-index: 2;
+  width: 100%;
+  min-height: 27rem;
+  border: 0;
+  border-radius: 0;
 }
 
 .mat-window.result-mode .grappling-animation-stage {
@@ -4175,10 +4336,19 @@ input[type="range"] {
   .animation-meta {
     flex-wrap: wrap;
     gap: 0.45rem;
-    margin: 0.5rem;
+    margin: 0;
   }
 
-  .animation-overlay span,
+  .animation-overlay {
+    padding: 0.55rem;
+  }
+
+  .animation-meta {
+    padding: 0 0.55rem 0.55rem;
+  }
+
+  .animation-title-card,
+  .animation-state,
   .animation-meta span,
   .animation-meta span:last-child {
     max-width: 100%;

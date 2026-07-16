@@ -12,15 +12,24 @@ const fallbackOpponent = {
   giTop: "#1b3f7a",
   giPants: "#1b3f7a",
   aura: "red surge",
+  emblem: "lion",
+  belt: "white",
+  stripes: 2,
+  stance: "judo base",
 };
 
 function paletteSignature(fighter) {
   return [
+    fighter?.name,
     fighter?.skinTone,
     fighter?.hairColor,
     fighter?.giTop,
     fighter?.giPants,
     fighter?.aura,
+    fighter?.emblem,
+    fighter?.belt,
+    fighter?.stripes,
+    fighter?.stance,
   ].join("|");
 }
 
@@ -30,6 +39,8 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
     animationKey,
     fighter,
     opponent = fallbackOpponent,
+    fighterBelt,
+    opponentBelt,
     autoPlaySignal,
     compact = false,
     title = "Paired Grappling Animation",
@@ -43,15 +54,38 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
   const pendingAutoPlayRef = useRef(null);
   const [locked, setLocked] = useState(false);
   const [status, setStatus] = useState(() => {
-    const animation = move ? getBjjAnimationForMove(move) : bjjAnimationCatalog[normalizeBjjAnimationKey(animationKey)];
+    const animation = move
+      ? getBjjAnimationForMove(move)
+      : bjjAnimationCatalog[normalizeBjjAnimationKey(animationKey)];
     return {
       moveKey: animation?.key ?? normalizeBjjAnimationKey(animationKey),
       label: animation?.label ?? "Standing Stance",
       controlState: animation?.controlState ?? "standing",
       assetPath: animation?.asset ?? bjjAnimationCatalog.standing_stance.asset,
       locked: false,
+      phase: "Ready",
+      progress: 0,
+      motionSource: "Cinematic procedural pair",
     };
   });
+
+  const visualFighter = useMemo(
+    () => ({
+      ...fighter,
+      belt: fighterBelt?.belt ?? fighter?.belt ?? "white",
+      stripes: fighterBelt?.stripes ?? fighter?.stripes ?? 0,
+    }),
+    [fighter, fighterBelt?.belt, fighterBelt?.stripes],
+  );
+
+  const visualOpponent = useMemo(
+    () => ({
+      ...opponent,
+      belt: opponentBelt?.belt ?? opponent?.belt ?? "white",
+      stripes: opponentBelt?.stripes ?? opponent?.stripes ?? 0,
+    }),
+    [opponent, opponentBelt?.belt, opponentBelt?.stripes],
+  );
 
   const resolvedAnimation = useMemo(() => {
     if (animationKey) {
@@ -75,7 +109,7 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
         onComplete,
       });
       managerRef.current = manager;
-      manager.setGrapplers(fighter, opponent);
+      manager.setGrapplers(visualFighter, visualOpponent);
       manager.setPreviewMove(resolvedAnimation.key);
       manager.loadAnimationAssets();
       if (pendingAutoPlayRef.current || autoPlaySignal) {
@@ -91,8 +125,8 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
   }, [onComplete, onLockChange]);
 
   useEffect(() => {
-    managerRef.current?.setGrapplers(fighter, opponent);
-  }, [fighter?.id, opponent?.id, paletteSignature(fighter), paletteSignature(opponent)]);
+    managerRef.current?.setGrapplers(visualFighter, visualOpponent);
+  }, [visualFighter, visualOpponent, paletteSignature(visualFighter), paletteSignature(visualOpponent)]);
 
   useEffect(() => {
     managerRef.current?.setPreviewMove(resolvedAnimation.key);
@@ -107,29 +141,43 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
     }
   }, [autoPlaySignal, move, resolvedAnimation.key]);
 
-  useImperativeHandle(ref, () => ({
-    playMove: (keyOrMove = resolvedAnimation.key, options = {}) =>
-      managerRef.current?.playMove(keyOrMove, { move, ...options }),
-    resetToNeutral: () => managerRef.current?.resetToNeutral(),
-    loadAnimationAssets: (keys) => managerRef.current?.loadAnimationAssets(keys),
-    isLocked: () => locked,
-  }), [locked, move, resolvedAnimation.key]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      playMove: (keyOrMove = resolvedAnimation.key, options = {}) =>
+        managerRef.current?.playMove(keyOrMove, { move, ...options }),
+      resetToNeutral: () => managerRef.current?.resetToNeutral(),
+      loadAnimationAssets: (keys) => managerRef.current?.loadAnimationAssets(keys),
+      isLocked: () => locked,
+    }),
+    [locked, move, resolvedAnimation.key],
+  );
 
   return (
-    <div className={`grappling-animation-stage ${compact ? "compact" : ""}`} data-animation-key={status.moveKey}>
-      <div className="animation-canvas" ref={containerRef} aria-label={`${status.label} animation`} />
+    <div
+      className={`grappling-animation-stage ${compact ? "compact" : ""}`}
+      data-animation-key={status.moveKey}
+      data-motion-phase={status.phase?.toLowerCase().replaceAll(" ", "-")}
+    >
+      <div className="animation-canvas" ref={containerRef} role="img" aria-label={`${status.label} cinematic animation`} />
       <div className="animation-overlay">
-        <span>
+        <div className="animation-title-card">
+          <small>Cinematic pair choreography</small>
           <strong>{title}</strong>
-          <small>{status.label}</small>
-        </span>
-        <span className={locked ? "animation-state locked" : "animation-state"}>
-          {locked ? "Syncing grapplers" : "Ready"}
-        </span>
+          <em>{status.label}</em>
+        </div>
+        <div className={locked ? "animation-state locked" : "animation-state"}>
+          <span className="animation-state-led" aria-hidden="true" />
+          <strong>{locked ? status.phase || "Syncing grapplers" : "Replay ready"}</strong>
+          <small>{locked ? "Input protected during the sequence" : "Choose a move to run the clip"}</small>
+        </div>
       </div>
       <div className="animation-meta">
-        <span>Control: {status.controlState}</span>
-        <span>{status.assetPath}</span>
+        <span>Control / {status.controlState}</span>
+        <span>{status.motionSource || "Cinematic procedural pair"}</span>
+      </div>
+      <div className="animation-progress" aria-hidden="true">
+        <span style={{ width: `${Math.max(0, Math.min(100, status.progress ?? 0))}%` }} />
       </div>
     </div>
   );

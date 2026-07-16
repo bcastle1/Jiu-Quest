@@ -1,4 +1,8 @@
 import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import {
   bjjAnimationCatalog,
@@ -7,19 +11,29 @@ import {
 } from "./bjjAnimationMap";
 
 const defaultFighter = {
+  name: "JiuQuest Fighter",
   skinTone: "#d99b71",
   hairColor: "#11131c",
   giTop: "#f8fbff",
   giPants: "#f8fbff",
   aura: "void violet",
+  emblem: "triangle",
+  belt: "white",
+  stripes: 0,
+  stance: "wrestling stance",
 };
 
 const defaultOpponent = {
+  name: "Training Rival",
   skinTone: "#d8a37a",
   hairColor: "#d9b156",
   giTop: "#1b3f7a",
   giPants: "#1b3f7a",
   aura: "red surge",
+  emblem: "lion",
+  belt: "white",
+  stripes: 2,
+  stance: "judo base",
 };
 
 const auraColors = {
@@ -30,6 +44,68 @@ const auraColors = {
   "emerald focus": "#3ee0a0",
 };
 
+const beltColors = {
+  white: "#f8fbff",
+  blue: "#1646a1",
+  purple: "#5f2a8d",
+  brown: "#673a25",
+  black: "#11131c",
+};
+
+const impactMoments = {
+  standing_stance: 0.72,
+  grip_fighting: 0.62,
+  single_leg: 0.66,
+  double_leg: 0.66,
+  guard_pull: 0.58,
+  closed_guard: 0.62,
+  guard_pass: 0.7,
+  side_control: 0.62,
+  mount: 0.65,
+  back_control: 0.65,
+  armbar: 0.72,
+  triangle_choke: 0.74,
+  rear_naked_choke: 0.74,
+  tap_out: 0.55,
+  reset_neutral: 0.58,
+};
+
+const phaseLabels = {
+  standing_stance: ["Read range", "Set base", "Ready"],
+  grip_fighting: ["Close distance", "Fight for grips", "Control secured"],
+  single_leg: ["Level change", "Capture the leg", "Finish to control"],
+  double_leg: ["Level change", "Drive through", "Finish to control"],
+  guard_pull: ["Establish grips", "Pull to guard", "Guard connected"],
+  closed_guard: ["Close distance", "Lock the guard", "Control established"],
+  guard_pass: ["Create the angle", "Clear the legs", "Pass secured"],
+  side_control: ["Break posture", "Cross-face pressure", "Side control"],
+  mount: ["Clear the knees", "Set the hooks", "Mount stabilized"],
+  back_control: ["Win the angle", "Set the hooks", "Back control"],
+  armbar: ["Isolate the arm", "Control the line", "Submission finish"],
+  triangle_choke: ["Control posture", "Lock the triangle", "Submission finish"],
+  rear_naked_choke: ["Secure the seatbelt", "Hide the hand", "Submission finish"],
+  tap_out: ["Control position", "Signal the finish", "Tap acknowledged"],
+  reset_neutral: ["Release control", "Recover base", "Neutral reset"],
+};
+
+const cameraProfiles = {
+  standing_stance: { entry: [0, 2.45, 5.9], control: [0, 2.28, 5.25], finish: [0, 2.42, 5.7], focus: [0, 0.95, 0] },
+  grip_fighting: { entry: [0, 2.25, 5.2], control: [-0.35, 2.02, 4.45], finish: [0.3, 2.18, 4.95], focus: [0, 1.08, 0] },
+  single_leg: { entry: [-0.15, 2.25, 5.1], control: [-1.1, 1.82, 4.25], finish: [0.3, 2.18, 4.45], focus: [0, 0.72, 0] },
+  double_leg: { entry: [-0.2, 2.28, 5.15], control: [-1.2, 1.78, 4.05], finish: [0.55, 2.05, 4.42], focus: [0, 0.72, 0] },
+  guard_pull: { entry: [0, 2.18, 5.05], control: [0.95, 1.85, 4.35], finish: [0.2, 2.1, 4.5], focus: [0, 0.62, 0] },
+  closed_guard: { entry: [0, 2.2, 4.9], control: [1.0, 1.85, 4.25], finish: [0.45, 2.05, 4.45], focus: [0, 0.55, 0] },
+  guard_pass: { entry: [-0.75, 2.08, 4.85], control: [-1.2, 1.8, 4.05], finish: [0.6, 2.02, 4.36], focus: [0, 0.58, 0] },
+  side_control: { entry: [0.85, 2.1, 4.65], control: [1.35, 1.74, 3.92], finish: [0.58, 1.95, 4.22], focus: [0, 0.52, 0] },
+  mount: { entry: [0.45, 2.15, 4.72], control: [1.18, 1.86, 4.0], finish: [0.15, 2.08, 4.3], focus: [0, 0.55, 0] },
+  back_control: { entry: [-0.72, 2.1, 4.75], control: [-1.25, 1.84, 4.02], finish: [-0.34, 2.02, 4.2], focus: [0, 0.72, 0] },
+  armbar: { entry: [0.8, 2.08, 4.7], control: [1.35, 1.74, 3.88], finish: [0.52, 1.9, 4.1], focus: [0, 0.5, 0] },
+  triangle_choke: { entry: [-0.75, 2.1, 4.72], control: [-1.28, 1.75, 3.92], finish: [-0.48, 1.95, 4.18], focus: [0, 0.52, 0] },
+  rear_naked_choke: { entry: [-0.85, 2.15, 4.8], control: [-1.3, 1.83, 3.98], finish: [-0.45, 1.98, 4.2], focus: [0, 0.7, 0] },
+  tap_out: { entry: [0, 2.12, 4.8], control: [0.8, 1.88, 4.15], finish: [0, 2.18, 4.6], focus: [0, 0.64, 0] },
+  reset_neutral: { entry: [0.5, 2.2, 4.92], control: [0, 2.24, 5.15], finish: [0, 2.45, 5.9], focus: [0, 0.9, 0] },
+};
+
 function safeColor(value, fallback) {
   try {
     return new THREE.Color(value || fallback);
@@ -38,31 +114,47 @@ function safeColor(value, fallback) {
   }
 }
 
+function clamp(value, min = 0, max = 1) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function ease(value) {
-  return THREE.MathUtils.smoothstep(Math.max(0, Math.min(1, value)), 0, 1);
+  return THREE.MathUtils.smoothstep(clamp(value), 0, 1);
 }
 
 function wave(progress, cycles = 1) {
   return Math.sin(progress * Math.PI * 2 * cycles);
 }
 
-function setTransform(target, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, scale = 1 }) {
-  target.position.set(x, y, z);
-  target.rotation.set(rx, ry, rz);
-  target.scale.setScalar(scale);
+function lerp(from, to, amount) {
+  return THREE.MathUtils.lerp(from, to, amount);
+}
+
+function phaseForProgress(key, progress) {
+  const labels = phaseLabels[key] || phaseLabels.standing_stance;
+  if (progress < 0.3) return { index: 0, label: labels[0], progress: 16 };
+  if (progress < 0.72) return { index: 1, label: labels[1], progress: 58 };
+  return { index: 2, label: labels[2], progress: 92 };
 }
 
 function disposeObject(object) {
   object.traverse((child) => {
     if (child.geometry) child.geometry.dispose();
     if (child.material) {
-      if (Array.isArray(child.material)) {
-        child.material.forEach((material) => material.dispose());
-      } else {
-        child.material.dispose();
-      }
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.forEach((material) => material.dispose());
     }
   });
+}
+
+function copyVector(target, values) {
+  target.set(values[0], values[1], values[2]);
+}
+
+function moveTowardsColor(target, color, darkness = 0) {
+  target.copy(color);
+  if (darkness) target.lerp(new THREE.Color("#050914"), darkness);
+  return target;
 }
 
 export class MoveAnimationManager {
@@ -70,27 +162,50 @@ export class MoveAnimationManager {
     this.container = container;
     this.options = options;
     this.assetCache = new Map();
+    this.textureCache = new Map();
     this.loader = new GLTFLoader();
+    this.textureLoader = new THREE.TextureLoader();
     this.lastFrameTime = performance.now();
     this.elapsedTime = 0;
     this.playing = false;
     this.active = null;
+    this.loadingMove = null;
+    this.pendingPreviewKey = null;
     this.idleKey = "standing_stance";
     this.controlState = "standing";
+    this.currentMotionSource = "Cinematic procedural pair";
     this.disposed = false;
+    this.impactEnergy = 0;
+    this.cameraFocus = new THREE.Vector3(0, 0.95, 0);
+    this.cameraGoal = new THREE.Vector3(0, 2.45, 5.9);
+    this.focusGoal = new THREE.Vector3(0, 0.95, 0);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color("#050814");
+    this.scene.background = new THREE.Color("#030712");
+    this.scene.fog = new THREE.FogExp2("#030712", 0.07);
 
     this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-    this.camera.position.set(0, 2.45, 5.6);
-    this.camera.lookAt(0, 0.95, 0);
+    this.camera.position.copy(this.cameraGoal);
+    this.camera.lookAt(this.cameraFocus);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance",
+    });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.innerWidth <= 700 ? 1.25 : 1.5));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.9;
     this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.setClearColor("#030712", 0);
     this.container.appendChild(this.renderer.domElement);
+
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.42, 0.36, 0.92);
+    this.composer.addPass(this.bloomPass);
 
     this._buildScene();
     this._resizeObserver = new ResizeObserver(() => this.resize());
@@ -100,36 +215,8 @@ export class MoveAnimationManager {
   }
 
   _buildScene() {
-    const key = new THREE.HemisphereLight("#dce8ff", "#261532", 2.2);
-    this.scene.add(key);
-
-    const rim = new THREE.DirectionalLight("#8a5cff", 3.2);
-    rim.position.set(-3, 4, 2);
-    rim.castShadow = true;
-    this.scene.add(rim);
-
-    const warm = new THREE.DirectionalLight("#f7c852", 1.6);
-    warm.position.set(3, 2.5, 3);
-    this.scene.add(warm);
-
-    const mat = new THREE.Mesh(
-      new THREE.BoxGeometry(5.4, 0.08, 3.2),
-      new THREE.MeshStandardMaterial({
-        color: "#183d58",
-        roughness: 0.8,
-        metalness: 0.05,
-      }),
-    );
-    mat.position.y = -0.04;
-    mat.receiveShadow = true;
-    this.scene.add(mat);
-
-    const grid = new THREE.GridHelper(5.2, 10, "#62c5ff", "#315470");
-    grid.position.y = 0.012;
-    grid.material.opacity = 0.22;
-    grid.material.transparent = true;
-    this.scene.add(grid);
-
+    this._buildLighting();
+    this._buildArena();
     this.attacker = this._createGrappler(defaultFighter);
     this.defender = this._createGrappler(defaultOpponent);
     this.scene.add(this.attacker.root, this.defender.root);
@@ -137,92 +224,463 @@ export class MoveAnimationManager {
     this.setPreviewMove("standing_stance");
   }
 
-  _createMaterial(color, roughness = 0.74) {
-    return new THREE.MeshStandardMaterial({
+  _buildLighting() {
+    const sky = new THREE.HemisphereLight("#c5ddff", "#171124", 1.65);
+    this.scene.add(sky);
+
+    const key = new THREE.DirectionalLight("#d9f4ff", 2.35);
+    key.position.set(-3.4, 5.5, 4.2);
+    key.castShadow = true;
+    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.camera.left = -5;
+    key.shadow.camera.right = 5;
+    key.shadow.camera.top = 5;
+    key.shadow.camera.bottom = -4;
+    this.scene.add(key);
+
+    const rim = new THREE.DirectionalLight("#805cff", 2.25);
+    rim.position.set(4.2, 3.5, -2.5);
+    this.scene.add(rim);
+
+    const warm = new THREE.SpotLight("#f7c852", 9, 12, 0.52, 0.75, 1.35);
+    warm.position.set(1.5, 5.1, 2.1);
+    warm.target.position.set(0, 0.65, 0);
+    warm.castShadow = true;
+    warm.shadow.mapSize.set(1024, 1024);
+    this.scene.add(warm, warm.target);
+
+    const side = new THREE.SpotLight("#2de2e6", 6.5, 10, 0.62, 0.86, 1.55);
+    side.position.set(-4.8, 2.8, 1.8);
+    side.target.position.set(0, 0.7, 0);
+    this.scene.add(side, side.target);
+    this.lightPulse = { warm, side, rim };
+    this.shadowLights = [key, warm];
+  }
+
+  _buildArena() {
+    const arena = new THREE.Group();
+    this.scene.add(arena);
+    this.arena = arena;
+    this.arenaGlowMaterials = [];
+
+    const backdrop = new THREE.Mesh(
+      new THREE.PlaneGeometry(12, 7),
+      new THREE.MeshBasicMaterial({ color: "#071326", transparent: true, opacity: 0.78 }),
+    );
+    backdrop.position.set(0, 2.8, -2.75);
+    arena.add(backdrop);
+
+    const halo = new THREE.Mesh(
+      new THREE.RingGeometry(1.3, 4.8, 96),
+      new THREE.MeshBasicMaterial({
+        color: "#3d2a7b",
+        transparent: true,
+        opacity: 0.11,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    );
+    halo.rotation.x = Math.PI / 2;
+    halo.position.set(0, 0.005, -0.28);
+    arena.add(halo);
+
+    const mat = new THREE.Mesh(
+      new THREE.CylinderGeometry(3.25, 3.42, 0.15, 96),
+      new THREE.MeshPhysicalMaterial({
+        color: "#102b46",
+        roughness: 0.48,
+        metalness: 0.2,
+        clearcoat: 0.38,
+        clearcoatRoughness: 0.28,
+      }),
+    );
+    mat.position.y = -0.11;
+    mat.receiveShadow = true;
+    arena.add(mat);
+
+    const matInset = new THREE.Mesh(
+      new THREE.CircleGeometry(3.02, 96),
+      new THREE.MeshStandardMaterial({
+        color: "#123956",
+        roughness: 0.58,
+        metalness: 0.12,
+      }),
+    );
+    matInset.rotation.x = -Math.PI / 2;
+    matInset.position.y = -0.026;
+    matInset.receiveShadow = true;
+    arena.add(matInset);
+
+    const centralMark = new THREE.Mesh(
+      new THREE.RingGeometry(0.62, 0.67, 64),
+      new THREE.MeshBasicMaterial({
+        color: "#f7c852",
+        transparent: true,
+        opacity: 0.48,
+        side: THREE.DoubleSide,
+      }),
+    );
+    centralMark.rotation.x = -Math.PI / 2;
+    centralMark.position.y = -0.017;
+    arena.add(centralMark);
+
+    [1.35, 2.18, 2.83].forEach((radius, index) => {
+      const ringMaterial = new THREE.MeshBasicMaterial({
+        color: index === 2 ? "#6cf3ff" : "#5477cc",
+        transparent: true,
+        opacity: index === 2 ? 0.42 : 0.24,
+        side: THREE.DoubleSide,
+      });
+      const ring = new THREE.Mesh(new THREE.RingGeometry(radius, radius + 0.024, 96), ringMaterial);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = -0.013 + index * 0.001;
+      arena.add(ring);
+      this.arenaGlowMaterials.push(ringMaterial);
+    });
+
+    const matLines = new THREE.Group();
+    const lineMaterial = new THREE.MeshBasicMaterial({ color: "#81d9ff", transparent: true, opacity: 0.22 });
+    const vertical = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.006, 5.25), lineMaterial);
+    const horizontal = new THREE.Mesh(new THREE.BoxGeometry(5.25, 0.006, 0.022), lineMaterial);
+    vertical.position.y = -0.008;
+    horizontal.position.y = -0.008;
+    matLines.add(vertical, horizontal);
+    arena.add(matLines);
+
+    const rearDeck = new THREE.Mesh(
+      new RoundedBoxGeometry(8.2, 0.42, 0.42, 4, 0.08),
+      new THREE.MeshStandardMaterial({ color: "#07101e", roughness: 0.45, metalness: 0.38 }),
+    );
+    rearDeck.position.set(0, 0.18, -2.15);
+    rearDeck.receiveShadow = true;
+    arena.add(rearDeck);
+
+    [-3.36, -1.68, 0, 1.68, 3.36].forEach((x, index) => {
+      const pillar = new THREE.Mesh(
+        new RoundedBoxGeometry(0.15, 2.85 - Math.abs(index - 2) * 0.22, 0.15, 4, 0.045),
+        new THREE.MeshStandardMaterial({
+          color: index % 2 ? "#102f55" : "#2b195d",
+          roughness: 0.32,
+          metalness: 0.58,
+          emissive: index % 2 ? "#0b4d75" : "#261167",
+          emissiveIntensity: 0.72,
+        }),
+      );
+      pillar.position.set(x, 1.35, -2.26);
+      arena.add(pillar);
+
+      const stripMaterial = new THREE.MeshBasicMaterial({
+        color: index % 2 ? "#3ce8ff" : "#a576ff",
+        transparent: true,
+        opacity: 0.72,
+      });
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.045, 1.9, 0.025), stripMaterial);
+      strip.position.set(x, 1.32, -2.15);
+      arena.add(strip);
+      this.arenaGlowMaterials.push(stripMaterial);
+    });
+
+    [-1, 1].forEach((side) => {
+      const rail = new THREE.Mesh(
+        new THREE.TorusGeometry(3.22, 0.038, 8, 96, Math.PI * 0.52),
+        new THREE.MeshBasicMaterial({ color: "#f7c852", transparent: true, opacity: 0.45 }),
+      );
+      rail.rotation.set(Math.PI / 2, 0, side > 0 ? 0.26 : Math.PI + 0.26);
+      rail.position.y = 0.06;
+      arena.add(rail);
+    });
+
+    const count = 140;
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const cyan = safeColor("#63e8ff", "#63e8ff");
+    const violet = safeColor("#a576ff", "#a576ff");
+    for (let index = 0; index < count; index += 1) {
+      const radius = 2.6 + Math.random() * 3.2;
+      const angle = Math.random() * Math.PI * 2;
+      positions[index * 3] = Math.cos(angle) * radius;
+      positions[index * 3 + 1] = 0.2 + Math.random() * 3.7;
+      positions[index * 3 + 2] = -1.7 + Math.sin(angle) * 1.8;
+      const color = index % 2 ? cyan : violet;
+      colors[index * 3] = color.r;
+      colors[index * 3 + 1] = color.g;
+      colors[index * 3 + 2] = color.b;
+    }
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    particleGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    const particles = new THREE.Points(
+      particleGeometry,
+      new THREE.PointsMaterial({
+        size: 0.026,
+        transparent: true,
+        opacity: 0.74,
+        vertexColors: true,
+        depthWrite: false,
+        sizeAttenuation: true,
+      }),
+    );
+    particles.position.z = -0.25;
+    arena.add(particles);
+    this.ambientParticles = particles;
+
+    const impactMaterial = new THREE.MeshBasicMaterial({
+      color: "#f7c852",
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    this.impactRing = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.25, 72), impactMaterial);
+    this.impactRing.rotation.x = -Math.PI / 2;
+    this.impactRing.position.set(0, 0.025, 0);
+    this.impactRing.visible = false;
+    arena.add(this.impactRing);
+
+    this.impactNodes = Array.from({ length: 24 }, () => {
+      const material = new THREE.MeshBasicMaterial({
+        color: "#f7c852",
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      });
+      const node = new THREE.Mesh(new THREE.OctahedronGeometry(0.045, 0), material);
+      node.visible = false;
+      node.userData.velocity = new THREE.Vector3();
+      arena.add(node);
+      return node;
+    });
+  }
+
+  _createMaterial(color, options = {}) {
+    return new THREE.MeshPhysicalMaterial({
       color: safeColor(color, "#ffffff"),
-      roughness,
-      metalness: 0.03,
+      roughness: options.roughness ?? 0.62,
+      metalness: options.metalness ?? 0.04,
+      clearcoat: options.clearcoat ?? 0.06,
+      clearcoatRoughness: options.clearcoatRoughness ?? 0.56,
     });
   }
 
   _createGrappler(fighter) {
     const root = new THREE.Group();
-    const parts = {};
+    root.name = fighter.name || "Grappler";
+    root.rotation.order = "YXZ";
 
-    parts.body = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.78, 0.28), this._createMaterial(fighter.giTop));
-    parts.body.position.y = 1.12;
-    parts.body.castShadow = true;
-    root.add(parts.body);
-
-    parts.belt = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.1, 0.32), this._createMaterial("#11131c"));
-    parts.belt.position.y = 0.79;
-    parts.belt.castShadow = true;
-    root.add(parts.belt);
-
-    parts.head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 24, 16), this._createMaterial(fighter.skinTone, 0.58));
-    parts.head.position.y = 1.68;
-    parts.head.castShadow = true;
-    root.add(parts.head);
-
-    parts.hair = new THREE.Mesh(new THREE.SphereGeometry(0.2, 18, 10), this._createMaterial(fighter.hairColor, 0.65));
-    parts.hair.position.set(0, 1.79, -0.02);
-    parts.hair.scale.set(1.05, 0.62, 0.9);
-    parts.hair.castShadow = true;
-    root.add(parts.hair);
-
-    parts.leftArm = this._createLimb(fighter.giTop, fighter.skinTone, "arm");
-    parts.leftArm.position.set(-0.38, 1.36, 0);
-    root.add(parts.leftArm);
-
-    parts.rightArm = this._createLimb(fighter.giTop, fighter.skinTone, "arm");
-    parts.rightArm.position.set(0.38, 1.36, 0);
-    root.add(parts.rightArm);
-
-    parts.leftLeg = this._createLimb(fighter.giPants, fighter.skinTone, "leg");
-    parts.leftLeg.position.set(-0.18, 0.74, 0);
-    root.add(parts.leftLeg);
-
-    parts.rightLeg = this._createLimb(fighter.giPants, fighter.skinTone, "leg");
-    parts.rightLeg.position.set(0.18, 0.74, 0);
-    root.add(parts.rightLeg);
-
-    const aura = new THREE.Mesh(
-      new THREE.RingGeometry(0.76, 0.84, 64),
-      new THREE.MeshBasicMaterial({
+    const materials = {
+      giTop: this._createMaterial(fighter.giTop, { roughness: 0.52, clearcoat: 0.12 }),
+      giLapel: this._createMaterial(fighter.giTop, { roughness: 0.56 }),
+      giPants: this._createMaterial(fighter.giPants, { roughness: 0.66 }),
+      skin: this._createMaterial(fighter.skinTone, { roughness: 0.57, clearcoat: 0.02 }),
+      hair: this._createMaterial(fighter.hairColor, { roughness: 0.78, metalness: 0.02 }),
+      belt: this._createMaterial("#f8fbff", { roughness: 0.5, clearcoat: 0.1 }),
+      beltStripe: this._createMaterial("#11131c", { roughness: 0.58 }),
+      aura: new THREE.MeshBasicMaterial({
         color: safeColor(auraColors[fighter.aura], "#8a5cff"),
         transparent: true,
-        opacity: 0.26,
+        opacity: 0.27,
         side: THREE.DoubleSide,
+        depthWrite: false,
       }),
+      auraLine: new THREE.MeshBasicMaterial({
+        color: safeColor(auraColors[fighter.aura], "#8a5cff"),
+        transparent: true,
+        opacity: 0.58,
+        depthWrite: false,
+      }),
+      emblem: new THREE.MeshBasicMaterial({
+        color: "#ffffff",
+        transparent: true,
+        opacity: 0.94,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    };
+
+    const parts = {};
+    const hips = new THREE.Mesh(
+      new RoundedBoxGeometry(0.5, 0.25, 0.3, 4, 0.045),
+      materials.giPants,
     );
-    aura.position.y = 0.92;
-    aura.rotation.x = Math.PI / 2;
+    hips.position.y = 0.84;
+    hips.castShadow = true;
+    root.add(hips);
+    parts.hips = hips;
+
+    const body = new THREE.Mesh(
+      new RoundedBoxGeometry(0.66, 0.76, 0.36, 5, 0.065),
+      materials.giTop,
+    );
+    body.position.y = 1.25;
+    body.castShadow = true;
+    root.add(body);
+    parts.body = body;
+
+    [-1, 1].forEach((side) => {
+      const lapel = new THREE.Mesh(
+        new RoundedBoxGeometry(0.1, 0.5, 0.042, 3, 0.012),
+        materials.giLapel,
+      );
+      lapel.position.set(side * 0.13, 1.28, 0.204);
+      lapel.rotation.z = side * 0.44;
+      lapel.castShadow = true;
+      root.add(lapel);
+    });
+
+    const belt = new THREE.Mesh(new THREE.TorusGeometry(0.325, 0.045, 7, 24), materials.belt);
+    belt.position.y = 0.98;
+    belt.rotation.x = Math.PI / 2;
+    belt.castShadow = true;
+    root.add(belt);
+    parts.belt = belt;
+
+    const beltKnot = new THREE.Mesh(
+      new RoundedBoxGeometry(0.13, 0.085, 0.09, 3, 0.02),
+      materials.belt,
+    );
+    beltKnot.position.set(0, 0.98, 0.22);
+    beltKnot.castShadow = true;
+    root.add(beltKnot);
+    parts.beltKnot = beltKnot;
+
+    parts.beltStripes = Array.from({ length: 4 }, (_, index) => {
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.023, 0.055, 0.012), materials.beltStripe);
+      stripe.position.set(0.08 + index * 0.028, 0.98, 0.266);
+      stripe.visible = false;
+      root.add(stripe);
+      return stripe;
+    });
+
+    const headRig = new THREE.Group();
+    headRig.position.y = 1.84;
+    root.add(headRig);
+    parts.headRig = headRig;
+
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 0.16, 12), materials.skin);
+    neck.position.y = -0.14;
+    neck.castShadow = true;
+    headRig.add(neck);
+
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 18), materials.skin);
+    head.scale.set(0.92, 1.08, 0.88);
+    head.castShadow = true;
+    headRig.add(head);
+    parts.head = head;
+
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.224, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.56), materials.hair);
+    hair.position.set(0, 0.09, -0.015);
+    hair.scale.set(0.97, 0.86, 0.93);
+    hair.castShadow = true;
+    headRig.add(hair);
+    parts.hair = hair;
+
+    const face = new THREE.Group();
+    face.position.z = 0.19;
+    [-0.07, 0.07].forEach((x) => {
+      const eye = new THREE.Mesh(
+        new THREE.SphereGeometry(0.017, 10, 8),
+        new THREE.MeshBasicMaterial({ color: "#07101c" }),
+      );
+      eye.position.set(x, 0.015, 0.01);
+      face.add(eye);
+    });
+    headRig.add(face);
+
+    const emblem = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.18), materials.emblem);
+    emblem.position.set(0, 1.3, 0.207);
+    root.add(emblem);
+    parts.emblem = emblem;
+
+    parts.leftArm = this._createArm(-1, materials);
+    parts.rightArm = this._createArm(1, materials);
+    parts.leftLeg = this._createLeg(-1, materials);
+    parts.rightLeg = this._createLeg(1, materials);
+    root.add(parts.leftArm.shoulder, parts.rightArm.shoulder, parts.leftLeg.hip, parts.rightLeg.hip);
+
+    const aura = new THREE.Group();
+    const auraDisc = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.58, 72), materials.aura);
+    auraDisc.rotation.x = -Math.PI / 2;
+    auraDisc.position.y = 0.025;
+    aura.add(auraDisc);
+    const auraLine = new THREE.Mesh(new THREE.TorusGeometry(0.59, 0.014, 5, 56), materials.auraLine);
+    auraLine.rotation.x = Math.PI / 2;
+    auraLine.position.y = 0.04;
+    aura.add(auraLine);
+    const auraArc = new THREE.Mesh(new THREE.TorusGeometry(0.79, 0.012, 5, 48, Math.PI * 1.2), materials.auraLine);
+    auraArc.rotation.set(Math.PI / 2, 0, 0.35);
+    auraArc.position.y = 0.035;
+    aura.add(auraArc);
     root.add(aura);
     parts.aura = aura;
+    parts.auraDisc = auraDisc;
+    parts.auraLine = auraLine;
+    parts.auraArc = auraArc;
 
-    return { root, parts };
+    return { root, parts, materials, fighter: { ...fighter } };
   }
 
-  _createLimb(clothColor, skinColor, type) {
-    const root = new THREE.Group();
-    const length = type === "leg" ? 0.72 : 0.56;
-    const radius = type === "leg" ? 0.07 : 0.055;
-    const limb = new THREE.Mesh(
-      new THREE.CapsuleGeometry(radius, length, 6, 12),
-      this._createMaterial(clothColor),
-    );
-    limb.position.y = -length / 2;
-    limb.castShadow = true;
-    root.add(limb);
+  _createArm(side, materials) {
+    const shoulder = new THREE.Group();
+    shoulder.position.set(side * 0.4, 1.48, 0);
 
-    const end = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.2, 16, 10), this._createMaterial(skinColor, 0.58));
-    end.position.y = -length - radius * 2.3;
-    end.scale.set(type === "leg" ? 1.8 : 1.15, 0.8, type === "leg" ? 0.9 : 1.15);
-    end.castShadow = true;
-    root.add(end);
-    root.userData.limb = limb;
-    root.userData.end = end;
-    return root;
+    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.105, 0.3, 5, 12), materials.giTop);
+    sleeve.position.y = -0.2;
+    sleeve.castShadow = true;
+    shoulder.add(sleeve);
+
+    const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.108, 0.016, 5, 16), materials.giLapel);
+    cuff.rotation.x = Math.PI / 2;
+    cuff.position.y = -0.41;
+    shoulder.add(cuff);
+
+    const elbow = new THREE.Group();
+    elbow.position.y = -0.43;
+    shoulder.add(elbow);
+
+    const forearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.245, 5, 12), materials.skin);
+    forearm.position.y = -0.16;
+    forearm.castShadow = true;
+    elbow.add(forearm);
+
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.085, 14, 10), materials.skin);
+    hand.position.y = -0.34;
+    hand.scale.set(0.86, 1.1, 0.72);
+    hand.castShadow = true;
+    elbow.add(hand);
+
+    return { shoulder, elbow, sleeve, cuff, forearm, hand };
+  }
+
+  _createLeg(side, materials) {
+    const hip = new THREE.Group();
+    hip.position.set(side * 0.19, 0.8, 0);
+
+    const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.13, 0.35, 5, 12), materials.giPants);
+    thigh.position.y = -0.23;
+    thigh.castShadow = true;
+    hip.add(thigh);
+
+    const knee = new THREE.Group();
+    knee.position.y = -0.49;
+    hip.add(knee);
+
+    const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.34, 5, 12), materials.giPants);
+    shin.position.y = -0.23;
+    shin.castShadow = true;
+    knee.add(shin);
+
+    const ankle = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.09, 12), materials.skin);
+    ankle.position.y = -0.44;
+    ankle.castShadow = true;
+    knee.add(ankle);
+
+    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.108, 14, 10), materials.skin);
+    foot.position.set(0, -0.49, 0.07);
+    foot.scale.set(0.9, 0.55, 1.48);
+    foot.castShadow = true;
+    knee.add(foot);
+
+    return { hip, knee, thigh, shin, ankle, foot };
   }
 
   setGrapplers(fighter = defaultFighter, opponent = defaultOpponent) {
@@ -231,30 +689,71 @@ export class MoveAnimationManager {
   }
 
   _applyPalette(grappler, fighter) {
+    if (!grappler) return;
     const top = safeColor(fighter.giTop, "#f8fbff");
     const pants = safeColor(fighter.giPants, "#f8fbff");
     const skin = safeColor(fighter.skinTone, "#d99b71");
     const hair = safeColor(fighter.hairColor, "#11131c");
     const aura = safeColor(auraColors[fighter.aura], "#8a5cff");
-    grappler.parts.body.material.color.copy(top);
-    grappler.parts.leftArm.userData.limb.material.color.copy(top);
-    grappler.parts.rightArm.userData.limb.material.color.copy(top);
-    grappler.parts.leftLeg.userData.limb.material.color.copy(pants);
-    grappler.parts.rightLeg.userData.limb.material.color.copy(pants);
-    grappler.parts.head.material.color.copy(skin);
-    grappler.parts.leftArm.userData.end.material.color.copy(skin);
-    grappler.parts.rightArm.userData.end.material.color.copy(skin);
-    grappler.parts.leftLeg.userData.end.material.color.copy(skin);
-    grappler.parts.rightLeg.userData.end.material.color.copy(skin);
-    grappler.parts.hair.material.color.copy(hair);
-    grappler.parts.aura.material.color.copy(aura);
+    const belt = safeColor(beltColors[fighter.belt] || beltColors.white, "#f8fbff");
+
+    grappler.fighter = { ...grappler.fighter, ...fighter };
+    grappler.root.name = fighter.name || "Grappler";
+    grappler.materials.giTop.color.copy(top);
+    moveTowardsColor(grappler.materials.giLapel.color, top, 0.32);
+    grappler.materials.giPants.color.copy(pants);
+    grappler.materials.skin.color.copy(skin);
+    grappler.materials.hair.color.copy(hair);
+    grappler.materials.belt.color.copy(belt);
+    grappler.materials.beltStripe.color.set(fighter.belt === "white" ? "#182030" : "#f8fbff");
+    grappler.materials.aura.color.copy(aura);
+    grappler.materials.auraLine.color.copy(aura);
+    grappler.parts.beltStripes.forEach((stripe, index) => {
+      stripe.visible = index < Math.min(4, Number(fighter.stripes) || 0);
+    });
+    this._setEmblem(grappler, fighter.emblem);
+  }
+
+  _setEmblem(grappler, emblem) {
+    const patch = grappler.parts.emblem;
+    if (!emblem || emblem === "none") {
+      patch.visible = false;
+      return;
+    }
+    const asset = "/assets/emblems/" + emblem + ".png";
+    let texture = this.textureCache.get(asset);
+    if (!texture) {
+      texture = this.textureLoader.load(
+        asset,
+        (loadedTexture) => {
+          loadedTexture.colorSpace = THREE.SRGBColorSpace;
+          loadedTexture.needsUpdate = true;
+        },
+        undefined,
+        () => {
+          patch.visible = false;
+        },
+      );
+      this.textureCache.set(asset, texture);
+    }
+    patch.material.map = texture;
+    patch.material.needsUpdate = true;
+    patch.visible = true;
   }
 
   resize() {
     if (!this.container || !this.renderer) return;
     const width = Math.max(320, this.container.clientWidth || 640);
     const height = Math.max(220, this.container.clientHeight || 360);
+    this.isCompactViewport = width <= 640;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.isCompactViewport ? 1.25 : 1.5));
+    const shadowMapSize = this.isCompactViewport ? 512 : 1024;
+    this.shadowLights?.forEach((light) => {
+      if (light.shadow.mapSize.x !== shadowMapSize) light.shadow.mapSize.set(shadowMapSize, shadowMapSize);
+    });
+    if (this.bloomPass) this.bloomPass.enabled = !this.isCompactViewport;
     this.renderer.setSize(width, height, false);
+    this.composer?.setSize(width, height);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
   }
@@ -270,9 +769,12 @@ export class MoveAnimationManager {
     const request = new Promise((resolve) => {
       this.loader.load(
         config.asset,
-        (gltf) => resolve({ key: normalized, config, gltf, loaded: true }),
+        (gltf) => {
+          const hasPairedMotion = Boolean(gltf?.animations?.some((clip) => clip.tracks?.length));
+          resolve({ key: normalized, config, gltf, loaded: true, hasPairedMotion });
+        },
         undefined,
-        () => resolve({ key: normalized, config, gltf: null, loaded: false }),
+        () => resolve({ key: normalized, config, gltf: null, loaded: false, hasPairedMotion: false }),
       );
     });
     this.assetCache.set(normalized, request);
@@ -280,25 +782,33 @@ export class MoveAnimationManager {
   }
 
   setPreviewMove(moveOrKey) {
-    if (this.playing) return;
-    const key = typeof moveOrKey === "string" ? normalizeBjjAnimationKey(moveOrKey) : getBjjAnimationKeyForMove(moveOrKey);
+    const key = typeof moveOrKey === "string"
+      ? normalizeBjjAnimationKey(moveOrKey)
+      : getBjjAnimationKeyForMove(moveOrKey);
+    if (this.playing || this.loadingMove) {
+      this.pendingPreviewKey = key;
+      return;
+    }
     this.idleKey = key;
     this.controlState = bjjAnimationCatalog[key]?.controlState ?? "standing";
-    this._applyMovePose(key, 0.18, 0);
-    this.options.onStateChange?.({
+    this.currentMotionSource = "Cinematic procedural pair";
+    this._applyMovePose(key, 0.94, this.elapsedTime);
+    this._emitState({
       locked: false,
-      moveKey: key,
-      label: bjjAnimationCatalog[key]?.label,
-      controlState: this.controlState,
-      assetPath: bjjAnimationCatalog[key]?.asset,
+      key,
+      phase: phaseForProgress(key, 0.94).label,
+      progress: 100,
     });
   }
 
   async playMove(moveOrKey, options = {}) {
-    if (this.playing) return false;
-    const key = typeof moveOrKey === "string" ? normalizeBjjAnimationKey(moveOrKey) : getBjjAnimationKeyForMove(moveOrKey);
+    if (this.playing || this.loadingMove) return false;
+    const key = typeof moveOrKey === "string"
+      ? normalizeBjjAnimationKey(moveOrKey)
+      : getBjjAnimationKeyForMove(moveOrKey);
     const config = bjjAnimationCatalog[key] ?? bjjAnimationCatalog.standing_stance;
-    this.playing = true;
+    this.loadingMove = key;
+    this.playing = false;
     this.active = {
       key,
       config,
@@ -306,10 +816,23 @@ export class MoveAnimationManager {
       duration: options.duration ?? config.duration,
       move: options.move,
       resolve: null,
+      phaseIndex: -1,
+      impactTriggered: false,
+      asset: null,
     };
     this.options.onLockChange?.(true);
-    this.options.onStateChange?.({ locked: true, moveKey: key, label: config.label, controlState: this.controlState, assetPath: config.asset });
-    await this.loadAnimationAsset(key);
+    this._emitState({ locked: true, key, phase: phaseForProgress(key, 0).label, progress: 4 });
+    this._playMotionSfx(key);
+    const asset = await this.loadAnimationAsset(key);
+
+    if (this.disposed || !this.active || this.active.key !== key) {
+      this.loadingMove = null;
+      return false;
+    }
+    this.active.asset = asset;
+    this.currentMotionSource = "Cinematic procedural pair";
+    this.currentMotionSource = "Cinematic procedural pair · GLB-ready";
+    this._emitState({ locked: true, key, phase: phaseForProgress(key, 0).label, progress: 4 });
 
     return new Promise((resolve) => {
       if (!this.active || this.active.key !== key) {
@@ -317,6 +840,10 @@ export class MoveAnimationManager {
         return;
       }
       this.active.resolve = resolve;
+      this.currentMotionSource = "Cinematic procedural pair";
+      this.loadingMove = null;
+      this.playing = true;
+      this._emitState({ locked: true, key, phase: phaseForProgress(key, 0).label, progress: 4 });
     });
   }
 
@@ -354,17 +881,34 @@ export class MoveAnimationManager {
     const delta = Math.min(0.05, (now - this.lastFrameTime) / 1000);
     this.lastFrameTime = now;
     this.elapsedTime += delta;
+
     if (this.playing && this.active) {
       this.active.elapsed += delta;
       const progress = Math.min(1, this.active.elapsed / this.active.duration);
       this._applyMovePose(this.active.key, progress, this.active.elapsed);
+      this._updateActivePhase(progress);
+      const impactAt = impactMoments[this.active.key] ?? 0.66;
+      if (!this.active.impactTriggered && progress >= impactAt) {
+        this.active.impactTriggered = true;
+        this._triggerImpact(this.active.key);
+      }
       if (progress >= 1) this._finishAnimation();
     } else {
       this._applyIdleMotion(this.idleKey, this.elapsedTime);
     }
-    this.renderer.render(this.scene, this.camera);
+
+    this._updateEnvironment(delta);
+    this.composer?.render();
     this.frameId = window.requestAnimationFrame(this._render);
   };
+
+  _updateActivePhase(progress) {
+    if (!this.active) return;
+    const phase = phaseForProgress(this.active.key, progress);
+    if (phase.index === this.active.phaseIndex) return;
+    this.active.phaseIndex = phase.index;
+    this._emitState({ locked: true, key: this.active.key, phase: phase.label, progress: phase.progress });
+  }
 
   _finishAnimation() {
     const active = this.active;
@@ -375,197 +919,437 @@ export class MoveAnimationManager {
     this.controlState = active.config.controlState;
     this.active = null;
     this.options.onLockChange?.(false);
-    const payload = {
+    const payload = this._statePayload({
       locked: false,
-      moveKey: active.key,
-      label: active.config.label,
-      controlState: this.controlState,
-      assetPath: active.config.asset,
-    };
+      key: active.key,
+      phase: active.key === "reset_neutral" ? "Neutral reset" : "Replay ready",
+      progress: 100,
+    });
     this.options.onStateChange?.(payload);
     this.options.onComplete?.(payload);
     active.resolve?.(payload);
+    const pendingKey = this.pendingPreviewKey;
+    this.pendingPreviewKey = null;
+    if (pendingKey && pendingKey !== this.idleKey) {
+      this.idleKey = pendingKey;
+      this.controlState = bjjAnimationCatalog[pendingKey]?.controlState ?? "standing";
+      this.currentMotionSource = "Cinematic procedural pair";
+      this._applyMovePose(pendingKey, 0.94, this.elapsedTime);
+      this._emitState({
+        locked: false,
+        key: pendingKey,
+        phase: "Preview ready",
+        progress: 100,
+      });
+    }
+  }
+
+  _emitState({ locked, key, phase, progress }) {
+    this.options.onStateChange?.(this._statePayload({ locked, key, phase, progress }));
+  }
+
+  _statePayload({ locked, key, phase, progress }) {
+    const config = bjjAnimationCatalog[key] ?? bjjAnimationCatalog.standing_stance;
+    return {
+      locked,
+      moveKey: key,
+      label: config.label,
+      controlState: config.controlState,
+      assetPath: config.asset,
+      phase,
+      progress,
+      motionSource: "Cinematic procedural pair",
+    };
   }
 
   _applyIdleMotion(key, elapsed) {
-    const bob = Math.sin(elapsed * 2.1) * 0.025;
-    this._applyMovePose(key, 1, elapsed);
-    this.attacker.root.position.y += bob;
-    this.defender.root.position.y += bob * 0.8;
-    this.attacker.parts.aura.rotation.z += 0.01;
-    this.defender.parts.aura.rotation.z -= 0.008;
+    const isGrounded = ["closed_guard", "guard_pass", "side_control", "mount", "back_control", "armbar", "triangle_choke", "rear_naked_choke"].includes(key);
+    this._applyMovePose(key, 0.96, elapsed);
+    if (!isGrounded) {
+      const bob = Math.sin(elapsed * 2.1) * 0.018;
+      this.attacker.root.position.y += bob;
+      this.defender.root.position.y += bob * 0.78;
+    }
   }
 
-  _stand(grappler, x, z, face = 1, crouch = 0) {
-    setTransform(grappler.root, {
-      x,
-      y: -0.02 - crouch * 0.18,
-      z,
-      ry: face > 0 ? -0.28 : 0.28,
-      rx: crouch * 0.15,
-      scale: 1 - crouch * 0.08,
+  _resetGrappler(grappler) {
+    const { root, parts } = grappler;
+    root.position.set(0, 0, 0);
+    root.rotation.set(0, 0, 0);
+    root.scale.setScalar(1);
+    parts.body.rotation.set(0, 0, 0);
+    parts.headRig.rotation.set(0, 0, 0);
+    [parts.leftArm, parts.rightArm].forEach((arm) => {
+      arm.shoulder.rotation.set(0, 0, 0);
+      arm.elbow.rotation.set(0, 0, 0);
     });
-    const { leftArm, rightArm, leftLeg, rightLeg } = grappler.parts;
-    leftArm.rotation.set(0.35 + crouch * 0.35, 0, 0.3);
-    rightArm.rotation.set(0.35 + crouch * 0.35, 0, -0.3);
-    leftLeg.rotation.set(0.08, 0, 0.08 + crouch * 0.16);
-    rightLeg.rotation.set(0.08, 0, -0.08 - crouch * 0.16);
+    [parts.leftLeg, parts.rightLeg].forEach((leg) => {
+      leg.hip.rotation.set(0, 0, 0);
+      leg.knee.rotation.set(0, 0, 0);
+    });
+    parts.aura.visible = true;
   }
 
-  _ground(grappler, x, z, angle = 0, face = 1, scale = 1) {
-    setTransform(grappler.root, {
-      x,
-      y: 0.18,
-      z,
-      rx: Math.PI / 2,
-      ry: 0,
-      rz: angle,
-      scale,
-    });
-    const { leftArm, rightArm, leftLeg, rightLeg } = grappler.parts;
-    leftArm.rotation.set(0.35, 0.2, 0.45 * face);
-    rightArm.rotation.set(0.4, -0.2, -0.45 * face);
-    leftLeg.rotation.set(0.4, 0, 0.36 * face);
-    rightLeg.rotation.set(0.4, 0, -0.36 * face);
+  _setArm(arm, x, y, z, elbow = 0) {
+    arm.shoulder.rotation.set(x, y, z);
+    arm.elbow.rotation.set(elbow, 0, 0);
   }
 
-  _kneel(grappler, x, z, face = 1, lean = 0) {
-    setTransform(grappler.root, {
-      x,
-      y: -0.28,
-      z,
-      rx: 0.1 + lean,
-      ry: face > 0 ? -0.42 : 0.42,
-      scale: 0.86,
-    });
-    const { leftArm, rightArm, leftLeg, rightLeg } = grappler.parts;
-    leftArm.rotation.set(0.85, 0, 0.35);
-    rightArm.rotation.set(0.85, 0, -0.35);
-    leftLeg.rotation.set(0.55, 0, 0.28);
-    rightLeg.rotation.set(0.55, 0, -0.28);
+  _setLeg(leg, x, y, z, knee = 0) {
+    leg.hip.rotation.set(x, y, z);
+    leg.knee.rotation.set(knee, 0, 0);
+  }
+
+  _stand(grappler, x, z, face = 1, crouch = 0, lean = 0, stride = 0) {
+    const stance = grappler.fighter?.stance || "";
+    const wrestling = stance.includes("wrestling");
+    const wider = wrestling ? 0.13 : 0;
+    grappler.root.position.set(x, -0.01 - crouch * 0.12, z);
+    grappler.root.rotation.set(0, face > 0 ? Math.PI / 2 - 0.16 : -Math.PI / 2 + 0.16, lean * 0.28);
+    grappler.root.scale.setScalar(1 - crouch * 0.06);
+    grappler.parts.body.rotation.x = -crouch * 0.34;
+    grappler.parts.headRig.rotation.x = crouch * 0.12;
+    this._setArm(grappler.parts.leftArm, 0.64 + crouch * 0.48, 0.04, 0.34, 0.52);
+    this._setArm(grappler.parts.rightArm, 0.64 + crouch * 0.48, -0.04, -0.34, 0.52);
+    this._setLeg(grappler.parts.leftLeg, 0.08 + stride, 0, 0.1 + wider, 0.22 + crouch * 0.2);
+    this._setLeg(grappler.parts.rightLeg, 0.08 - stride, 0, -0.1 - wider, 0.22 + crouch * 0.2);
+  }
+
+  _kneel(grappler, x, z, face = 1, lean = 0, angle = 0) {
+    grappler.root.position.set(x, -0.27, z);
+    grappler.root.rotation.set(0.05 + lean * 0.08, face > 0 ? Math.PI / 2 - 0.25 : -Math.PI / 2 + 0.25, angle);
+    grappler.root.scale.setScalar(0.9);
+    grappler.parts.body.rotation.x = 0.32 + lean;
+    grappler.parts.headRig.rotation.x = -0.16;
+    this._setArm(grappler.parts.leftArm, 0.95 + lean * 0.25, 0.1, 0.38, 0.68);
+    this._setArm(grappler.parts.rightArm, 0.95 + lean * 0.25, -0.1, -0.38, 0.68);
+    this._setLeg(grappler.parts.leftLeg, 1.12, 0, 0.22, 1.35);
+    this._setLeg(grappler.parts.rightLeg, 1.12, 0, -0.22, 1.35);
+  }
+
+  _ground(grappler, x, z, angle = 0, face = 1, scale = 0.96) {
+    grappler.root.position.set(x, 0.22, z);
+    grappler.root.rotation.set(Math.PI / 2, face > 0 ? 0 : Math.PI, angle);
+    grappler.root.scale.setScalar(scale);
+    grappler.parts.body.rotation.x = 0.12;
+    grappler.parts.headRig.rotation.x = -0.12;
+    this._setArm(grappler.parts.leftArm, 0.55, 0.14, 0.58 * face, 0.78);
+    this._setArm(grappler.parts.rightArm, 0.62, -0.14, -0.58 * face, 0.72);
+    this._setLeg(grappler.parts.leftLeg, 0.72, 0, 0.38 * face, 0.9);
+    this._setLeg(grappler.parts.rightLeg, 0.68, 0, -0.38 * face, 0.9);
   }
 
   _applyMovePose(key, progress, elapsed = 0) {
     const p = ease(progress);
-    const pulse = wave(progress, 2) * 0.04;
-    this.attacker.parts.aura.visible = true;
-    this.defender.parts.aura.visible = true;
+    const pulse = wave(progress, 2) * 0.05;
+    this._resetGrappler(this.attacker);
+    this._resetGrappler(this.defender);
 
     switch (key) {
       case "grip_fighting": {
-        this._stand(this.attacker, THREE.MathUtils.lerp(-0.95, -0.42, p), 0.04, 1, 0.25 * p);
-        this._stand(this.defender, THREE.MathUtils.lerp(0.95, 0.42, p), 0.02, -1, 0.2 * p);
-        this.attacker.parts.rightArm.rotation.set(1.05 + pulse, 0, -0.7);
-        this.defender.parts.leftArm.rotation.set(1.0 - pulse, 0, 0.7);
+        this._stand(this.attacker, lerp(-1.12, -0.42, p), 0.09, 1, 0.22 * p, -0.12 * p, 0.06);
+        this._stand(this.defender, lerp(1.12, 0.42, p), -0.02, -1, 0.2 * p, 0.12 * p, -0.06);
+        this._setArm(this.attacker.parts.rightArm, 1.2 + pulse, -0.2, -0.72, 1.05);
+        this._setArm(this.attacker.parts.leftArm, 0.96, 0.18, 0.48, 0.76);
+        this._setArm(this.defender.parts.leftArm, 1.18 - pulse, 0.2, 0.72, 1.05);
+        this._setArm(this.defender.parts.rightArm, 0.96, -0.18, -0.48, 0.76);
         break;
       }
       case "single_leg": {
-        this._stand(this.attacker, THREE.MathUtils.lerp(-1.05, -0.1, p), 0.1, 1, 0.7 * p);
-        this._stand(this.defender, THREE.MathUtils.lerp(0.85, 0.28, p), -0.05, -1, 0.15);
-        this.attacker.root.rotation.z = -0.45 * p;
-        this.defender.root.rotation.z = 0.55 * p;
-        this.defender.parts.leftLeg.rotation.z = 0.85 * p;
+        if (p < 0.64) {
+          const q = ease(p / 0.64);
+          this._stand(this.attacker, lerp(-1.16, -0.08, q), 0.12, 1, 0.78 * q, -0.22 * q, 0.18);
+          this._stand(this.defender, lerp(1.08, 0.3, q), -0.04, -1, 0.14, 0.42 * q, -0.12);
+          this._setArm(this.attacker.parts.leftArm, 1.55, 0.42, 0.28, 1.18);
+          this._setArm(this.attacker.parts.rightArm, 1.36, -0.38, -0.4, 1.12);
+          this._setLeg(this.defender.parts.leftLeg, 0.55, 0, 0.7, 0.35);
+        } else {
+          const q = ease((p - 0.64) / 0.36);
+          this._kneel(this.attacker, lerp(-0.08, -0.28, q), 0.12, 1, 0.42, -0.15);
+          this._ground(this.defender, lerp(0.3, 0.34, q), -0.02, 0.25 * q, -1, 0.94);
+          this._setArm(this.attacker.parts.leftArm, 1.45, 0.32, 0.42, 1.1);
+          this._setArm(this.attacker.parts.rightArm, 1.36, -0.28, -0.52, 1.05);
+        }
         break;
       }
       case "double_leg": {
-        this._stand(this.attacker, THREE.MathUtils.lerp(-1.08, 0.02, p), 0.08, 1, 0.85 * p);
-        this._stand(this.defender, THREE.MathUtils.lerp(0.88, 0.38, p), -0.04, -1, 0.2);
-        this.attacker.root.rotation.z = -0.6 * p;
-        this.defender.root.rotation.z = 1.35 * p;
-        this.defender.root.position.y -= 0.2 * p;
+        if (p < 0.64) {
+          const q = ease(p / 0.64);
+          this._stand(this.attacker, lerp(-1.2, -0.08, q), 0.06, 1, 0.88 * q, -0.18 * q, 0.2);
+          this._stand(this.defender, lerp(1.12, 0.24, q), -0.04, -1, 0.18, 0.56 * q, -0.1);
+          this._setArm(this.attacker.parts.leftArm, 1.52, 0.25, 0.35, 1.2);
+          this._setArm(this.attacker.parts.rightArm, 1.52, -0.25, -0.35, 1.2);
+        } else {
+          const q = ease((p - 0.64) / 0.36);
+          this._kneel(this.attacker, lerp(-0.08, -0.22, q), 0.04, 1, 0.36, -0.08);
+          this._ground(this.defender, lerp(0.24, 0.36, q), -0.02, 0.32 * q, -1, 0.95);
+          this._setArm(this.attacker.parts.leftArm, 1.35, 0.22, 0.48, 1.15);
+          this._setArm(this.attacker.parts.rightArm, 1.35, -0.22, -0.48, 1.15);
+        }
         break;
       }
       case "guard_pull": {
-        this._ground(this.attacker, THREE.MathUtils.lerp(-0.82, -0.08, p), 0.18, -0.15, 1, 0.96);
-        this._kneel(this.defender, THREE.MathUtils.lerp(0.72, 0.34, p), -0.08, -1, 0.15 * p);
-        this.attacker.parts.leftLeg.rotation.z = 0.95;
-        this.attacker.parts.rightLeg.rotation.z = -0.95;
+        this._ground(this.attacker, lerp(-0.96, -0.08, p), 0.15, -0.12, 1, 0.98);
+        this._kneel(this.defender, lerp(0.88, 0.3, p), -0.08, -1, 0.14 * p, 0.08);
+        this._setLeg(this.attacker.parts.leftLeg, 1.26, 0, 1.12, 1.12);
+        this._setLeg(this.attacker.parts.rightLeg, 1.22, 0, -1.12, 1.12);
+        this._setArm(this.attacker.parts.leftArm, 1.08, 0.1, 0.62, 1.0);
+        this._setArm(this.attacker.parts.rightArm, 1.1, -0.1, -0.62, 1.0);
         break;
       }
       case "closed_guard": {
-        this._ground(this.attacker, -0.05, 0.18, -0.05 + pulse, 1, 0.98);
-        this._kneel(this.defender, 0.18, -0.02, -1, 0.28);
-        this.attacker.parts.leftLeg.rotation.z = 1.12;
-        this.attacker.parts.rightLeg.rotation.z = -1.12;
-        this.defender.root.position.y -= 0.08;
+        this._ground(this.attacker, -0.06, 0.16, -0.08 + pulse, 1, 0.99);
+        this._kneel(this.defender, 0.2, -0.02, -1, 0.28, 0.03);
+        this._setLeg(this.attacker.parts.leftLeg, 1.48, 0, 1.22, 1.22);
+        this._setLeg(this.attacker.parts.rightLeg, 1.48, 0, -1.22, 1.22);
+        this._setArm(this.defender.parts.leftArm, 1.18, 0.1, 0.34, 0.95);
+        this._setArm(this.defender.parts.rightArm, 1.18, -0.1, -0.34, 0.95);
         break;
       }
       case "guard_pass": {
-        this._kneel(this.attacker, THREE.MathUtils.lerp(-0.2, -0.54, p), -0.06, 1, 0.35);
-        this._ground(this.defender, THREE.MathUtils.lerp(0.12, 0.36, p), 0.18, 0.28 * p, -1, 0.95);
-        this.attacker.root.rotation.z = -0.42 * p;
+        this._kneel(this.attacker, lerp(-0.12, -0.52, p), -0.08, 1, 0.36, -0.18 * p);
+        this._ground(this.defender, lerp(0.06, 0.38, p), 0.15, 0.26 * p, -1, 0.95);
+        this._setArm(this.attacker.parts.leftArm, 1.28, 0.18, 0.56, 1.08);
+        this._setArm(this.attacker.parts.rightArm, 1.48, -0.22, -0.54, 1.14);
+        this._setLeg(this.attacker.parts.leftLeg, 1.34, 0, 0.28, 1.44);
         break;
       }
       case "side_control": {
-        this._ground(this.defender, 0.16, 0.12, 0, -1, 0.96);
-        this._ground(this.attacker, -0.05, -0.05, Math.PI / 2 + pulse, 1, 0.92);
+        this._ground(this.defender, 0.15, 0.14, 0, -1, 0.96);
+        this._ground(this.attacker, -0.1, -0.04, Math.PI / 2 + pulse, 1, 0.92);
         this.attacker.root.position.y += 0.22;
+        this._setArm(this.attacker.parts.leftArm, 1.34, 0.22, 0.75, 1.1);
+        this._setArm(this.attacker.parts.rightArm, 1.16, -0.28, -0.52, 1.02);
         break;
       }
       case "mount": {
         this._ground(this.defender, 0.05, 0.1, 0, -1, 0.96);
-        this._kneel(this.attacker, 0.02, -0.08, 1, 0.22);
-        this.attacker.root.position.y += 0.05;
-        this.attacker.parts.leftArm.rotation.x = 1.15;
-        this.attacker.parts.rightArm.rotation.x = 1.15;
+        this._kneel(this.attacker, 0.02, -0.08, 1, 0.22, 0);
+        this.attacker.root.position.y += 0.06;
+        this._setArm(this.attacker.parts.leftArm, 1.32, 0.1, 0.32, 1.02);
+        this._setArm(this.attacker.parts.rightArm, 1.32, -0.1, -0.32, 1.02);
+        this._setLeg(this.attacker.parts.leftLeg, 1.34, 0, 0.82, 1.36);
+        this._setLeg(this.attacker.parts.rightLeg, 1.34, 0, -0.82, 1.36);
         break;
       }
       case "back_control": {
-        this._kneel(this.defender, 0.18, 0.04, -1, 0.08);
-        this._kneel(this.attacker, -0.18, 0.08, 1, 0.12);
+        this._kneel(this.defender, 0.18, 0.02, -1, 0.08, 0);
+        this._kneel(this.attacker, -0.22, 0.08, 1, 0.1, 0);
         this.attacker.root.rotation.y = -0.02;
         this.defender.root.rotation.y = -0.02;
-        this.attacker.parts.rightArm.rotation.set(1.25, 0, -0.95);
-        this.attacker.parts.leftArm.rotation.set(1.2, 0, 0.65);
+        this._setArm(this.attacker.parts.rightArm, 1.46, -0.12, -1.05, 1.16);
+        this._setArm(this.attacker.parts.leftArm, 1.28, 0.15, 0.78, 1.08);
+        this._setLeg(this.attacker.parts.leftLeg, 1.38, 0, 0.76, 1.42);
+        this._setLeg(this.attacker.parts.rightLeg, 1.38, 0, -0.76, 1.42);
         break;
       }
       case "armbar": {
-        this._ground(this.defender, 0.18, 0.06, 0, -1, 0.95);
+        this._ground(this.defender, 0.2, 0.05, 0, -1, 0.95);
         this._ground(this.attacker, -0.12, -0.08, Math.PI / 2, 1, 0.92);
         this.attacker.root.position.y += 0.08;
-        this.defender.parts.rightArm.rotation.set(1.25, 0, -1.05);
+        this._setLeg(this.attacker.parts.leftLeg, 1.42, 0, 0.84, 1.32);
+        this._setLeg(this.attacker.parts.rightLeg, 1.38, 0, -0.78, 1.32);
+        this._setArm(this.defender.parts.rightArm, 1.46, -0.1, -1.08, 1.2);
+        this._setArm(this.attacker.parts.leftArm, 1.34, 0.18, 0.72, 1.05);
         break;
       }
       case "triangle_choke": {
-        this._ground(this.attacker, -0.08, 0.16, -0.12, 1, 0.96);
-        this._kneel(this.defender, 0.22, -0.04, -1, 0.45);
-        this.attacker.parts.leftLeg.rotation.z = 1.35;
-        this.attacker.parts.rightLeg.rotation.z = -1.28;
-        this.defender.root.position.y -= 0.14 * p;
+        this._ground(this.attacker, -0.08, 0.16, -0.12, 1, 0.97);
+        this._kneel(this.defender, 0.22, -0.04, -1, 0.46, 0.04);
+        this._setLeg(this.attacker.parts.leftLeg, 1.58, 0, 1.35, 1.38);
+        this._setLeg(this.attacker.parts.rightLeg, 1.52, 0, -1.26, 1.38);
+        this._setArm(this.attacker.parts.leftArm, 1.26, 0.18, 0.6, 1.05);
+        this._setArm(this.attacker.parts.rightArm, 1.26, -0.18, -0.6, 1.05);
+        this.defender.root.position.y -= 0.1 * p;
         break;
       }
       case "rear_naked_choke": {
-        this._kneel(this.defender, 0.16, 0.02, -1, 0.08);
-        this._kneel(this.attacker, -0.13, 0.08, 1, 0.08);
-        this.attacker.root.rotation.y = -0.08;
-        this.defender.root.rotation.y = -0.08;
-        this.attacker.parts.rightArm.rotation.set(1.35, 0, -1.25);
-        this.attacker.parts.leftArm.rotation.set(1.25, 0, 0.95);
-        this.defender.parts.rightArm.rotation.set(0.85 + 0.25 * p, 0, -0.45);
+        this._kneel(this.defender, 0.16, 0.02, -1, 0.1, 0);
+        this._kneel(this.attacker, -0.16, 0.08, 1, 0.1, 0);
+        this.attacker.root.rotation.y = -0.06;
+        this.defender.root.rotation.y = -0.06;
+        this._setArm(this.attacker.parts.rightArm, 1.58, -0.04, -1.22, 1.22);
+        this._setArm(this.attacker.parts.leftArm, 1.34, 0.12, 0.96, 1.12);
+        this._setArm(this.defender.parts.rightArm, 1.12 + 0.22 * p, -0.08, -0.45, 0.92);
         break;
       }
       case "tap_out": {
-        this._kneel(this.attacker, -0.2, 0.06, 1, 0.05);
-        this._kneel(this.defender, 0.18, 0.02, -1, 0.12);
-        this.defender.parts.rightArm.rotation.set(1.25 + Math.abs(wave(progress, 4)) * 0.55, 0, -0.95);
+        this._kneel(this.attacker, -0.2, 0.06, 1, 0.05, 0);
+        this._kneel(this.defender, 0.18, 0.02, -1, 0.12, 0);
+        this._setArm(this.defender.parts.rightArm, 1.55 + Math.abs(wave(progress, 4)) * 0.28, -0.1, -0.96, 0.88);
+        this._setArm(this.defender.parts.leftArm, 1.05, 0.1, 0.3, 0.8);
         break;
       }
-      case "reset_neutral":
+      case "reset_neutral": {
+        this._stand(this.attacker, lerp(-0.28, -0.9, p), 0.06, 1, 0.22 * (1 - p), 0, 0.06);
+        this._stand(this.defender, lerp(0.28, 0.9, p), 0.02, -1, 0.2 * (1 - p), 0, -0.06);
+        break;
+      }
       case "standing_stance":
       default: {
-        this._stand(this.attacker, -0.82, 0.08, 1, 0.1 * Math.abs(wave(elapsed * 0.12 || progress, 1)));
-        this._stand(this.defender, 0.82, 0.04, -1, 0.1 * Math.abs(wave(elapsed * 0.12 || progress, 1)));
+        const idle = Math.abs(wave(elapsed * 0.12 || progress, 1));
+        this._stand(this.attacker, -0.9, 0.08, 1, 0.1 * idle, -0.03, 0.05);
+        this._stand(this.defender, 0.9, 0.04, -1, 0.1 * idle, 0.03, -0.05);
         break;
       }
+    }
+
+    this._updateCamera(key, p, elapsed);
+    this._updateGrapplerAuras(elapsed);
+  }
+
+  _updateCamera(key, progress, elapsed) {
+    const profile = cameraProfiles[key] || cameraProfiles.standing_stance;
+    const from = progress < 0.54 ? profile.entry : profile.control;
+    const to = progress < 0.54 ? profile.control : profile.finish;
+    const local = progress < 0.54 ? ease(progress / 0.54) : ease((progress - 0.54) / 0.46);
+    const orbit = this.playing ? 0 : Math.sin(elapsed * 0.34) * 0.13;
+    this.cameraGoal.set(
+      lerp(from[0], to[0], local) + orbit,
+      lerp(from[1], to[1], local),
+      lerp(from[2], to[2], local),
+    );
+    copyVector(this.focusGoal, profile.focus);
+    this.focusGoal.x += Math.sin(elapsed * 0.45) * (this.playing ? 0.025 : 0.055);
+    if (this.impactEnergy > 0.08) {
+      this.cameraGoal.x += (Math.random() - 0.5) * this.impactEnergy * 0.11;
+      this.cameraGoal.y += (Math.random() - 0.5) * this.impactEnergy * 0.07;
+    }
+    this.camera.position.lerp(this.cameraGoal, 0.1);
+    this.cameraFocus.lerp(this.focusGoal, 0.13);
+    this.camera.lookAt(this.cameraFocus);
+  }
+
+  _updateGrapplerAuras(elapsed) {
+    [this.attacker, this.defender].forEach((grappler, index) => {
+      const { aura, auraDisc, auraLine, auraArc } = grappler.parts;
+      const velocity = index === 0 ? 1 : -1;
+      const pulse = 1 + Math.sin(elapsed * 2.2 + index) * 0.05 + this.impactEnergy * 0.12;
+      aura.scale.setScalar(pulse);
+      aura.rotation.y += 0.014 * velocity;
+      auraDisc.material.opacity = 0.17 + this.impactEnergy * 0.15;
+      auraLine.material.opacity = 0.42 + this.impactEnergy * 0.3;
+      auraArc.material.opacity = 0.34 + this.impactEnergy * 0.24;
+      auraArc.rotation.z += 0.018 * velocity;
+    });
+  }
+
+  _triggerImpact(key) {
+    this.impactEnergy = 1;
+    const color = this.attacker.materials.aura.color;
+    this.impactRing.visible = true;
+    this.impactRing.position.set(0, 0.028, 0);
+    this.impactRing.scale.setScalar(0.12);
+    this.impactRing.material.color.copy(color);
+    this.impactRing.material.opacity = 0.92;
+    this.bloomPass.strength = this.isCompactViewport ? 0 : 0.82;
+    this.impactNodes.forEach((node, index) => {
+      const angle = (index / this.impactNodes.length) * Math.PI * 2 + Math.random() * 0.28;
+      const speed = 1.1 + Math.random() * 1.6;
+      node.position.set((Math.random() - 0.5) * 0.24, 0.32 + Math.random() * 0.55, (Math.random() - 0.5) * 0.28);
+      node.scale.setScalar(0.55 + Math.random() * 1.2);
+      node.material.color.copy(color);
+      node.material.opacity = 0.96;
+      node.userData.velocity.set(Math.cos(angle) * speed, 0.8 + Math.random() * 1.7, Math.sin(angle) * speed * 0.42);
+      node.visible = true;
+    });
+    this._playImpactSfx(key);
+  }
+
+  _updateEnvironment(delta) {
+    this.impactEnergy = Math.max(0, this.impactEnergy - delta * 1.75);
+    this.ambientParticles.rotation.y += delta * 0.05;
+    this.ambientParticles.position.y = Math.sin(this.elapsedTime * 0.45) * 0.07;
+    this.arenaGlowMaterials.forEach((material, index) => {
+      material.opacity = clamp((material.opacity || 0.5) + Math.sin(this.elapsedTime * 1.15 + index) * delta * 0.12, 0.12, 0.82);
+    });
+    this.lightPulse.warm.intensity = 9 + this.impactEnergy * 12 + Math.sin(this.elapsedTime * 1.2) * 0.65;
+    this.lightPulse.side.intensity = 6.5 + this.impactEnergy * 7;
+    this.lightPulse.rim.intensity = 2.25 + this.impactEnergy * 0.9;
+    this.bloomPass.strength = lerp(
+      this.bloomPass.strength,
+      this.isCompactViewport ? 0 : 0.42 + this.impactEnergy * 0.24,
+      0.1,
+    );
+
+    if (this.impactRing.visible) {
+      const scale = this.impactRing.scale.x + delta * 3.3;
+      this.impactRing.scale.setScalar(scale);
+      this.impactRing.material.opacity = Math.max(0, this.impactRing.material.opacity - delta * 1.8);
+      if (this.impactRing.material.opacity <= 0.02) this.impactRing.visible = false;
+    }
+
+    this.impactNodes.forEach((node) => {
+      if (!node.visible) return;
+      node.position.addScaledVector(node.userData.velocity, delta);
+      node.userData.velocity.y -= delta * 3.2;
+      node.rotation.x += delta * 5.5;
+      node.rotation.y += delta * 4.2;
+      node.material.opacity = Math.max(0, node.material.opacity - delta * 1.25);
+      if (node.material.opacity <= 0.03) node.visible = false;
+    });
+  }
+
+  _playMotionSfx(key) {
+    const context = this._getAudioContext();
+    if (!context) return;
+    const now = context.currentTime;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = key.includes("choke") || key === "armbar" ? "triangle" : "sine";
+    oscillator.frequency.setValueAtTime(180, now);
+    oscillator.frequency.exponentialRampToValueAtTime(85, now + 0.2);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.045, now + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.24);
+  }
+
+  _playImpactSfx(key) {
+    const context = this._getAudioContext();
+    if (!context) return;
+    const now = context.currentTime;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = key === "tap_out" ? "square" : "sine";
+    oscillator.frequency.setValueAtTime(key.includes("choke") ? 145 : 92, now);
+    oscillator.frequency.exponentialRampToValueAtTime(48, now + 0.18);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.075, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.22);
+  }
+
+  _getAudioContext() {
+    if (typeof window === "undefined") return null;
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return null;
+    try {
+      this.audioContext ??= new AudioContext();
+      if (this.audioContext.state === "suspended") this.audioContext.resume();
+      return this.audioContext;
+    } catch {
+      return null;
     }
   }
 
   dispose() {
     this.disposed = true;
+    this.loadingMove = null;
+    this.pendingPreviewKey = null;
     if (this.frameId) window.cancelAnimationFrame(this.frameId);
     this._resizeObserver?.disconnect();
+    this.textureCache.forEach((texture) => texture.dispose());
+    this.textureCache.clear();
     disposeObject(this.scene);
+    this.composer?.dispose();
+    this.renderer?.renderLists?.dispose();
     this.renderer?.dispose();
+    this.audioContext?.close?.();
     if (this.renderer?.domElement?.parentElement) {
       this.renderer.domElement.parentElement.removeChild(this.renderer.domElement);
     }

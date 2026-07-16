@@ -715,6 +715,7 @@ function App() {
           <GrapplingLab
             fighter={fighter}
             opponent={combat.npc}
+            beltStatus={beltStatus}
           />
         )}
 
@@ -1241,6 +1242,7 @@ function Training({
             ref={animationRef}
             move={selectedMove}
             fighter={fighter}
+            fighterBelt={beltStatus}
             compact
             title="Skill Animation"
             onLockChange={setAnimationLocked}
@@ -1321,8 +1323,6 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
     acc[move.belt] = [...(acc[move.belt] ?? []), move];
     return acc;
   }, {});
-  const playerPose = getFighterPose(fighter);
-  const npcPose = getFighterPose(combat.npc);
   const arenaKey = combat.arenaKey ?? "studio";
   const arenaLabel = arenaSceneLabels[arenaKey] ?? arenaSceneLabels.studio;
 
@@ -1340,43 +1340,19 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
           <FighterCard fighter={combat.npc} beltStatus={{ belt: combat.npc.belt, stripes: combat.npc.stripes }} reverse />
         </div>
 
-        <div className={`mat-window arena-${arenaKey} ${combat.result ? "result-mode" : ""}`}>
-          {combat.result ? (
-            <GrapplingAnimationStage
-              ref={combatAnimationRef}
-              move={combat.result.move}
-              animationKey={combat.result.animationKey}
-              autoPlaySignal={combat.result.animationSignal}
-              fighter={combat.result.playerWins ? fighter : combat.npc}
-              opponent={combat.result.playerWins ? combat.npc : fighter}
-              title={`${combat.result.move.name} lands`}
-              onLockChange={setCombatAnimationLocked}
-            />
-          ) : (
-            <>
-              <FighterArt
-                fighter={fighter}
-                beltStatus={beltStatus}
-                pose={playerPose}
-                className="arena-fighter"
-                facing="right"
-                showPatches={false}
-                showPatchCovers={false}
-              />
-              <div className="mat-center">
-                <span className="versus-burst">VS</span>
-              </div>
-              <FighterArt
-                fighter={combat.npc}
-                beltStatus={{ belt: combat.npc.belt, stripes: combat.npc.stripes }}
-                pose={npcPose}
-                className="arena-fighter"
-                facing="left"
-                showPatches={false}
-                showPatchCovers={false}
-              />
-            </>
-          )}
+        <div className={`mat-window cinematic-mode arena-${arenaKey} ${combat.result ? "result-mode" : ""}`}>
+          <GrapplingAnimationStage
+            ref={combatAnimationRef}
+            move={combat.result?.move}
+            animationKey={combat.result?.animationKey ?? (combat.active ? "grip_fighting" : "standing_stance")}
+            autoPlaySignal={combat.result?.animationSignal}
+            fighter={combat.result ? (combat.result.playerWins ? fighter : combat.npc) : fighter}
+            opponent={combat.result ? (combat.result.playerWins ? combat.npc : fighter) : combat.npc}
+            fighterBelt={combat.result ? (combat.result.playerWins ? beltStatus : { belt: combat.npc.belt, stripes: combat.npc.stripes }) : beltStatus}
+            opponentBelt={combat.result ? (combat.result.playerWins ? { belt: combat.npc.belt, stripes: combat.npc.stripes } : beltStatus) : { belt: combat.npc.belt, stripes: combat.npc.stripes }}
+            title={combat.result ? combat.result.move.name + " lands" : combat.active ? "Arena live feed" : "Arena preview"}
+            onLockChange={setCombatAnimationLocked}
+          />
         </div>
 
         <div className="combat-actions">
@@ -1504,7 +1480,7 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
   );
 }
 
-function GrapplingLab({ fighter, opponent }) {
+function GrapplingLab({ fighter, opponent, beltStatus }) {
   const stageRef = useRef(null);
   const stagePanelRef = useRef(null);
   const [selectedKey, setSelectedKey] = useState("standing_stance");
@@ -1549,12 +1525,12 @@ function GrapplingLab({ fighter, opponent }) {
       <div className="panel grappling-lab-hero">
         <span>
           <h1>Grappling Animation Lab</h1>
-          <p>Three.js paired-animation layer for Brazilian jiu-jitsu transitions, takedowns, controls, submissions, tap-outs, and neutral resets.</p>
+          <p>A cinematic paired-fighter system for Brazilian jiu-jitsu transitions, takedowns, controls, submissions, tap-outs, and neutral resets.</p>
         </span>
         <div className="lab-status-card">
           <strong>{activeAnimation.label}</strong>
-          <small>{activeAnimation.asset}</small>
-          <em>{locked ? "Input locked while grapplers sync" : "Ready for playMove(...)"}</em>
+          <small>Profile-aware attire, belt, patch, and aura rendering</small>
+          <em>{locked ? "Sequence in progress — controls protected" : "Cinematic choreography ready"}</em>
         </div>
       </div>
 
@@ -1565,7 +1541,9 @@ function GrapplingLab({ fighter, opponent }) {
           animationKey={activeAnimation.key}
           fighter={fighter}
           opponent={opponent}
-          title="BJJ Pair System"
+          fighterBelt={beltStatus}
+          opponentBelt={{ belt: opponent?.belt, stripes: opponent?.stripes }}
+          title="Cinematic BJJ Pair System"
           onLockChange={setLocked}
         />
         <div className="lab-command-row">
@@ -1586,7 +1564,7 @@ function GrapplingLab({ fighter, opponent }) {
         <div className="section-heading">
           <span>
             <h2>Core BJJ Animation Templates</h2>
-            <p>These are the placeholder slots that can later be replaced by real paired GLB/FBX mocap clips.</p>
+            <p>Each template runs a polished procedural pair sequence today; synchronized GLB/FBX motion capture is the next asset-integration step.</p>
           </span>
           <Dumbbell size={28} />
         </div>
