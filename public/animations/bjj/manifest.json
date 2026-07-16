@@ -1,5 +1,12 @@
 {
-  "note": "Placeholder GLB slots. Replace these files with final paired BJJ mocap GLB clips using the same names.",
+  "format": "GLB / glTF 2.0",
+  "motionType": "JiuQuest-authored paired choreography. These are animated 3D assets, not motion capture.",
+  "replacementContract": {
+    "roots": ["JQ_Attacker", "JQ_Defender"],
+    "materialSlots": ["GiTop", "GiPants", "Skin", "Hair", "Belt", "BeltStripe", "Patch"],
+    "attachmentNodes": ["ChestPatch", "BeltStripe_1", "BeltStripe_2", "BeltStripe_3", "BeltStripe_4"],
+    "requirement": "Future licensed paired mocap may replace a file only when both roots and the cosmetic slots are preserved."
+  },
   "animations": {
     "standing_stance": "/animations/bjj/standing_stance.glb",
     "grip_fighting": "/animations/bjj/grip_fighting.glb",

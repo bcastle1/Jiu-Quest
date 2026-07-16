@@ -111,7 +111,7 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
       managerRef.current = manager;
       manager.setGrapplers(visualFighter, visualOpponent);
       manager.setPreviewMove(resolvedAnimation.key);
-      manager.loadAnimationAssets();
+      manager.loadAnimationAssets(["standing_stance", resolvedAnimation.key]);
       if (pendingAutoPlayRef.current || autoPlaySignal) {
         pendingAutoPlayRef.current = null;
         manager.playMove(resolvedAnimation.key, { move });
@@ -130,6 +130,7 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
 
   useEffect(() => {
     managerRef.current?.setPreviewMove(resolvedAnimation.key);
+    managerRef.current?.loadAnimationAsset(resolvedAnimation.key);
   }, [resolvedAnimation.key]);
 
   useEffect(() => {

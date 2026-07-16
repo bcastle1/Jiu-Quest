@@ -4,6 +4,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import {
   bjjAnimationCatalog,
   getBjjAnimationKeyForMove,
@@ -162,7 +163,9 @@ export class MoveAnimationManager {
     this.container = container;
     this.options = options;
     this.assetCache = new Map();
+    this.disposedAssetScenes = new WeakSet();
     this.textureCache = new Map();
+    this.failedEmblemAssets = new Set();
     this.loader = new GLTFLoader();
     this.textureLoader = new THREE.TextureLoader();
     this.lastFrameTime = performance.now();
@@ -174,6 +177,9 @@ export class MoveAnimationManager {
     this.idleKey = "standing_stance";
     this.controlState = "standing";
     this.currentMotionSource = "Cinematic procedural pair";
+    this.mocap = null;
+    this.mocapAuras = [];
+    this.mocapWorldPosition = new THREE.Vector3();
     this.disposed = false;
     this.impactEnergy = 0;
     this.cameraFocus = new THREE.Vector3(0, 0.95, 0);
@@ -220,6 +226,7 @@ export class MoveAnimationManager {
     this.attacker = this._createGrappler(defaultFighter);
     this.defender = this._createGrappler(defaultOpponent);
     this.scene.add(this.attacker.root, this.defender.root);
+    this._buildMocapAuras();
     this.setGrapplers(defaultFighter, defaultOpponent);
     this.setPreviewMove("standing_stance");
   }
@@ -450,6 +457,40 @@ export class MoveAnimationManager {
       arena.add(node);
       return node;
     });
+  }
+
+  _buildMocapAuras() {
+    this.mocapAuras = [this._createMocapAura(), this._createMocapAura()];
+  }
+
+  _createMocapAura() {
+    const group = new THREE.Group();
+    const discMaterial = new THREE.MeshBasicMaterial({
+      color: "#8a5cff",
+      transparent: true,
+      opacity: 0.16,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const lineMaterial = new THREE.MeshBasicMaterial({
+      color: "#8a5cff",
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+    });
+    const disc = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.6, 48), discMaterial);
+    disc.rotation.x = -Math.PI / 2;
+    disc.position.y = 0.018;
+    const line = new THREE.Mesh(new THREE.TorusGeometry(0.61, 0.012, 5, 48), lineMaterial);
+    line.rotation.x = Math.PI / 2;
+    line.position.y = 0.035;
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.01, 5, 40, Math.PI * 1.15), lineMaterial);
+    arc.rotation.set(Math.PI / 2, 0, 0.35);
+    arc.position.y = 0.03;
+    group.add(disc, line, arc);
+    group.visible = false;
+    this.scene.add(group);
+    return { group, disc, line, arc, discMaterial, lineMaterial };
   }
 
   _createMaterial(color, options = {}) {
@@ -686,6 +727,7 @@ export class MoveAnimationManager {
   setGrapplers(fighter = defaultFighter, opponent = defaultOpponent) {
     this._applyPalette(this.attacker, { ...defaultFighter, ...fighter });
     this._applyPalette(this.defender, { ...defaultOpponent, ...opponent });
+    this._applyMocapPalette();
   }
 
   _applyPalette(grappler, fighter) {
@@ -716,11 +758,20 @@ export class MoveAnimationManager {
 
   _setEmblem(grappler, emblem) {
     const patch = grappler.parts.emblem;
-    if (!emblem || emblem === "none") {
+    const texture = this._getEmblemTexture(emblem);
+    if (!texture) {
       patch.visible = false;
       return;
     }
+    patch.material.map = texture;
+    patch.material.needsUpdate = true;
+    patch.visible = true;
+  }
+
+  _getEmblemTexture(emblem) {
+    if (!emblem || emblem === "none") return null;
     const asset = "/assets/emblems/" + emblem + ".png";
+    if (this.failedEmblemAssets.has(asset)) return null;
     let texture = this.textureCache.get(asset);
     if (!texture) {
       texture = this.textureLoader.load(
@@ -731,14 +782,22 @@ export class MoveAnimationManager {
         },
         undefined,
         () => {
-          patch.visible = false;
+          this.failedEmblemAssets.add(asset);
+          if (this.textureCache.get(asset) === texture) this.textureCache.delete(asset);
+          texture?.dispose?.();
+          this._refreshEmblems();
         },
       );
       this.textureCache.set(asset, texture);
     }
-    patch.material.map = texture;
-    patch.material.needsUpdate = true;
-    patch.visible = true;
+    return texture;
+  }
+
+  _refreshEmblems() {
+    if (this.disposed) return;
+    this._setEmblem(this.attacker, this.attacker?.fighter?.emblem);
+    this._setEmblem(this.defender, this.defender?.fighter?.emblem);
+    this._applyMocapPalette();
   }
 
   resize() {
@@ -758,6 +817,153 @@ export class MoveAnimationManager {
     this.camera.updateProjectionMatrix();
   }
 
+  _isUsablePairedAsset(asset) {
+    const scene = asset?.gltf?.scene;
+    if (!scene || !asset?.clips?.length) return false;
+    const roles = ["Attacker", "Defender"];
+    const cosmeticSlots = ["GiTop", "GiPants", "Skin", "Hair", "Belt", "BeltStripe", "Patch"];
+    const materialNames = new Set();
+    scene.traverse((node) => {
+      if (!node.isMesh) return;
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      materials.forEach((material) => material?.name && materialNames.add(material.name));
+    });
+    return roles.every((role) => (
+      scene.getObjectByName("JQ_" + role)
+      && cosmeticSlots.every((slot) => materialNames.has("JQ_" + role + "_" + slot))
+    ));
+  }
+
+  _cloneMocapScene(scene) {
+    const root = clone(scene);
+    const materialCopies = new Map();
+    const copyMaterial = (material) => {
+      if (materialCopies.has(material)) return materialCopies.get(material);
+      const copy = material.clone();
+      materialCopies.set(material, copy);
+      return copy;
+    };
+    root.traverse((node) => {
+      if (!node.isMesh) return;
+      node.castShadow = true;
+      node.receiveShadow = true;
+      node.material = Array.isArray(node.material)
+        ? node.material.map(copyMaterial)
+        : copyMaterial(node.material);
+    });
+    return root;
+  }
+
+  _activateMocap(asset, active) {
+    if (!this._isUsablePairedAsset(asset) || !active) return false;
+    this._deactivateMocap();
+
+    const root = this._cloneMocapScene(asset.gltf.scene);
+    const attacker = root.getObjectByName("JQ_Attacker");
+    const defender = root.getObjectByName("JQ_Defender");
+    if (!attacker || !defender) return false;
+
+    const mixer = new THREE.AnimationMixer(root);
+    const actions = asset.clips.map((clip) => {
+      const action = mixer.clipAction(clip);
+      action.reset();
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
+      action.setDuration(Math.max(0.1, active.duration));
+      action.play();
+      return action;
+    });
+
+    this.scene.add(root);
+    this.mocap = { root, mixer, actions, attacker, defender };
+    this.attacker.root.visible = false;
+    this.defender.root.visible = false;
+    this._applyMocapPalette();
+    this._syncMocapAuras(this.elapsedTime);
+    return true;
+  }
+
+  _deactivateMocap() {
+    const current = this.mocap;
+    if (!current) return;
+    current.mixer.stopAllAction();
+    current.mixer.uncacheRoot(current.root);
+    current.root.removeFromParent();
+    current.root.traverse((node) => {
+      if (!node.isMesh) return;
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      materials.forEach((material) => material?.dispose?.());
+    });
+    this.mocap = null;
+    this.mocapAuras?.forEach((aura) => {
+      aura.group.visible = false;
+    });
+    if (!this.disposed) {
+      this.attacker.root.visible = true;
+      this.defender.root.visible = true;
+    }
+  }
+
+  _applyMocapPalette() {
+    if (!this.mocap) return;
+    this._applyMocapFighterPalette("Attacker", this.attacker.fighter || defaultFighter, 0);
+    this._applyMocapFighterPalette("Defender", this.defender.fighter || defaultOpponent, 1);
+  }
+
+  _applyMocapFighterPalette(role, fighter, auraIndex) {
+    const prefix = "JQ_" + role + "_";
+    const colors = {
+      [prefix + "GiTop"]: safeColor(fighter.giTop, "#f8fbff"),
+      [prefix + "GiPants"]: safeColor(fighter.giPants, "#f8fbff"),
+      [prefix + "Skin"]: safeColor(fighter.skinTone, "#d99b71"),
+      [prefix + "Hair"]: safeColor(fighter.hairColor, "#11131c"),
+      [prefix + "Belt"]: safeColor(beltColors[fighter.belt] || beltColors.white, "#f8fbff"),
+      [prefix + "BeltStripe"]: safeColor(fighter.belt === "white" ? "#182030" : "#f8fbff", "#f8fbff"),
+    };
+    const texture = this._getEmblemTexture(fighter.emblem);
+    this.mocap.root.traverse((node) => {
+      if (!node.isMesh) return;
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      materials.forEach((material) => {
+        const color = colors[material.name];
+        if (color && material.color) material.color.copy(color);
+        if (material.name === prefix + "Patch") {
+          material.map = texture;
+          material.needsUpdate = true;
+        }
+      });
+      if (node.name.startsWith(prefix + "BeltStripe_")) {
+        const stripe = Number(node.name.slice(node.name.lastIndexOf("_") + 1));
+        node.visible = stripe <= Math.min(4, Number(fighter.stripes) || 0);
+      }
+      if (node.name === prefix + "ChestPatch") node.visible = Boolean(texture);
+    });
+
+    const aura = this.mocapAuras?.[auraIndex];
+    if (!aura) return;
+    const color = safeColor(auraColors[fighter.aura], "#8a5cff");
+    aura.discMaterial.color.copy(color);
+    aura.lineMaterial.color.copy(color);
+  }
+
+  _syncMocapAuras(elapsed = 0) {
+    if (!this.mocap) return;
+    this.mocap.root.updateMatrixWorld(true);
+    [this.mocap.attacker, this.mocap.defender].forEach((actor, index) => {
+      const aura = this.mocapAuras?.[index];
+      if (!actor || !aura) return;
+      actor.getWorldPosition(this.mocapWorldPosition);
+      aura.group.visible = true;
+      aura.group.position.set(this.mocapWorldPosition.x, 0.028, this.mocapWorldPosition.z);
+      const pulse = 1 + Math.sin(elapsed * 2.2 + index) * 0.05 + this.impactEnergy * 0.12;
+      aura.group.scale.setScalar(pulse);
+      aura.line.rotation.y += 0.014 * (index ? -1 : 1);
+      aura.arc.rotation.z += 0.018 * (index ? -1 : 1);
+      aura.discMaterial.opacity = 0.14 + this.impactEnergy * 0.12;
+      aura.lineMaterial.opacity = 0.42 + this.impactEnergy * 0.25;
+    });
+  }
+
   async loadAnimationAssets(keys = Object.keys(bjjAnimationCatalog)) {
     return Promise.all(keys.map((key) => this.loadAnimationAsset(key)));
   }
@@ -770,15 +976,35 @@ export class MoveAnimationManager {
       this.loader.load(
         config.asset,
         (gltf) => {
-          const hasPairedMotion = Boolean(gltf?.animations?.some((clip) => clip.tracks?.length));
-          resolve({ key: normalized, config, gltf, loaded: true, hasPairedMotion });
+          const clips = gltf?.animations?.filter((clip) => clip.tracks?.length) ?? [];
+          const hasPairedMotion = Boolean(
+            clips.length
+            && gltf?.scene?.getObjectByName("JQ_Attacker")
+            && gltf?.scene?.getObjectByName("JQ_Defender"),
+          );
+          resolve({ key: normalized, config, gltf, clips, loaded: true, hasPairedMotion });
         },
         undefined,
-        () => resolve({ key: normalized, config, gltf: null, loaded: false, hasPairedMotion: false }),
+        () => resolve({ key: normalized, config, gltf: null, clips: [], loaded: false, hasPairedMotion: false }),
       );
     });
     this.assetCache.set(normalized, request);
     return request;
+  }
+
+  _disposeCachedAnimationAsset(asset) {
+    const scene = asset?.gltf?.scene;
+    if (!scene || this.disposedAssetScenes.has(scene)) return;
+    this.disposedAssetScenes.add(scene);
+    disposeObject(scene);
+  }
+
+  _disposeCachedAnimationAssets() {
+    const requests = [...this.assetCache.values()];
+    this.assetCache.clear();
+    requests.forEach((request) => {
+      Promise.resolve(request).then((asset) => this._disposeCachedAnimationAsset(asset));
+    });
   }
 
   setPreviewMove(moveOrKey) {
@@ -789,9 +1015,10 @@ export class MoveAnimationManager {
       this.pendingPreviewKey = key;
       return;
     }
+    this._deactivateMocap();
     this.idleKey = key;
     this.controlState = bjjAnimationCatalog[key]?.controlState ?? "standing";
-    this.currentMotionSource = "Cinematic procedural pair";
+    this.currentMotionSource = "Cinematic procedural preview";
     this._applyMovePose(key, 0.94, this.elapsedTime);
     this._emitState({
       locked: false,
@@ -808,6 +1035,7 @@ export class MoveAnimationManager {
       : getBjjAnimationKeyForMove(moveOrKey);
     const config = bjjAnimationCatalog[key] ?? bjjAnimationCatalog.standing_stance;
     this.loadingMove = key;
+    this._deactivateMocap();
     this.playing = false;
     this.active = {
       key,
@@ -819,6 +1047,7 @@ export class MoveAnimationManager {
       phaseIndex: -1,
       impactTriggered: false,
       asset: null,
+      usingMocap: false,
     };
     this.options.onLockChange?.(true);
     this._emitState({ locked: true, key, phase: phaseForProgress(key, 0).label, progress: 4 });
@@ -830,8 +1059,10 @@ export class MoveAnimationManager {
       return false;
     }
     this.active.asset = asset;
-    this.currentMotionSource = "Cinematic procedural pair";
-    this.currentMotionSource = "Cinematic procedural pair · GLB-ready";
+    this.active.usingMocap = this._activateMocap(asset, this.active);
+    this.currentMotionSource = this.active.usingMocap
+      ? "Authored paired GLB"
+      : "Cinematic procedural pair";
     this._emitState({ locked: true, key, phase: phaseForProgress(key, 0).label, progress: 4 });
 
     return new Promise((resolve) => {
@@ -840,7 +1071,6 @@ export class MoveAnimationManager {
         return;
       }
       this.active.resolve = resolve;
-      this.currentMotionSource = "Cinematic procedural pair";
       this.loadingMove = null;
       this.playing = true;
       this._emitState({ locked: true, key, phase: phaseForProgress(key, 0).label, progress: 4 });
@@ -885,7 +1115,13 @@ export class MoveAnimationManager {
     if (this.playing && this.active) {
       this.active.elapsed += delta;
       const progress = Math.min(1, this.active.elapsed / this.active.duration);
-      this._applyMovePose(this.active.key, progress, this.active.elapsed);
+      if (this.active.usingMocap && this.mocap) {
+        this.mocap.mixer.update(delta);
+        this._updateCamera(this.active.key, progress, this.active.elapsed);
+        this._syncMocapAuras(this.active.elapsed);
+      } else {
+        this._applyMovePose(this.active.key, progress, this.active.elapsed);
+      }
       this._updateActivePhase(progress);
       const impactAt = impactMoments[this.active.key] ?? 0.66;
       if (!this.active.impactTriggered && progress >= impactAt) {
@@ -893,6 +1129,8 @@ export class MoveAnimationManager {
         this._triggerImpact(this.active.key);
       }
       if (progress >= 1) this._finishAnimation();
+    } else if (this.mocap) {
+      this._syncMocapAuras(this.elapsedTime);
     } else {
       this._applyIdleMotion(this.idleKey, this.elapsedTime);
     }
@@ -913,7 +1151,7 @@ export class MoveAnimationManager {
   _finishAnimation() {
     const active = this.active;
     if (!active) return;
-    this._applyMovePose(active.key, 1, active.duration);
+    if (!active.usingMocap) this._applyMovePose(active.key, 1, active.duration);
     this.playing = false;
     this.idleKey = active.key === "reset_neutral" ? "standing_stance" : active.key;
     this.controlState = active.config.controlState;
@@ -931,9 +1169,10 @@ export class MoveAnimationManager {
     const pendingKey = this.pendingPreviewKey;
     this.pendingPreviewKey = null;
     if (pendingKey && pendingKey !== this.idleKey) {
+      this._deactivateMocap();
       this.idleKey = pendingKey;
       this.controlState = bjjAnimationCatalog[pendingKey]?.controlState ?? "standing";
-      this.currentMotionSource = "Cinematic procedural pair";
+      this.currentMotionSource = "Cinematic procedural preview";
       this._applyMovePose(pendingKey, 0.94, this.elapsedTime);
       this._emitState({
         locked: false,
@@ -958,7 +1197,7 @@ export class MoveAnimationManager {
       assetPath: config.asset,
       phase,
       progress,
-      motionSource: "Cinematic procedural pair",
+      motionSource: this.currentMotionSource || "Cinematic procedural pair",
     };
   }
 
@@ -1343,6 +1582,8 @@ export class MoveAnimationManager {
     this.pendingPreviewKey = null;
     if (this.frameId) window.cancelAnimationFrame(this.frameId);
     this._resizeObserver?.disconnect();
+    this._deactivateMocap();
+    this._disposeCachedAnimationAssets();
     this.textureCache.forEach((texture) => texture.dispose());
     this.textureCache.clear();
     disposeObject(this.scene);

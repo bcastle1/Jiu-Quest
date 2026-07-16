@@ -1564,7 +1564,7 @@ function GrapplingLab({ fighter, opponent, beltStatus }) {
         <div className="section-heading">
           <span>
             <h2>Core BJJ Animation Templates</h2>
-            <p>Each template runs a polished procedural pair sequence today; synchronized GLB/FBX motion capture is the next asset-integration step.</p>
+            <p>Each template now replays an authored paired GLB with profile-aware gi, belt, patch, and aura treatment. Licensed two-actor BJJ mocap can replace these clips through the same asset contract.</p>
           </span>
           <Dumbbell size={28} />
         </div>
