@@ -5742,6 +5742,96 @@ main {
   color: var(--muted);
 }
 
+.animation-identity-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.animation-fighter-id {
+  position: absolute;
+  bottom: 2.25rem;
+  display: flex;
+  width: min(11.75rem, 36%);
+  min-width: 0;
+  gap: 0.58rem;
+  align-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 0.85rem;
+  padding: 0.42rem 0.58rem 0.42rem 0.42rem;
+  background: linear-gradient(135deg, rgba(7, 12, 18, 0.9), rgba(15, 26, 34, 0.72));
+  box-shadow: 0 0.75rem 1.8rem rgba(0, 0, 0, 0.28), inset 0 1px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(14px);
+  transition: border-color 180ms ease, opacity 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.animation-fighter-id-fighter {
+  left: 0.78rem;
+}
+
+.animation-fighter-id-opponent {
+  right: 0.78rem;
+  flex-direction: row-reverse;
+  padding-right: 0.42rem;
+  padding-left: 0.58rem;
+  text-align: right;
+}
+
+.animation-fighter-id .decision-identity-portrait {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.72rem;
+}
+
+.animation-fighter-id > span:not(.decision-identity-portrait) {
+  display: grid;
+  min-width: 0;
+  gap: 0.06rem;
+}
+
+.animation-fighter-id small,
+.animation-fighter-id strong,
+.animation-fighter-id em {
+  overflow: hidden;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.animation-fighter-id small {
+  color: #8edcec;
+  font-size: 0.52rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.animation-fighter-id strong {
+  color: #f6fbff;
+  font-size: 0.76rem;
+}
+
+.animation-fighter-id em {
+  color: var(--muted);
+  font-size: 0.57rem;
+  font-style: normal;
+}
+
+.animation-fighter-id.is-active {
+  border-color: rgba(246, 198, 91, 0.72);
+  transform: translateY(-0.2rem);
+  box-shadow: 0 0.85rem 2rem rgba(0, 0, 0, 0.34), 0 0 1.4rem rgba(246, 198, 91, 0.2), inset 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.animation-fighter-id.is-active small {
+  color: var(--gold);
+}
+
+.animation-fighter-id.is-defending {
+  opacity: 0.76;
+}
+
 @media (max-width: 1120px) {
   .dashboard-grid {
     grid-template-columns: minmax(15rem, 20rem) 1fr;
@@ -5826,5 +5916,43 @@ main {
 
   .corner-admin {
     bottom: 4.8rem;
+  }
+
+  .animation-fighter-id {
+    bottom: 0.55rem;
+    width: min(9.4rem, 43%);
+    gap: 0.38rem;
+    padding: 0.32rem;
+    border-radius: 0.7rem;
+  }
+
+  .animation-fighter-id-fighter {
+    left: 0.42rem;
+  }
+
+  .animation-fighter-id-opponent {
+    right: 0.42rem;
+  }
+
+  .animation-fighter-id .decision-identity-portrait {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .animation-fighter-id em {
+    display: none;
+  }
+
+  .animation-fighter-id strong {
+    font-size: 0.72rem;
+  }
+
+  .animation-fighter-id small {
+    font-size: 0.58rem;
+    white-space: normal;
+  }
+
+  .animation-meta {
+    display: none;
   }
 }

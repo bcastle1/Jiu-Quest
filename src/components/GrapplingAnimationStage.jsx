@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { beltColors } from "../data/curriculum";
+import { beltColors, beltLabels } from "../data/curriculum";
 import {
   bjjAnimationCatalog,
   getBjjAnimationForMove,
@@ -30,9 +30,14 @@ const ceremonyAuraColors = {
 const decisionProfileArt = {
   bald: ["/assets/characters/profile-realistic-v2-bald.webp", "v2/profile-bald"],
   "crew cut": ["/assets/characters/profile-realistic-v2-crew-cut.webp", "v2/profile-crew-cut"],
+  "short fade": ["/assets/characters/profile-realistic-v2-crew-cut.webp", "v2/profile-crew-cut"],
   mohawk: ["/assets/characters/profile-realistic-v2-mohawk.webp", "v2/profile-mohawk"],
   "long hair": ["/assets/characters/profile-realistic-v2-long-hair.webp", "v2/profile-long-hair"],
+  "braided top": ["/assets/characters/profile-realistic-v2-long-hair.webp", "v2/profile-long-hair"],
+  "storm tail": ["/assets/characters/profile-realistic-v2-long-hair.webp", "v2/profile-long-hair"],
+  "curly guard": ["/assets/characters/profile-realistic-v2-long-hair.webp", "v2/profile-long-hair"],
   "slicked back": ["/assets/characters/profile-realistic-v2-slicked-back.webp", "v2/profile-slicked-back"],
+  "wave cut": ["/assets/characters/profile-realistic-v2-slicked-back.webp", "v2/profile-slicked-back"],
 };
 
 function ceremonyStyle(fighter) {
@@ -66,6 +71,26 @@ function DecisionIdentityPortrait({ fighter }) {
       <i className="decision-portrait-hair" />
       <i className="decision-portrait-jacket" />
     </span>
+  );
+}
+
+function StageIdentityCard({ fighter, side, active, defending }) {
+  const belt = fighter?.belt ?? "white";
+  const rank = beltLabels[belt] ?? `${belt.charAt(0).toUpperCase()}${belt.slice(1)} Belt`;
+  const stateLabel = active ? "Executing technique" : defending ? "Defending" : side === "fighter" ? "Player" : "Opponent";
+  return (
+    <div
+      className={`animation-fighter-id animation-fighter-id-${side} ${active ? "is-active" : ""} ${defending ? "is-defending" : ""}`}
+      role="group"
+      aria-label={`${fighter?.name ?? "Fighter"}, ${stateLabel}, ${rank}`}
+    >
+      <DecisionIdentityPortrait fighter={fighter} />
+      <span>
+        <small>{stateLabel}</small>
+        <strong>{fighter?.name ?? "Fighter"}</strong>
+        <em>{rank}</em>
+      </span>
+    </div>
   );
 }
 
@@ -125,7 +150,7 @@ function DecisionHair({ fighter }) {
   if (style === "mohawk") {
     return <path className="decision-hair decision-hair-mohawk" d="M71 59 L78 33 L85 47 L91 20 L98 47 L105 31 L112 61 Q91 50 71 59 Z" />;
   }
-  if (["long hair", "storm tail", "braided top"].includes(style)) {
+  if (["long hair", "storm tail", "braided top", "curly guard"].includes(style)) {
     return (
       <>
         <path className="decision-hair decision-hair-long-back" d="M50 77 Q43 35 89 30 Q140 35 132 92 L139 153 Q118 139 108 109 L72 109 Q60 140 42 154 Z" />
@@ -303,6 +328,7 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
     opponent = fallbackOpponent,
     fighterBelt,
     opponentBelt,
+    performerSide = "fighter",
     autoPlaySignal,
     decision,
     compact = false,
@@ -315,6 +341,7 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
   const containerRef = useRef(null);
   const managerRef = useRef(null);
   const pendingAutoPlayRef = useRef(null);
+  const latestPlaybackRef = useRef(null);
   const [locked, setLocked] = useState(false);
   const [imperativeDecision, setImperativeDecision] = useState(null);
   const [status, setStatus] = useState(() => {
@@ -373,6 +400,15 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
     [decisionAnimationRequested, decisionRequest, move?.name, resolvedAnimation.label, visualFighter, visualOpponent],
   );
 
+  latestPlaybackRef.current = {
+    visualFighter,
+    visualOpponent,
+    performerSide,
+    animationKey: resolvedAnimation.key,
+    move,
+    autoPlaySignal,
+  };
+
   useEffect(() => {
     if (!containerRef.current) return undefined;
     let disposed = false;
@@ -387,12 +423,17 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
         onComplete,
       });
       managerRef.current = manager;
-      manager.setGrapplers(visualFighter, visualOpponent);
-      manager.setPreviewMove(resolvedAnimation.key);
-      manager.loadAnimationAssets(["standing_stance", resolvedAnimation.key]);
-      if (pendingAutoPlayRef.current || autoPlaySignal) {
+      const latest = latestPlaybackRef.current;
+      manager.setGrapplers(latest.visualFighter, latest.visualOpponent);
+      manager.setPerformerSide(latest.performerSide);
+      manager.setPreviewMove(latest.animationKey);
+      manager.loadAnimationAssets(["standing_stance", latest.animationKey]);
+      if (pendingAutoPlayRef.current || latest.autoPlaySignal) {
         pendingAutoPlayRef.current = null;
-        manager.playMove(resolvedAnimation.key, { move });
+        manager.playMove(latest.animationKey, {
+          move: latest.move,
+          performerSide: latest.performerSide,
+        });
       }
     });
     return () => {
@@ -407,6 +448,10 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
   }, [visualFighter, visualOpponent, paletteSignature(visualFighter), paletteSignature(visualOpponent)]);
 
   useEffect(() => {
+    managerRef.current?.setPerformerSide(performerSide);
+  }, [performerSide]);
+
+  useEffect(() => {
     managerRef.current?.setPreviewMove(resolvedAnimation.key);
     managerRef.current?.loadAnimationAsset(resolvedAnimation.key);
   }, [resolvedAnimation.key]);
@@ -416,9 +461,9 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
     pendingAutoPlayRef.current = autoPlaySignal;
     if (managerRef.current) {
       pendingAutoPlayRef.current = null;
-      managerRef.current.playMove(resolvedAnimation.key, { move });
+      managerRef.current.playMove(resolvedAnimation.key, { move, performerSide });
     }
-  }, [autoPlaySignal, move, resolvedAnimation.key]);
+  }, [autoPlaySignal, move, performerSide, resolvedAnimation.key]);
 
   useImperativeHandle(
     ref,
@@ -426,7 +471,7 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
       playMove: (keyOrMove = resolvedAnimation.key, options = {}) => {
         setImperativeDecision(null);
         if (options.decision) setImperativeDecision(options.decision);
-        return managerRef.current?.playMove(keyOrMove, { move, ...options });
+        return managerRef.current?.playMove(keyOrMove, { move, performerSide, ...options });
       },
       resetToNeutral: () => {
         setImperativeDecision(null);
@@ -437,7 +482,7 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
       clearDecision: () => setImperativeDecision(null),
       isLocked: () => locked,
     }),
-    [locked, move, resolvedAnimation.key],
+    [locked, move, performerSide, resolvedAnimation.key],
   );
 
   return (
@@ -458,6 +503,20 @@ const GrapplingAnimationStage = forwardRef(function GrapplingAnimationStage(
         <DecisionCeremony decision={activeDecision} />
       ) : (
         <>
+          <div className="animation-identity-layer">
+            <StageIdentityCard
+              fighter={visualFighter}
+              side="fighter"
+              active={locked && performerSide === "fighter"}
+              defending={locked && performerSide === "opponent"}
+            />
+            <StageIdentityCard
+              fighter={visualOpponent}
+              side="opponent"
+              active={locked && performerSide === "opponent"}
+              defending={locked && performerSide === "fighter"}
+            />
+          </div>
           <div className="animation-overlay">
             <div className="animation-title-card">
               <small>Cinematic pair choreography</small>

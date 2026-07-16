@@ -192,13 +192,33 @@ function getHairAppearanceProfile(hairStyle) {
   if (normalized === "bald") return hairAppearanceProfiles.bald;
   if (["crew cut", "short fade"].includes(normalized)) return hairAppearanceProfiles.cropped;
   if (normalized === "mohawk") return hairAppearanceProfiles.mohawk;
-  if (["long hair", "storm tail", "braided top"].includes(normalized)) return hairAppearanceProfiles.long;
+  if (["long hair", "storm tail", "braided top", "curly guard"].includes(normalized)) return hairAppearanceProfiles.long;
   if (["slicked back", "wave cut"].includes(normalized)) return hairAppearanceProfiles.swept;
   return hairAppearanceProfiles.default;
 }
 
 function applyHairAppearance(node, hairStyle) {
   if (!node) return;
+  const normalized = String(hairStyle || "shadow spikes").trim().toLowerCase();
+  const nodeName = String(node.name || "").toLowerCase();
+  const authoredStyle = nodeName.includes("hairspikes")
+    ? "spikes"
+    : nodeName.includes("haircrew")
+      ? "crew"
+      : nodeName.includes("hairmohawk")
+        ? "mohawk"
+        : nodeName.includes("hairlong")
+          ? "long"
+          : nodeName.includes("hairslick")
+            ? "slick"
+            : null;
+  const hairPart = nodeName.includes("haircrest")
+    ? "crest"
+    : nodeName.includes("hairtail")
+      ? "tail"
+      : nodeName.includes("haircap") || nodeName.includes("hairmesh")
+        ? "cap"
+        : "single";
   const baseKey = "jqHairBaseTransform";
   if (!node.userData[baseKey]) {
     node.userData[baseKey] = {
@@ -214,12 +234,33 @@ function applyHairAppearance(node, hairStyle) {
   node.position.copy(base.position);
   node.quaternion.copy(base.quaternion);
   node.scale.copy(base.scale);
-  node.visible = base.visible && profile.visible !== false;
+  if (authoredStyle) {
+    const requestedStyle = normalized === "bald"
+      ? "bald"
+      : normalized === "mohawk"
+        ? "mohawk"
+        : ["long hair", "storm tail", "braided top", "curly guard"].includes(normalized)
+          ? "long"
+          : ["slicked back", "wave cut"].includes(normalized)
+            ? "slick"
+            : ["crew cut", "short fade"].includes(normalized)
+              ? "crew"
+              : "spikes";
+    node.visible = base.visible && requestedStyle === authoredStyle;
+    return;
+  }
+  const modularVisible = hairPart === "single"
+    || (hairPart === "crest" && normalized === "mohawk")
+    || (hairPart === "tail" && ["long hair", "storm tail", "braided top", "curly guard"].includes(normalized))
+    || (hairPart === "cap" && normalized !== "mohawk");
+  node.visible = base.visible && profile.visible !== false && modularVisible;
   if (!node.visible) return;
 
-  const position = profile.position || hairAppearanceProfiles.default.position;
-  const rotation = profile.rotation || hairAppearanceProfiles.default.rotation;
-  const scale = profile.scale || hairAppearanceProfiles.default.scale;
+  const useProfileTransform = hairPart === "single" || hairPart === "cap" || hairPart === "tail";
+  const activeProfile = useProfileTransform ? profile : hairAppearanceProfiles.default;
+  const position = activeProfile.position || hairAppearanceProfiles.default.position;
+  const rotation = activeProfile.rotation || hairAppearanceProfiles.default.rotation;
+  const scale = activeProfile.scale || hairAppearanceProfiles.default.scale;
   node.position.x += position[0];
   node.position.y += position[1];
   node.position.z += position[2];
@@ -247,13 +288,16 @@ export class MoveAnimationManager {
     this.active = null;
     this.loadingMove = null;
     this.pendingPreviewKey = null;
+    this.previewRequestId = 0;
     this.idleKey = "standing_stance";
     this.controlState = "standing";
-    this.currentMotionSource = "Cinematic procedural pair";
+    this.performerSide = "fighter";
+    this.currentMotionSource = "Loading realistic fighter rig";
     this.mocap = null;
     this.mocapAuras = [];
     this.mocapWorldPosition = new THREE.Vector3();
     this.disposed = false;
+    this.reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
     this.impactEnergy = 0;
     this.cameraFocus = new THREE.Vector3(0, 0.95, 0);
     this.cameraGoal = new THREE.Vector3(0, 2.45, 5.9);
@@ -277,13 +321,13 @@ export class MoveAnimationManager {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.9;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setClearColor("#030712", 0);
     this.container.appendChild(this.renderer.domElement);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.42, 0.36, 0.92);
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.26, 0.3, 0.96);
     this.composer.addPass(this.bloomPass);
 
     this._buildScene();
@@ -305,10 +349,10 @@ export class MoveAnimationManager {
   }
 
   _buildLighting() {
-    const sky = new THREE.HemisphereLight("#c5ddff", "#171124", 1.65);
+    const sky = new THREE.HemisphereLight("#dcecff", "#15111f", 1.45);
     this.scene.add(sky);
 
-    const key = new THREE.DirectionalLight("#d9f4ff", 2.35);
+    const key = new THREE.DirectionalLight("#f2f7ff", 2.7);
     key.position.set(-3.4, 5.5, 4.2);
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
@@ -318,18 +362,18 @@ export class MoveAnimationManager {
     key.shadow.camera.bottom = -4;
     this.scene.add(key);
 
-    const rim = new THREE.DirectionalLight("#805cff", 2.25);
+    const rim = new THREE.DirectionalLight("#805cff", 1.45);
     rim.position.set(4.2, 3.5, -2.5);
     this.scene.add(rim);
 
-    const warm = new THREE.SpotLight("#f7c852", 9, 12, 0.52, 0.75, 1.35);
+    const warm = new THREE.SpotLight("#ffd77a", 5.6, 12, 0.52, 0.75, 1.35);
     warm.position.set(1.5, 5.1, 2.1);
     warm.target.position.set(0, 0.65, 0);
     warm.castShadow = true;
     warm.shadow.mapSize.set(1024, 1024);
     this.scene.add(warm, warm.target);
 
-    const side = new THREE.SpotLight("#2de2e6", 6.5, 10, 0.62, 0.86, 1.55);
+    const side = new THREE.SpotLight("#8cecff", 3.8, 10, 0.62, 0.86, 1.55);
     side.position.set(-4.8, 2.8, 1.8);
     side.target.position.set(0, 0.7, 0);
     this.scene.add(side, side.target);
@@ -573,6 +617,9 @@ export class MoveAnimationManager {
       metalness: options.metalness ?? 0.04,
       clearcoat: options.clearcoat ?? 0.06,
       clearcoatRoughness: options.clearcoatRoughness ?? 0.56,
+      sheen: options.sheen ?? 0,
+      sheenRoughness: options.sheenRoughness ?? 0.78,
+      sheenColor: safeColor(options.sheenColor, color || "#ffffff"),
     });
   }
 
@@ -582,10 +629,10 @@ export class MoveAnimationManager {
     root.rotation.order = "YXZ";
 
     const materials = {
-      giTop: this._createMaterial(fighter.giTop, { roughness: 0.52, clearcoat: 0.12 }),
-      giLapel: this._createMaterial(fighter.giTop, { roughness: 0.56 }),
-      giPants: this._createMaterial(fighter.giPants, { roughness: 0.66 }),
-      skin: this._createMaterial(fighter.skinTone, { roughness: 0.57, clearcoat: 0.02 }),
+      giTop: this._createMaterial(fighter.giTop, { roughness: 0.66, clearcoat: 0.025, sheen: 0.22 }),
+      giLapel: this._createMaterial(fighter.giTop, { roughness: 0.7, sheen: 0.18 }),
+      giPants: this._createMaterial(fighter.giPants, { roughness: 0.72, sheen: 0.16 }),
+      skin: this._createMaterial(fighter.skinTone, { roughness: 0.5, clearcoat: 0.018, sheen: 0.08 }),
       hair: this._createMaterial(fighter.hairColor, { roughness: 0.78, metalness: 0.02 }),
       belt: this._createMaterial("#f8fbff", { roughness: 0.5, clearcoat: 0.1 }),
       beltStripe: this._createMaterial("#11131c", { roughness: 0.58 }),
@@ -681,23 +728,40 @@ export class MoveAnimationManager {
     headRig.add(head);
     parts.head = head;
 
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.224, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.56), materials.hair);
-    hair.position.set(0, 0.09, -0.015);
-    hair.scale.set(0.97, 0.86, 0.93);
-    hair.castShadow = true;
-    headRig.add(hair);
-    parts.hair = hair;
+    const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.224, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.56), materials.hair);
+    hairCap.name = "JQ_Procedural_HairCap";
+    hairCap.position.set(0, 0.09, -0.015);
+    hairCap.scale.set(0.97, 0.86, 0.93);
+    hairCap.castShadow = true;
+    const hairCrest = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.22, 6, 12), materials.hair);
+    hairCrest.name = "JQ_Procedural_HairCrest";
+    hairCrest.position.set(0, 0.27, -0.02);
+    hairCrest.scale.set(0.72, 1, 1.35);
+    hairCrest.castShadow = true;
+    const hairTail = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.25, 6, 12), materials.hair);
+    hairTail.name = "JQ_Procedural_HairTail";
+    hairTail.position.set(0, -0.07, -0.19);
+    hairTail.rotation.x = 0.12;
+    hairTail.castShadow = true;
+    headRig.add(hairCap, hairCrest, hairTail);
+    parts.hair = [hairCap, hairCrest, hairTail];
 
     const face = new THREE.Group();
     face.position.z = 0.19;
+    const eyeWhiteMaterial = new THREE.MeshPhysicalMaterial({ color: "#eef5f7", roughness: 0.42, clearcoat: 0.05 });
+    const eyeMaterial = new THREE.MeshPhysicalMaterial({ color: "#07101c", roughness: 0.34, clearcoat: 0.18 });
     [-0.07, 0.07].forEach((x) => {
-      const eye = new THREE.Mesh(
-        new THREE.SphereGeometry(0.017, 10, 8),
-        new THREE.MeshBasicMaterial({ color: "#07101c" }),
-      );
-      eye.position.set(x, 0.015, 0.01);
-      face.add(eye);
+      const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.024, 14, 10), eyeWhiteMaterial);
+      eyeWhite.scale.set(1.15, 0.7, 0.58);
+      eyeWhite.position.set(x, 0.022, 0.006);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.01, 12, 8), eyeMaterial);
+      pupil.position.set(x, 0.024, 0.019);
+      face.add(eyeWhite, pupil);
     });
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.032, 14, 10), materials.skin);
+    nose.position.set(0, -0.025, 0.035);
+    nose.scale.set(0.72, 1, 1.12);
+    face.add(nose);
     headRig.add(face);
 
     const emblem = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.18), materials.emblem);
@@ -751,18 +815,23 @@ export class MoveAnimationManager {
     elbow.position.y = -0.43;
     shoulder.add(elbow);
 
-    const forearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.245, 5, 12), materials.skin);
+    const forearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.245, 5, 14), materials.giTop);
     forearm.position.y = -0.16;
     forearm.castShadow = true;
     elbow.add(forearm);
 
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.085, 14, 10), materials.skin);
-    hand.position.y = -0.34;
+    const wristCuff = new THREE.Mesh(new THREE.TorusGeometry(0.092, 0.012, 5, 18), materials.giLapel);
+    wristCuff.rotation.x = Math.PI / 2;
+    wristCuff.position.y = -0.32;
+    elbow.add(wristCuff);
+
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.085, 16, 12), materials.skin);
+    hand.position.y = -0.39;
     hand.scale.set(0.86, 1.1, 0.72);
     hand.castShadow = true;
     elbow.add(hand);
 
-    return { shoulder, elbow, sleeve, cuff, forearm, hand };
+    return { shoulder, elbow, sleeve, cuff, forearm, wristCuff, hand };
   }
 
   _createLeg(side, materials) {
@@ -803,6 +872,16 @@ export class MoveAnimationManager {
     this._applyMocapPalette();
   }
 
+  setPerformerSide(side = "fighter") {
+    this.performerSide = side === "opponent" ? "opponent" : "fighter";
+    if (this.mocap?.root) {
+      this.mocap.root.scale.x = this.performerSide === "opponent"
+        ? -Math.abs(this.mocap.root.scale.x || 1)
+        : Math.abs(this.mocap.root.scale.x || 1);
+    }
+    this._applyMocapPalette();
+  }
+
   _applyPalette(grappler, fighter) {
     if (!grappler) return;
     const top = safeColor(fighter.giTop, "#f8fbff");
@@ -819,7 +898,8 @@ export class MoveAnimationManager {
     grappler.materials.giPants.color.copy(pants);
     grappler.materials.skin.color.copy(skin);
     grappler.materials.hair.color.copy(hair);
-    applyHairAppearance(grappler.parts.hair, fighter.hairStyle);
+    const hairParts = Array.isArray(grappler.parts.hair) ? grappler.parts.hair : [grappler.parts.hair];
+    hairParts.forEach((part) => applyHairAppearance(part, fighter.hairStyle));
     grappler.materials.belt.color.copy(belt);
     grappler.materials.beltStripe.color.set(fighter.belt === "white" ? "#182030" : "#f8fbff");
     grappler.materials.aura.color.copy(aura);
@@ -936,6 +1016,7 @@ export class MoveAnimationManager {
     const attacker = root.getObjectByName("JQ_Attacker");
     const defender = root.getObjectByName("JQ_Defender");
     if (!attacker || !defender) return false;
+    root.scale.x = this.performerSide === "opponent" ? -Math.abs(root.scale.x || 1) : Math.abs(root.scale.x || 1);
 
     const mixer = new THREE.AnimationMixer(root);
     const actions = asset.clips.map((clip) => {
@@ -972,16 +1053,21 @@ export class MoveAnimationManager {
     this.mocapAuras?.forEach((aura) => {
       aura.group.visible = false;
     });
-    if (!this.disposed) {
-      this.attacker.root.visible = true;
-      this.defender.root.visible = true;
-    }
+    this.attacker.root.visible = false;
+    this.defender.root.visible = false;
   }
 
   _applyMocapPalette() {
     if (!this.mocap) return;
-    this._applyMocapFighterPalette("Attacker", this.attacker.fighter || defaultFighter, 0);
-    this._applyMocapFighterPalette("Defender", this.defender.fighter || defaultOpponent, 1);
+    const opponentPerforms = this.performerSide === "opponent";
+    const performer = opponentPerforms
+      ? this.defender.fighter || defaultOpponent
+      : this.attacker.fighter || defaultFighter;
+    const defender = opponentPerforms
+      ? this.attacker.fighter || defaultFighter
+      : this.defender.fighter || defaultOpponent;
+    this._applyMocapFighterPalette("Attacker", performer, 0);
+    this._applyMocapFighterPalette("Defender", defender, 1);
   }
 
   _applyMocapFighterPalette(role, fighter, auraIndex) {
@@ -1033,12 +1119,14 @@ export class MoveAnimationManager {
       actor.getWorldPosition(this.mocapWorldPosition);
       aura.group.visible = true;
       aura.group.position.set(this.mocapWorldPosition.x, 0.028, this.mocapWorldPosition.z);
-      const pulse = 1 + Math.sin(elapsed * 2.2 + index) * 0.05 + this.impactEnergy * 0.12;
+      const pulse = this.reducedMotion ? 1 : 1 + Math.sin(elapsed * 2.2 + index) * 0.05 + this.impactEnergy * 0.12;
       aura.group.scale.setScalar(pulse);
-      aura.line.rotation.y += 0.014 * (index ? -1 : 1);
-      aura.arc.rotation.z += 0.018 * (index ? -1 : 1);
-      aura.discMaterial.opacity = 0.14 + this.impactEnergy * 0.12;
-      aura.lineMaterial.opacity = 0.42 + this.impactEnergy * 0.25;
+      if (!this.reducedMotion) {
+        aura.line.rotation.y += 0.014 * (index ? -1 : 1);
+        aura.arc.rotation.z += 0.018 * (index ? -1 : 1);
+      }
+      aura.discMaterial.opacity = this.reducedMotion ? 0.14 : 0.14 + this.impactEnergy * 0.12;
+      aura.lineMaterial.opacity = this.reducedMotion ? 0.42 : 0.42 + this.impactEnergy * 0.25;
     });
   }
 
@@ -1063,7 +1151,10 @@ export class MoveAnimationManager {
           resolve({ key: normalized, config, gltf, clips, loaded: true, hasPairedMotion });
         },
         undefined,
-        () => resolve({ key: normalized, config, gltf: null, clips: [], loaded: false, hasPairedMotion: false }),
+        () => {
+          this.assetCache.delete(normalized);
+          resolve({ key: normalized, config, gltf: null, clips: [], loaded: false, hasPairedMotion: false });
+        },
       );
     });
     this.assetCache.set(normalized, request);
@@ -1093,16 +1184,38 @@ export class MoveAnimationManager {
       this.pendingPreviewKey = key;
       return;
     }
+    const requestId = ++this.previewRequestId;
     this._deactivateMocap();
     this.idleKey = key;
-    this.controlState = bjjAnimationCatalog[key]?.controlState ?? "standing";
-    this.currentMotionSource = "Cinematic procedural preview";
-    this._applyMovePose(key, 0.94, this.elapsedTime);
+    const config = bjjAnimationCatalog[key] ?? bjjAnimationCatalog.standing_stance;
+    this.controlState = config.controlState ?? "standing";
+    this.currentMotionSource = "Loading realistic fighter rig";
+    this.attacker.root.visible = false;
+    this.defender.root.visible = false;
     this._emitState({
       locked: false,
       key,
-      phase: phaseForProgress(key, 0.94).label,
-      progress: 100,
+      phase: "Loading realistic preview",
+      progress: 92,
+    });
+    this.loadAnimationAsset(key).then((asset) => {
+      if (this.disposed || this.playing || this.loadingMove || requestId !== this.previewRequestId) return;
+      const activated = this._activateMocap(asset, { duration: config.duration });
+      if (activated && this.mocap) {
+        this.mocap.mixer.setTime(config.duration * 0.94);
+        this.currentMotionSource = "Rigged realistic GLB preview";
+        this._syncMocapAuras(this.elapsedTime);
+      } else {
+        this.attacker.root.visible = false;
+        this.defender.root.visible = false;
+        this.currentMotionSource = "Realistic fighter rig unavailable";
+      }
+      this._emitState({
+        locked: false,
+        key,
+        phase: phaseForProgress(key, 0.94).label,
+        progress: 100,
+      });
     });
   }
 
@@ -1112,8 +1225,12 @@ export class MoveAnimationManager {
       ? normalizeBjjAnimationKey(moveOrKey)
       : getBjjAnimationKeyForMove(moveOrKey);
     const config = bjjAnimationCatalog[key] ?? bjjAnimationCatalog.standing_stance;
+    this.previewRequestId += 1;
+    this.performerSide = options.performerSide === "opponent" ? "opponent" : "fighter";
     this.loadingMove = key;
     this._deactivateMocap();
+    this.attacker.root.visible = false;
+    this.defender.root.visible = false;
     this.playing = false;
     this.active = {
       key,
@@ -1129,7 +1246,7 @@ export class MoveAnimationManager {
     };
     this.options.onLockChange?.(true);
     this._emitState({ locked: true, key, phase: phaseForProgress(key, 0).label, progress: 4 });
-    this._playMotionSfx(key);
+    if (!this.reducedMotion) this._playMotionSfx(key);
     const asset = await this.loadAnimationAsset(key);
 
     if (this.disposed || !this.active || this.active.key !== key) {
@@ -1138,9 +1255,13 @@ export class MoveAnimationManager {
     }
     this.active.asset = asset;
     this.active.usingMocap = this._activateMocap(asset, this.active);
+    if (!this.active.usingMocap) {
+      this.attacker.root.visible = false;
+      this.defender.root.visible = false;
+    }
     this.currentMotionSource = this.active.usingMocap
       ? "Authored paired GLB"
-      : "Cinematic procedural pair";
+      : "Realistic fighter rig unavailable";
     this._emitState({ locked: true, key, phase: phaseForProgress(key, 0).label, progress: 4 });
 
     return new Promise((resolve) => {
@@ -1151,6 +1272,15 @@ export class MoveAnimationManager {
       this.active.resolve = resolve;
       this.loadingMove = null;
       this.playing = true;
+      if (this.reducedMotion) {
+        this.active.elapsed = this.active.duration;
+        this.active.impactTriggered = true;
+        if (this.active.usingMocap && this.mocap) {
+          this.mocap.mixer.setTime(this.active.duration);
+        } else {
+          this._applyMovePose(key, 1, 0);
+        }
+      }
       this._emitState({ locked: true, key, phase: phaseForProgress(key, 0).label, progress: 4 });
     });
   }
@@ -1210,7 +1340,8 @@ export class MoveAnimationManager {
     } else if (this.mocap) {
       this._syncMocapAuras(this.elapsedTime);
     } else {
-      this._applyIdleMotion(this.idleKey, this.elapsedTime);
+      if (this.reducedMotion) this._applyMovePose(this.idleKey, 0.96, 0);
+      else this._applyIdleMotion(this.idleKey, this.elapsedTime);
     }
 
     this._updateEnvironment(delta);
@@ -1247,17 +1378,7 @@ export class MoveAnimationManager {
     const pendingKey = this.pendingPreviewKey;
     this.pendingPreviewKey = null;
     if (pendingKey && pendingKey !== this.idleKey) {
-      this._deactivateMocap();
-      this.idleKey = pendingKey;
-      this.controlState = bjjAnimationCatalog[pendingKey]?.controlState ?? "standing";
-      this.currentMotionSource = "Cinematic procedural preview";
-      this._applyMovePose(pendingKey, 0.94, this.elapsedTime);
-      this._emitState({
-        locked: false,
-        key: pendingKey,
-        phase: "Preview ready",
-        progress: 100,
-      });
+      this.setPreviewMove(pendingKey);
     }
   }
 
@@ -1275,7 +1396,7 @@ export class MoveAnimationManager {
       assetPath: config.asset,
       phase,
       progress,
-      motionSource: this.currentMotionSource || "Cinematic procedural pair",
+      motionSource: this.currentMotionSource || "Loading realistic fighter rig",
     };
   }
 
@@ -1359,6 +1480,10 @@ export class MoveAnimationManager {
   _applyMovePose(key, progress, elapsed = 0) {
     const p = ease(progress);
     const pulse = wave(progress, 2) * 0.05;
+    const opponentPerforms = this.performerSide === "opponent";
+    if (opponentPerforms) {
+      [this.attacker, this.defender] = [this.defender, this.attacker];
+    }
     this._resetGrappler(this.attacker);
     this._resetGrappler(this.defender);
 
@@ -1511,6 +1636,14 @@ export class MoveAnimationManager {
       }
     }
 
+    if (opponentPerforms) {
+      [this.attacker, this.defender].forEach((grappler) => {
+        grappler.root.position.x *= -1;
+        grappler.root.rotation.y *= -1;
+      });
+      [this.attacker, this.defender] = [this.defender, this.attacker];
+    }
+
     this._updateCamera(key, p, elapsed);
     this._updateGrapplerAuras(elapsed);
   }
@@ -1520,7 +1653,7 @@ export class MoveAnimationManager {
     const from = progress < 0.54 ? profile.entry : profile.control;
     const to = progress < 0.54 ? profile.control : profile.finish;
     const local = progress < 0.54 ? ease(progress / 0.54) : ease((progress - 0.54) / 0.46);
-    const orbit = this.playing ? 0 : Math.sin(elapsed * 0.34) * 0.13;
+    const orbit = this.reducedMotion || this.playing ? 0 : Math.sin(elapsed * 0.34) * 0.13;
     this.cameraGoal.set(
       lerp(from[0], to[0], local) + orbit,
       lerp(from[1], to[1], local),
@@ -1528,12 +1661,12 @@ export class MoveAnimationManager {
     );
     copyVector(this.focusGoal, profile.focus);
     this.focusGoal.x += Math.sin(elapsed * 0.45) * (this.playing ? 0.025 : 0.055);
-    if (this.impactEnergy > 0.08) {
+    if (!this.reducedMotion && this.impactEnergy > 0.08) {
       this.cameraGoal.x += (Math.random() - 0.5) * this.impactEnergy * 0.11;
       this.cameraGoal.y += (Math.random() - 0.5) * this.impactEnergy * 0.07;
     }
-    this.camera.position.lerp(this.cameraGoal, 0.1);
-    this.cameraFocus.lerp(this.focusGoal, 0.13);
+    this.camera.position.lerp(this.cameraGoal, this.reducedMotion ? 1 : 0.1);
+    this.cameraFocus.lerp(this.focusGoal, this.reducedMotion ? 1 : 0.13);
     this.camera.lookAt(this.cameraFocus);
   }
 
@@ -1541,19 +1674,22 @@ export class MoveAnimationManager {
     [this.attacker, this.defender].forEach((grappler, index) => {
       const { aura, auraDisc, auraLine, auraArc } = grappler.parts;
       const velocity = index === 0 ? 1 : -1;
-      const pulse = 1 + Math.sin(elapsed * 2.2 + index) * 0.05 + this.impactEnergy * 0.12;
+      const pulse = this.reducedMotion ? 1 : 1 + Math.sin(elapsed * 2.2 + index) * 0.05 + this.impactEnergy * 0.12;
       aura.scale.setScalar(pulse);
-      aura.rotation.y += 0.014 * velocity;
-      auraDisc.material.opacity = 0.17 + this.impactEnergy * 0.15;
-      auraLine.material.opacity = 0.42 + this.impactEnergy * 0.3;
-      auraArc.material.opacity = 0.34 + this.impactEnergy * 0.24;
-      auraArc.rotation.z += 0.018 * velocity;
+      if (!this.reducedMotion) {
+        aura.rotation.y += 0.014 * velocity;
+        auraArc.rotation.z += 0.018 * velocity;
+      }
+      auraDisc.material.opacity = this.reducedMotion ? 0.17 : 0.17 + this.impactEnergy * 0.15;
+      auraLine.material.opacity = this.reducedMotion ? 0.42 : 0.42 + this.impactEnergy * 0.3;
+      auraArc.material.opacity = this.reducedMotion ? 0.34 : 0.34 + this.impactEnergy * 0.24;
     });
   }
 
   _triggerImpact(key) {
     this.impactEnergy = 1;
-    const color = this.attacker.materials.aura.color;
+    const performer = this.performerSide === "opponent" ? this.defender : this.attacker;
+    const color = performer.materials.aura.color;
     this.impactRing.visible = true;
     this.impactRing.position.set(0, 0.028, 0);
     this.impactRing.scale.setScalar(0.12);
@@ -1574,18 +1710,30 @@ export class MoveAnimationManager {
   }
 
   _updateEnvironment(delta) {
+    if (this.reducedMotion) {
+      this.impactEnergy = 0;
+      this.ambientParticles.rotation.y = 0;
+      this.ambientParticles.position.y = 0;
+      this.impactRing.visible = false;
+      this.impactNodes.forEach((node) => { node.visible = false; });
+      this.lightPulse.warm.intensity = 5.6;
+      this.lightPulse.side.intensity = 3.8;
+      this.lightPulse.rim.intensity = 1.45;
+      this.bloomPass.strength = this.isCompactViewport ? 0 : 0.26;
+      return;
+    }
     this.impactEnergy = Math.max(0, this.impactEnergy - delta * 1.75);
     this.ambientParticles.rotation.y += delta * 0.05;
     this.ambientParticles.position.y = Math.sin(this.elapsedTime * 0.45) * 0.07;
     this.arenaGlowMaterials.forEach((material, index) => {
       material.opacity = clamp((material.opacity || 0.5) + Math.sin(this.elapsedTime * 1.15 + index) * delta * 0.12, 0.12, 0.82);
     });
-    this.lightPulse.warm.intensity = 9 + this.impactEnergy * 12 + Math.sin(this.elapsedTime * 1.2) * 0.65;
-    this.lightPulse.side.intensity = 6.5 + this.impactEnergy * 7;
-    this.lightPulse.rim.intensity = 2.25 + this.impactEnergy * 0.9;
+    this.lightPulse.warm.intensity = 5.6 + this.impactEnergy * 7 + Math.sin(this.elapsedTime * 1.2) * 0.38;
+    this.lightPulse.side.intensity = 3.8 + this.impactEnergy * 4.5;
+    this.lightPulse.rim.intensity = 1.45 + this.impactEnergy * 0.7;
     this.bloomPass.strength = lerp(
       this.bloomPass.strength,
-      this.isCompactViewport ? 0 : 0.42 + this.impactEnergy * 0.24,
+      this.isCompactViewport ? 0 : 0.26 + this.impactEnergy * 0.18,
       0.1,
     );
 
@@ -1655,9 +1803,16 @@ export class MoveAnimationManager {
   }
 
   dispose() {
+    const active = this.active;
+    const wasLocked = Boolean(active || this.loadingMove || this.playing);
     this.disposed = true;
+    this.previewRequestId += 1;
     this.loadingMove = null;
     this.pendingPreviewKey = null;
+    this.active = null;
+    this.playing = false;
+    active?.resolve?.(false);
+    if (wasLocked) this.options.onLockChange?.(false);
     if (this.frameId) window.cancelAnimationFrame(this.frameId);
     this._resizeObserver?.disconnect();
     this._deactivateMocap();

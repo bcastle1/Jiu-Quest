@@ -110,9 +110,14 @@ const fighterArtSources = {
 const profileHairstyleArtSources = {
   bald: { image: "/assets/characters/profile-realistic-v2-bald.webp", mask: "v2/profile-bald", pose: "profile" },
   "crew cut": { image: "/assets/characters/profile-realistic-v2-crew-cut.webp", mask: "v2/profile-crew-cut", pose: "profile" },
+  "short fade": { image: "/assets/characters/profile-realistic-v2-crew-cut.webp", mask: "v2/profile-crew-cut", pose: "profile" },
   mohawk: { image: "/assets/characters/profile-realistic-v2-mohawk.webp", mask: "v2/profile-mohawk", pose: "profile" },
   "long hair": { image: "/assets/characters/profile-realistic-v2-long-hair.webp", mask: "v2/profile-long-hair", pose: "profile" },
+  "braided top": { image: "/assets/characters/profile-realistic-v2-long-hair.webp", mask: "v2/profile-long-hair", pose: "profile" },
+  "storm tail": { image: "/assets/characters/profile-realistic-v2-long-hair.webp", mask: "v2/profile-long-hair", pose: "profile" },
+  "curly guard": { image: "/assets/characters/profile-realistic-v2-long-hair.webp", mask: "v2/profile-long-hair", pose: "profile" },
   "slicked back": { image: "/assets/characters/profile-realistic-v2-slicked-back.webp", mask: "v2/profile-slicked-back", pose: "profile" },
+  "wave cut": { image: "/assets/characters/profile-realistic-v2-slicked-back.webp", mask: "v2/profile-slicked-back", pose: "profile" },
 };
 
 function resolveFighterArtSource(pose, hairStyle) {
@@ -619,15 +624,16 @@ function App() {
         ? `${winnerName} wins by submission with ${winningTechniqueName}`
         : finished
           ? `${winnerName} wins by decision — winning technique: ${winningTechniqueName}`
-          : `${actorName} lands ${techniqueName}`;
-      const animationHeadline = submission ? headline : `${actorName} lands ${techniqueName}`;
-      const resolutionLine = `${actorName} lands ${techniqueName} at ${formatPercent(actorScore)}. ${opponentName}'s ${losingMove.name} scores ${formatPercent(opponentScore)}.`;
+          : `${actorName} successfully executes ${techniqueName}`;
+      const animationHeadline = `${actorName} successfully executes ${techniqueName}`;
+      const resolutionLine = `${actorName} successfully executes ${techniqueName} at ${formatPercent(actorScore)}. ${opponentName}'s ${losingMove.name} scores ${formatPercent(opponentScore)}.`;
       const outcomeLine = submission
         ? `${winnerName} wins by submission with ${winningTechniqueName}. ${opponentName} taps.`
         : finished
           ? `${winnerName} wins the match by decision. Winning technique: ${winningTechniqueName}.`
           : `${actorName} takes the exchange with ${techniqueName}. Prepare for next action.`;
       const result = {
+        round: current.round,
         playerWins: finished ? matchPlayerWins : exchangePlayerWins,
         actorIsPlayer: exchangePlayerWins,
         matchPlayerWins,
@@ -651,7 +657,7 @@ function App() {
         ...current,
         phase: finished ? "finished" : "result",
         active: !finished,
-        round: current.round + 1,
+        round: finished ? current.round : current.round + 1,
         position: nextPosition,
         playerExchanges: nextPlayerExchanges,
         npcExchanges: nextNpcExchanges,
@@ -1416,15 +1422,19 @@ function Training({
 function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMoves, chooseCombatMove, resolveCombatTurn, startCombat }) {
   const selectedMove = combat.selectedMoveId ? allMoves.find((move) => move.id === combat.selectedMoveId) : null;
   const combatAnimationRef = useRef(null);
+  const nextActionRef = useRef(null);
   const [combatAnimationLocked, setCombatAnimationLocked] = useState(false);
   const [decisionPresentation, setDecisionPresentation] = useState(null);
   const combatResultRef = useRef(combat.result);
   combatResultRef.current = combat.result;
   const handleCombatAnimationComplete = useCallback(() => {
     const result = combatResultRef.current;
-    if (!result?.finished) return;
+    if (!result?.finished) {
+      window.requestAnimationFrame(() => nextActionRef.current?.focus());
+      return;
+    }
     setDecisionPresentation({
-      winner: result.actorIsPlayer === result.matchPlayerWins ? "fighter" : "opponent",
+      winner: result.matchPlayerWins ? "fighter" : "opponent",
       technique: result.winningTechniqueName,
       headline: result.outcome === "submission" ? "Submission victory" : "Official decision",
       methodLabel: result.outcome === "submission" ? "Winner by" : "Wins by decision - Winning technique:",
@@ -1434,6 +1444,7 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
   useEffect(() => {
     setDecisionPresentation(null);
   }, [combat.result?.animationSignal]);
+
   const grouped = unlockedMoves.reduce((acc, move) => {
     acc[move.belt] = [...(acc[move.belt] ?? []), move];
     return acc;
@@ -1444,13 +1455,17 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
   return (
     <section className="combat-grid">
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {combat.result?.headline ?? ""}
+        {combat.result?.finished
+          ? decisionPresentation
+            ? combat.result.headline
+            : combat.result.animationHeadline
+          : combat.result?.headline ?? ""}
       </div>
       <div className="panel arena-panel">
         <div className="arena-top">
           <FighterCard fighter={fighter} beltStatus={beltStatus} />
           <div className="round-core">
-            <span>Round {combat.round}</span>
+            <span>Round {combat.result?.round ?? combat.round}</span>
             <strong>{combat.phase === "ordering" ? combat.secondsLeft : "VS"}</strong>
             <small>{positionLabels[combat.position]}</small>
             <em>{arenaLabel}</em>
@@ -1464,10 +1479,11 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
             move={combat.result?.move}
             animationKey={combat.result?.animationKey ?? (combat.active ? "grip_fighting" : "standing_stance")}
             autoPlaySignal={combat.result?.animationSignal}
-            fighter={combat.result ? (combat.result.actorIsPlayer ? fighter : combat.npc) : fighter}
-            opponent={combat.result ? (combat.result.actorIsPlayer ? combat.npc : fighter) : combat.npc}
-            fighterBelt={combat.result ? (combat.result.actorIsPlayer ? beltStatus : { belt: combat.npc.belt, stripes: combat.npc.stripes }) : beltStatus}
-            opponentBelt={combat.result ? (combat.result.actorIsPlayer ? { belt: combat.npc.belt, stripes: combat.npc.stripes } : beltStatus) : { belt: combat.npc.belt, stripes: combat.npc.stripes }}
+            fighter={fighter}
+            opponent={combat.npc}
+            fighterBelt={beltStatus}
+            opponentBelt={{ belt: combat.npc.belt, stripes: combat.npc.stripes }}
+            performerSide={combat.result?.actorIsPlayer === false ? "opponent" : "fighter"}
             title={combat.result ? combat.result.animationHeadline : combat.active ? "Arena live feed" : "Arena preview"}
             onLockChange={setCombatAnimationLocked}
             onComplete={handleCombatAnimationComplete}
@@ -1517,6 +1533,7 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
             </>
           ) : combat.phase === "result" ? (
             <button
+              ref={nextActionRef}
               className="primary-button"
               disabled={combatAnimationLocked}
               onClick={() =>

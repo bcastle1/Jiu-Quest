@@ -10,6 +10,7 @@ yarn-debug.log*
 *.log
 jiuquest-*.png
 tmp/
+.tmp/
 public/assets/characters/profile-realistic-v2*.png
 public/assets/stances/*-stance-realistic-v2.png
 public/assets/characters/masks/v2/*-body.png
