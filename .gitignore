@@ -9,3 +9,10 @@ yarn-debug.log*
 *.local
 *.log
 jiuquest-*.png
+tmp/
+public/assets/characters/profile-realistic-v2*.png
+public/assets/stances/*-stance-realistic-v2.png
+public/assets/characters/masks/v2/*-body.png
+public/assets/characters/masks/v2/*-body-no-hair.png
+public/assets/characters/masks/v2/profile*-body-no-hair-no-belt.png
+public/assets/characters/masks/v2/[!p]*-body-no-belt.png

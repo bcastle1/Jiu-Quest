@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   BadgePlus,
@@ -75,6 +75,15 @@ const auraColors = {
   "emerald focus": "#3ee0a0",
 };
 
+const skinToneLabels = {
+  "#f1c6a8": "Light",
+  "#d99b71": "Warm light",
+  "#a86b4d": "Medium",
+  "#6f432f": "Deep",
+  "#3d241b": "Dark",
+  "#120805": "Very dark",
+};
+
 const stanceCopy = {
   "wrestling stance": "low hips, forward pressure",
   "sumo base": "wide base, heavy center",
@@ -85,18 +94,33 @@ const stanceCopy = {
   "capoeira rhythm": "mobile feints, spinning lane",
 };
 
-const profileArt = "/assets/characters/profile-cutout.png";
+const profileArt = "/assets/characters/profile-realistic-v2.webp";
 
 const fighterArtSources = {
-  profile: { image: profileArt, mask: "profile" },
-  wrestling: { image: "/assets/stances/wrestling-stance-cutout.png", mask: "wrestling" },
-  sumo: { image: "/assets/stances/sumo-stance-cutout.png", mask: "sumo" },
-  boxing: { image: "/assets/stances/boxing-stance-cutout.png", mask: "boxing" },
-  karate: { image: "/assets/stances/karate-stance-cutout.png", mask: "karate" },
-  "muay-thai": { image: "/assets/stances/muay-thai-stance-cutout.png", mask: "muay-thai" },
-  sambo: { image: "/assets/stances/sambo-stance-cutout.png", mask: "sambo" },
-  capoeira: { image: "/assets/stances/capoeira-stance-cutout.png", mask: "capoeira" },
+  profile: { image: profileArt, mask: "v2/profile", pose: "profile" },
+  wrestling: { image: "/assets/stances/wrestling-stance-realistic-v2.webp", mask: "v2/wrestling", pose: "wrestling" },
+  sumo: { image: "/assets/stances/sumo-stance-realistic-v2.webp", mask: "v2/sumo", pose: "sumo" },
+  boxing: { image: "/assets/stances/boxing-stance-realistic-v2.webp", mask: "v2/boxing", pose: "boxing" },
+  karate: { image: "/assets/stances/karate-stance-realistic-v2.webp", mask: "v2/karate", pose: "karate" },
+  "muay-thai": { image: "/assets/stances/muay-thai-stance-realistic-v2.webp", mask: "v2/muay-thai", pose: "muay-thai" },
+  sambo: { image: "/assets/stances/sambo-stance-realistic-v2.webp", mask: "v2/sambo", pose: "sambo" },
+  capoeira: { image: "/assets/stances/capoeira-stance-realistic-v2.webp", mask: "v2/capoeira", pose: "capoeira" },
 };
+
+const profileHairstyleArtSources = {
+  bald: { image: "/assets/characters/profile-realistic-v2-bald.webp", mask: "v2/profile-bald", pose: "profile" },
+  "crew cut": { image: "/assets/characters/profile-realistic-v2-crew-cut.webp", mask: "v2/profile-crew-cut", pose: "profile" },
+  mohawk: { image: "/assets/characters/profile-realistic-v2-mohawk.webp", mask: "v2/profile-mohawk", pose: "profile" },
+  "long hair": { image: "/assets/characters/profile-realistic-v2-long-hair.webp", mask: "v2/profile-long-hair", pose: "profile" },
+  "slicked back": { image: "/assets/characters/profile-realistic-v2-slicked-back.webp", mask: "v2/profile-slicked-back", pose: "profile" },
+};
+
+function resolveFighterArtSource(pose, hairStyle) {
+  const fallbackSource = fighterArtSources[pose] ?? fighterArtSources.profile;
+  if (pose !== "profile") return fallbackSource;
+
+  return profileHairstyleArtSources[hairStyle?.trim().toLowerCase()] ?? fallbackSource;
+}
 
 const stancePose = {
   "wrestling stance": "wrestling",
@@ -109,13 +133,13 @@ const stancePose = {
 };
 
 const stanceArt = {
-  "wrestling stance": "/assets/stances/wrestling-stance-cutout.png",
-  "sumo base": "/assets/stances/sumo-stance-cutout.png",
-  "boxer shell": "/assets/stances/boxing-stance-cutout.png",
-  "karate stance": "/assets/stances/karate-stance-cutout.png",
-  "muay thai guard": "/assets/stances/muay-thai-stance-cutout.png",
-  "sambo crouch": "/assets/stances/sambo-stance-cutout.png",
-  "capoeira rhythm": "/assets/stances/capoeira-stance-cutout.png",
+  "wrestling stance": "/assets/stances/wrestling-stance-realistic-v2.webp",
+  "sumo base": "/assets/stances/sumo-stance-realistic-v2.webp",
+  "boxer shell": "/assets/stances/boxing-stance-realistic-v2.webp",
+  "karate stance": "/assets/stances/karate-stance-realistic-v2.webp",
+  "muay thai guard": "/assets/stances/muay-thai-stance-realistic-v2.webp",
+  "sambo crouch": "/assets/stances/sambo-stance-realistic-v2.webp",
+  "capoeira rhythm": "/assets/stances/capoeira-stance-realistic-v2.webp",
 };
 
 const showcaseFighters = [
@@ -294,6 +318,7 @@ function App() {
   const [musicOn, setMusicOn] = useState(false);
   const [combat, setCombat] = useState(() => createCombatState(store.npcs[0]));
   const audioRef = useRef(null);
+  const recordedCombatSignalRef = useRef(null);
 
   const fighter = useMemo(
     () => store.fighters.find((item) => item.id === store.selectedFighterId) ?? store.fighters[0],
@@ -339,12 +364,13 @@ function App() {
   }, [view]);
 
   useEffect(() => {
-    const urls = new Set([
-      ...Object.values(fighterArtSources).map((source) => source.image),
-      ...Object.values(stanceArt),
-    ]);
-    Object.values(fighterArtSources).forEach((source) => {
-      ["body", "skin", "hair", "jacket", "pants", "belt"].forEach((mask) => {
+    const sources = [
+      resolveFighterArtSource("profile", fighter.hairStyle),
+      fighterArtSources[getFighterPose(fighter)] ?? fighterArtSources.profile,
+    ];
+    const urls = new Set(sources.map((source) => source.image));
+    sources.forEach((source) => {
+      [source.pose === "profile" ? "body-no-belt" : "body-no-hair-no-belt", "skin", "hair", "jacket", "pants", "belt"].forEach((mask) => {
         urls.add(`/assets/characters/masks/${source.mask}-${mask}.png`);
       });
     });
@@ -353,7 +379,7 @@ function App() {
       image.decoding = "async";
       image.src = url;
     });
-  }, []);
+  }, [fighter.hairStyle, fighter.stance]);
 
   useEffect(() => {
     if (!trainingOrder.length || selectedMove.steps.some((step) => !trainingOrder.includes(step))) {
@@ -509,6 +535,7 @@ function App() {
     setCombat({
       ...createCombatState(npc),
       active: true,
+      phase: "selecting",
       position: startPosition,
       log: [`Gate opened from ${positionLabels[startPosition]}. Choose your first action.`],
     });
@@ -532,10 +559,19 @@ function App() {
   };
 
   const resolveCombatTurn = () => {
+    if (!combat.active || !combat.selectedMoveId) return;
+    const npcMoveForTurn = chooseNpcMove(combat.npc, combat.position);
+    const npcScoreForTurn = scoreNpc({
+      npc: combat.npc,
+      move: npcMoveForTurn,
+      position: combat.position,
+      settings: store.adminSettings,
+    });
+    const resolutionTimestamp = Date.now();
     setCombat((current) => {
       if (!current.active || !current.selectedMoveId) return current;
       const move = allMoves.find((item) => item.id === current.selectedMoveId);
-      const npcMove = chooseNpcMove(current.npc, current.position);
+      const npcMove = npcMoveForTurn;
       const playerScore = scoreMove({
         move,
         fighter,
@@ -544,31 +580,72 @@ function App() {
         settings: store.adminSettings,
         belt: beltStatus.belt,
       });
-      const npcScore = scoreNpc({ npc: current.npc, move: npcMove, position: current.position, settings: store.adminSettings });
-      const playerWins = playerScore.total >= npcScore.total;
-      const winnerMove = playerWins ? move : npcMove;
+      const npcScore = npcScoreForTurn;
+      const exchangePlayerWins = playerScore.total >= npcScore.total;
+      const winnerMove = exchangePlayerWins ? move : npcMove;
+      const losingMove = exchangePlayerWins ? npcMove : move;
+      const actorName = exchangePlayerWins ? fighter.name : current.npc.name;
+      const opponentName = exchangePlayerWins ? current.npc.name : fighter.name;
+      const actorScore = exchangePlayerWins ? playerScore.total : npcScore.total;
+      const opponentScore = exchangePlayerWins ? npcScore.total : playerScore.total;
+      const techniqueName = winnerMove.name;
       const nextPosition = winnerMove.endsIn ?? current.position;
       const submission = winnerMove.isSubmission && Math.max(playerScore.total, npcScore.total) >= 52;
       const finished = submission || current.round >= 8;
-      const didWin = playerWins && finished;
-      const didLose = !playerWins && finished;
+      const nextPlayerExchanges = (current.playerExchanges ?? 0) + (exchangePlayerWins ? 1 : 0);
+      const nextNpcExchanges = (current.npcExchanges ?? 0) + (exchangePlayerWins ? 0 : 1);
+      const nextPlayerPoints = (current.playerPoints ?? 0) + playerScore.total;
+      const nextNpcPoints = (current.npcPoints ?? 0) + npcScore.total;
+      const nextBestPlayer = exchangePlayerWins && (!current.bestPlayer || playerScore.total >= current.bestPlayer.score)
+        ? { move, score: playerScore.total }
+        : current.bestPlayer;
+      const nextBestNpc = !exchangePlayerWins && (!current.bestNpc || npcScore.total >= current.bestNpc.score)
+        ? { move: npcMove, score: npcScore.total }
+        : current.bestNpc;
+      const decisionPlayerWins = nextPlayerExchanges === nextNpcExchanges
+        ? nextPlayerPoints >= nextNpcPoints
+        : nextPlayerExchanges > nextNpcExchanges;
+      const matchPlayerWins = submission ? exchangePlayerWins : finished ? decisionPlayerWins : null;
+      const winningMove = submission
+        ? winnerMove
+        : finished
+          ? (matchPlayerWins ? nextBestPlayer.move : nextBestNpc.move)
+          : null;
+      const winnerName = finished ? (matchPlayerWins ? fighter.name : current.npc.name) : null;
+      const winningTechniqueName = winningMove?.name ?? null;
       const animationKey = getBjjAnimationKeyForMove(winnerMove);
+      const outcome = submission ? "submission" : finished ? "decision" : "exchange";
+      const headline = submission
+        ? `${winnerName} wins by submission with ${winningTechniqueName}`
+        : finished
+          ? `${winnerName} wins by decision — winning technique: ${winningTechniqueName}`
+          : `${actorName} lands ${techniqueName}`;
+      const animationHeadline = submission ? headline : `${actorName} lands ${techniqueName}`;
+      const resolutionLine = `${actorName} lands ${techniqueName} at ${formatPercent(actorScore)}. ${opponentName}'s ${losingMove.name} scores ${formatPercent(opponentScore)}.`;
+      const outcomeLine = submission
+        ? `${winnerName} wins by submission with ${winningTechniqueName}. ${opponentName} taps.`
+        : finished
+          ? `${winnerName} wins the match by decision. Winning technique: ${winningTechniqueName}.`
+          : `${actorName} takes the exchange with ${techniqueName}. Prepare for next action.`;
       const result = {
-        playerWins,
+        playerWins: finished ? matchPlayerWins : exchangePlayerWins,
+        actorIsPlayer: exchangePlayerWins,
+        matchPlayerWins,
         finished,
+        outcome,
+        actorName,
+        techniqueName,
+        winnerName,
+        winningTechniqueName,
+        headline,
+        animationHeadline,
         move: winnerMove,
         animationKey,
-        animationSignal: `${winnerMove.id}-${current.round}-${Date.now()}`,
+        animationSignal: `${winnerMove.id}-${current.round}-${resolutionTimestamp}`,
         playerScore,
         npcScore,
-        line: playerWins
-          ? `${move.name} lands at ${formatPercent(playerScore.total)}. ${current.npc.name}'s ${npcMove.name} fades at ${formatPercent(npcScore.total)}.`
-          : `${current.npc.name} answers with ${npcMove.name} at ${formatPercent(npcScore.total)}. Your ${move.name} scored ${formatPercent(playerScore.total)}.`,
+        line: resolutionLine,
       };
-
-      if (finished) {
-        recordCombatResult(didWin, didLose);
-      }
 
       return {
         ...current,
@@ -576,15 +653,17 @@ function App() {
         active: !finished,
         round: current.round + 1,
         position: nextPosition,
+        playerExchanges: nextPlayerExchanges,
+        npcExchanges: nextNpcExchanges,
+        playerPoints: nextPlayerPoints,
+        npcPoints: nextNpcPoints,
+        bestPlayer: nextBestPlayer,
+        bestNpc: nextBestNpc,
         selectedMoveId: null,
         secondsLeft: 10,
         result,
         log: [
-          submission
-            ? `${winnerMove.name} becomes the finishing seal. ${playerWins ? current.npc.name : fighter.name} taps.`
-            : current.round >= 8
-              ? "The timer ends. Decision goes to the cleaner chain."
-              : "Prepare for next action.",
+          outcomeLine,
           result.line,
           ...current.log,
         ].slice(0, 8),
@@ -608,6 +687,13 @@ function App() {
       ),
     }));
   };
+
+  useEffect(() => {
+    const result = combat.result;
+    if (!result?.finished || !result.animationSignal || recordedCombatSignalRef.current === result.animationSignal) return;
+    recordedCombatSignalRef.current = result.animationSignal;
+    recordCombatResult(result.matchPlayerWins === true, result.matchPlayerWins === false);
+  }, [combat.result?.animationSignal]);
 
   const resetProgress = () => {
     const confirmed = window.confirm(`Clear all progress for ${fighter.name}? Customization will stay.`);
@@ -1082,6 +1168,7 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
           </Field>
           <Field label="Gender">
             <Segmented
+              label="Gender"
               value={fighter.gender}
               options={customizationOptions.genders}
               onChange={(gender) => updateFighter({ gender })}
@@ -1089,6 +1176,7 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
           </Field>
           <Field label="Start Position">
             <Segmented
+              label="Start position"
               value={fighter.startPose}
               options={["standing", "kneeling"]}
               onChange={(startPose) => updateFighter({ startPose })}
@@ -1107,6 +1195,16 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
               options={customizationOptions.stances}
               onChange={(stance) => updateFighter({ stance })}
               getImage={(stance) => stanceArt[stance] ?? stanceArt["wrestling stance"]}
+              renderPreview={(stance) => (
+                <FighterArt
+                  fighter={fighter}
+                  beltStatus={beltStatus}
+                  pose={stancePose[stance] ?? "wrestling"}
+                  className="image-select-fighter"
+                  showAura={false}
+                  showPatches={false}
+                />
+              )}
               getLabel={titleCase}
               getMeta={(stance) => stanceCopy[stance]}
             />
@@ -1319,6 +1417,23 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
   const selectedMove = combat.selectedMoveId ? allMoves.find((move) => move.id === combat.selectedMoveId) : null;
   const combatAnimationRef = useRef(null);
   const [combatAnimationLocked, setCombatAnimationLocked] = useState(false);
+  const [decisionPresentation, setDecisionPresentation] = useState(null);
+  const combatResultRef = useRef(combat.result);
+  combatResultRef.current = combat.result;
+  const handleCombatAnimationComplete = useCallback(() => {
+    const result = combatResultRef.current;
+    if (!result?.finished) return;
+    setDecisionPresentation({
+      winner: result.actorIsPlayer === result.matchPlayerWins ? "fighter" : "opponent",
+      technique: result.winningTechniqueName,
+      headline: result.outcome === "submission" ? "Submission victory" : "Official decision",
+      methodLabel: result.outcome === "submission" ? "Winner by" : "Wins by decision - Winning technique:",
+    });
+  }, []);
+
+  useEffect(() => {
+    setDecisionPresentation(null);
+  }, [combat.result?.animationSignal]);
   const grouped = unlockedMoves.reduce((acc, move) => {
     acc[move.belt] = [...(acc[move.belt] ?? []), move];
     return acc;
@@ -1328,6 +1443,9 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
 
   return (
     <section className="combat-grid">
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {combat.result?.headline ?? ""}
+      </div>
       <div className="panel arena-panel">
         <div className="arena-top">
           <FighterCard fighter={fighter} beltStatus={beltStatus} />
@@ -1346,12 +1464,14 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
             move={combat.result?.move}
             animationKey={combat.result?.animationKey ?? (combat.active ? "grip_fighting" : "standing_stance")}
             autoPlaySignal={combat.result?.animationSignal}
-            fighter={combat.result ? (combat.result.playerWins ? fighter : combat.npc) : fighter}
-            opponent={combat.result ? (combat.result.playerWins ? combat.npc : fighter) : combat.npc}
-            fighterBelt={combat.result ? (combat.result.playerWins ? beltStatus : { belt: combat.npc.belt, stripes: combat.npc.stripes }) : beltStatus}
-            opponentBelt={combat.result ? (combat.result.playerWins ? { belt: combat.npc.belt, stripes: combat.npc.stripes } : beltStatus) : { belt: combat.npc.belt, stripes: combat.npc.stripes }}
-            title={combat.result ? combat.result.move.name + " lands" : combat.active ? "Arena live feed" : "Arena preview"}
+            fighter={combat.result ? (combat.result.actorIsPlayer ? fighter : combat.npc) : fighter}
+            opponent={combat.result ? (combat.result.actorIsPlayer ? combat.npc : fighter) : combat.npc}
+            fighterBelt={combat.result ? (combat.result.actorIsPlayer ? beltStatus : { belt: combat.npc.belt, stripes: combat.npc.stripes }) : beltStatus}
+            opponentBelt={combat.result ? (combat.result.actorIsPlayer ? { belt: combat.npc.belt, stripes: combat.npc.stripes } : beltStatus) : { belt: combat.npc.belt, stripes: combat.npc.stripes }}
+            title={combat.result ? combat.result.animationHeadline : combat.active ? "Arena live feed" : "Arena preview"}
             onLockChange={setCombatAnimationLocked}
+            onComplete={handleCombatAnimationComplete}
+            decision={decisionPresentation}
           />
         </div>
 
@@ -1359,7 +1479,9 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
           {!combat.active && combat.phase !== "ordering" ? (
             <>
               <select
+                aria-label="Choose opponent"
                 value={combat.npc.id}
+                disabled={combatAnimationLocked || (combat.phase === "finished" && !decisionPresentation)}
                 onChange={(event) => {
                   const nextNpc = npcs.find((npc) => npc.id === event.target.value) ?? npcs[0];
                   setCombat(createCombatState(nextNpc));
@@ -1371,10 +1493,18 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
                   </option>
                 ))}
               </select>
-              <button className="primary-button" onClick={() => startCombat(combat.npc, "standing")}>
+              <button
+                className="primary-button"
+                disabled={combatAnimationLocked || (combat.phase === "finished" && !decisionPresentation)}
+                onClick={() => startCombat(combat.npc, "standing")}
+              >
                 Standing Start
               </button>
-              <button className="secondary-button" onClick={() => startCombat(combat.npc, "kneeling")}>
+              <button
+                className="secondary-button"
+                disabled={combatAnimationLocked || (combat.phase === "finished" && !decisionPresentation)}
+                onClick={() => startCombat(combat.npc, "kneeling")}
+              >
                 Kneeling Start
               </button>
             </>
@@ -1385,7 +1515,7 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
               </button>
               <span className="clock-pill">{combat.secondsLeft}s remaining</span>
             </>
-          ) : (
+          ) : combat.phase === "result" ? (
             <button
               className="primary-button"
               disabled={combatAnimationLocked}
@@ -1401,6 +1531,8 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
             >
               {combatAnimationLocked ? "Animation Playing" : "Prepare Next Action"}
             </button>
+          ) : (
+            <span className="clock-pill">Choose a technique from the Combat Deck</span>
           )}
         </div>
       </div>
@@ -1423,7 +1555,7 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
                     key={move.id}
                     className={combat.selectedMoveId === move.id ? "selected" : ""}
                     onClick={() => chooseCombatMove(move)}
-                    disabled={combat.phase === "ordering" || combatAnimationLocked}
+                    disabled={!combat.active || combat.phase === "ordering" || combat.phase === "finished" || combatAnimationLocked}
                   >
                     <span>{move.name}</span>
                     <small>{move.category} - {move.steps.length} steps</small>
@@ -1450,10 +1582,18 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
                   <span>{index + 1}</span>
                   <p>{step}</p>
                   <div>
-                    <button disabled={combatAnimationLocked} onClick={() => setCombat((current) => ({ ...current, order: moveItem(current.order, index, index - 1) }))}>
+                    <button
+                      aria-label={`Move ${step} up`}
+                      disabled={combatAnimationLocked}
+                      onClick={() => setCombat((current) => ({ ...current, order: moveItem(current.order, index, index - 1) }))}
+                    >
                       <ChevronLeft size={16} />
                     </button>
-                    <button disabled={combatAnimationLocked} onClick={() => setCombat((current) => ({ ...current, order: moveItem(current.order, index, index + 1) }))}>
+                    <button
+                      aria-label={`Move ${step} down`}
+                      disabled={combatAnimationLocked}
+                      onClick={() => setCombat((current) => ({ ...current, order: moveItem(current.order, index, index + 1) }))}
+                    >
                       <ChevronRight size={16} />
                     </button>
                   </div>
@@ -1461,6 +1601,13 @@ function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMov
               ))}
             </div>
           </>
+        ) : combat.result ? (
+          <div
+            className={`result-card ${combat.result.finished ? (combat.result.playerWins ? "success" : "danger") : ""}`.trim()}
+          >
+            <strong>{combat.result.headline}</strong>
+            <p>{combat.result.line}</p>
+          </div>
         ) : (
           <div className="empty-state">
             <Swords size={42} />
@@ -1907,6 +2054,16 @@ function AdminPanel({ store, setStore, setView }) {
                   options={customizationOptions.stances}
                   onChange={(stance) => updateNpc(npc.id, { stance })}
                   getImage={(stance) => stanceArt[stance] ?? stanceArt["wrestling stance"]}
+                  renderPreview={(stance) => (
+                    <FighterArt
+                      fighter={npc}
+                      beltStatus={{ belt: npc.belt, stripes: npc.stripes }}
+                      pose={stancePose[stance] ?? "wrestling"}
+                      className="image-select-fighter"
+                      showAura={false}
+                      showPatches={false}
+                    />
+                  )}
                   getLabel={(stance) => titleCase(stance)}
                   getMeta={(stance) => stanceCopy[stance]}
                 />
@@ -2160,6 +2317,12 @@ function createCombatState(npc) {
     selectedMoveId: null,
     order: [],
     secondsLeft: 10,
+    playerExchanges: 0,
+    npcExchanges: 0,
+    playerPoints: 0,
+    npcPoints: 0,
+    bestPlayer: null,
+    bestNpc: null,
     result: null,
     log: ["Choose standing or kneeling start to open the gate."],
   };
@@ -2302,9 +2465,17 @@ function FighterProfileArt({ fighter, beltStatus, className = "" }) {
   );
 }
 
-function FighterArt({ fighter, beltStatus, pose = "profile", className = "", facing = "front", showAura = true, showPatches = true, showPatchCovers = true }) {
-  const source = fighterArtSources[pose] ?? fighterArtSources.profile;
+function FighterArt({ fighter, beltStatus, pose = "profile", className = "", facing = "front", showAura = true, showPatches = true, showPatchCovers = false }) {
+  const source = resolveFighterArtSource(pose, fighter.hairStyle);
   const maskBase = `/assets/characters/masks/${source.mask}`;
+  const poseClass = source.pose ?? "profile";
+  const hairStyle = fighter.hairStyle ?? "shadow spikes";
+  const hairStyleSlug = hairStyle
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const bodyMask = poseClass === "profile" ? "body-no-belt" : "body-no-hair-no-belt";
   const artStyle = {
     "--fighter-src": `url("${source.image}")`,
     "--skin-mask": `url("${maskBase}-skin.png")`,
@@ -2312,7 +2483,7 @@ function FighterArt({ fighter, beltStatus, pose = "profile", className = "", fac
     "--jacket-mask": `url("${maskBase}-jacket.png")`,
     "--pants-mask": `url("${maskBase}-pants.png")`,
     "--belt-mask": `url("${maskBase}-belt.png")`,
-    "--body-mask": `url("${maskBase}-body.png")`,
+    "--body-mask": `url("${maskBase}-${bodyMask}.png")`,
     "--skin": fighter.skinTone ?? "#d99b71",
     "--hair": fighter.hairColor ?? "#11131c",
     "--gi-top": fighter.giTop ?? "#f8fbff",
@@ -2322,25 +2493,32 @@ function FighterArt({ fighter, beltStatus, pose = "profile", className = "", fac
   };
 
   return (
-    <span className={`fighter-art fighter-pose-${source.mask} facing-${facing} ${className}`.trim()} style={artStyle} aria-label={`${fighter.name} fighter art`}>
+    <span
+      className={`fighter-art fighter-pose-${poseClass} facing-${facing} hair-style-${hairStyleSlug} ${className}`.trim()}
+      data-hair-style={hairStyle}
+      style={artStyle}
+      aria-label={`${fighter.name} fighter art`}
+    >
       {showAura ? <span className="fighter-art-aura" /> : null}
       <span className="fighter-art-layer fighter-art-base" />
       <span className="fighter-art-layer fighter-art-tint fighter-art-skin" />
       <span className="fighter-art-layer fighter-art-tint fighter-art-hair" />
+      <span className="fighter-art-layer fighter-art-hair-detail" />
       <span className="fighter-art-layer fighter-art-tint fighter-art-jacket" />
       <span className="fighter-art-layer fighter-art-tint fighter-art-pants" />
       <span className="fighter-art-layer fighter-art-tint fighter-art-belt" />
       <span className="fighter-art-layer fighter-art-detail" />
+      <span className="fighter-art-layer fighter-art-belt-detail" />
       {showPatchCovers ? (
         <>
-          <span className={`fighter-art-patch-cover heart pose-${source.mask}`} />
-          <span className={`fighter-art-patch-cover lower-leg pose-${source.mask}`} />
+          <span className={`fighter-art-patch-cover heart pose-${poseClass}`} />
+          <span className={`fighter-art-patch-cover lower-leg pose-${poseClass}`} />
         </>
       ) : null}
       {showPatches ? (
         <>
-          <EmblemMark emblem={fighter.emblem} className={`fighter-art-emblem heart pose-${source.mask}`} />
-          <EmblemMark emblem={fighter.emblem} className={`fighter-art-emblem lower-leg pose-${source.mask}`} />
+          <EmblemMark emblem={fighter.emblem} className={`fighter-art-emblem heart pose-${poseClass}`} />
+          <EmblemMark emblem={fighter.emblem} className={`fighter-art-emblem lower-leg pose-${poseClass}`} />
         </>
       ) : null}
       <span className="fighter-art-stripes">
@@ -2413,10 +2591,17 @@ function MiniPortrait({ fighter, beltStatus }) {
   return (
     <span
       className="mini-portrait"
-      style={{ "--portrait-src": `url("${profileArt}")`, "--portrait-aura": auraColors[fighter.aura] ?? "#8a5cff" }}
+      style={{ "--portrait-aura": auraColors[fighter.aura] ?? "#8a5cff" }}
       aria-label={`${fighter.name} portrait`}
     >
-      <span className="mini-portrait-crop" />
+      <FighterArt
+        fighter={fighter}
+        beltStatus={beltStatus}
+        pose="profile"
+        className="mini-portrait-fighter"
+        showAura={false}
+        showPatches={false}
+      />
     </span>
   );
 }
@@ -2575,7 +2760,13 @@ function BottomNav({ view, setView }) {
   return (
     <nav className="bottom-nav">
       {navItems.map(({ id, label, icon: Icon }) => (
-        <button key={id} className={view === id ? "active" : ""} onClick={() => setView(id)}>
+        <button
+          key={id}
+          aria-current={view === id ? "page" : undefined}
+          aria-label={label}
+          className={view === id ? "active" : ""}
+          onClick={() => setView(id)}
+        >
           <Icon size={20} />
           <span>{label}</span>
         </button>
@@ -2614,11 +2805,18 @@ function Field({ label, children }) {
   );
 }
 
-function Segmented({ value, options, onChange }) {
+function Segmented({ label = "Options", value, options, onChange }) {
   return (
-    <span className="segmented">
+    <span className="segmented" role="group" aria-label={label}>
       {options.map((option) => (
-        <button key={option} type="button" className={value === option ? "active" : ""} onClick={() => onChange(option)}>
+        <button
+          key={option}
+          type="button"
+          aria-label={`${label}: ${option}`}
+          aria-pressed={value === option}
+          className={value === option ? "active" : ""}
+          onClick={() => onChange(option)}
+        >
           {option}
         </button>
       ))}
@@ -2626,13 +2824,24 @@ function Segmented({ value, options, onChange }) {
   );
 }
 
-function ImageSelect({ value, options, onChange, getImage, getLabel, getMeta, compact = false }) {
+function ImageSelect({ value, options, onChange, getImage, renderPreview, getLabel, getMeta, compact = false }) {
   const [open, setOpen] = useState(false);
-  const selectedImage = getImage(value);
+  const previewFor = (option) => renderPreview?.(option) ?? <img src={getImage(option)} alt="" />;
   return (
-    <span className={`image-select ${open ? "open" : ""} ${compact ? "compact" : ""}`}>
-      <button type="button" className="image-select-trigger" onClick={() => setOpen((current) => !current)}>
-        <img src={selectedImage} alt="" />
+    <span
+      className={`image-select ${open ? "open" : ""} ${compact ? "compact" : ""}`}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") setOpen(false);
+      }}
+    >
+      <button
+        type="button"
+        className="image-select-trigger"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => setOpen((current) => !current)}
+      >
+        {previewFor(value)}
         <span>
           <strong>{getLabel(value)}</strong>
           {getMeta ? <small>{getMeta(value)}</small> : null}
@@ -2640,18 +2849,20 @@ function ImageSelect({ value, options, onChange, getImage, getLabel, getMeta, co
         <ChevronDown size={18} />
       </button>
       {open ? (
-        <span className="image-select-menu">
+        <span className="image-select-menu" role="listbox">
           {options.map((option) => (
             <button
               key={option}
               type="button"
+              role="option"
+              aria-selected={option === value}
               className={option === value ? "active" : ""}
               onClick={() => {
                 onChange(option);
                 setOpen(false);
               }}
             >
-              <img src={getImage(option)} alt="" />
+              {previewFor(option)}
               <span>
                 <strong>{getLabel(option)}</strong>
                 {getMeta ? <small>{getMeta(option)}</small> : null}
@@ -2669,16 +2880,20 @@ function Swatches({ label, value, options, onChange }) {
     <div className="swatch-row">
       <span>{label}</span>
       <div>
-        {options.map((option) => (
-          <button
-            key={option}
-            type="button"
-            className={value === option ? "active" : ""}
-            style={{ background: option }}
-            onClick={() => onChange(option)}
-            aria-label={`${label} ${option}`}
-          />
-        ))}
+        {options.map((option) => {
+          const friendlyLabel = label === "Skin Tone" ? skinToneLabels[option] ?? option : option;
+          return (
+            <button
+              key={option}
+              type="button"
+              className={`${value === option ? "active " : ""}swatch-color-${option.replace("#", "")}`.trim()}
+              style={{ background: option }}
+              onClick={() => onChange(option)}
+              aria-label={`${label}: ${friendlyLabel}`}
+              aria-pressed={value === option}
+            />
+          );
+        })}
       </div>
     </div>
   );

@@ -754,6 +754,19 @@ main {
     contrast(1.06);
 }
 
+.mini-portrait-fighter {
+  --fighter-w: 5.2rem;
+  --fighter-h: 12.2rem;
+  position: absolute;
+  top: -0.45rem;
+  left: 50%;
+  z-index: 1;
+  transform: translateX(-50%);
+  filter:
+    drop-shadow(0 0.35rem 0.5rem rgba(0, 0, 0, 0.58))
+    drop-shadow(0 0 0.7rem color-mix(in srgb, var(--portrait-aura) 30%, transparent));
+}
+
 .mini-portrait::after {
   content: "";
   position: absolute;
@@ -849,6 +862,65 @@ main {
   mask-image: var(--hair-mask);
 }
 
+.fighter-art-hair-detail {
+  z-index: 3;
+  display: none;
+  background-image: var(--fighter-src);
+  filter: grayscale(1) brightness(1.2) contrast(1.34);
+  mix-blend-mode: multiply;
+  opacity: 0.42;
+  -webkit-mask-image: var(--hair-mask);
+  mask-image: var(--hair-mask);
+  -webkit-mask-position: center bottom;
+  mask-position: center bottom;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.fighter-art:not(.fighter-pose-profile) .fighter-art-hair-detail {
+  display: block;
+}
+
+.fighter-art:not(.fighter-pose-profile) .fighter-art-hair,
+.fighter-art:not(.fighter-pose-profile) .fighter-art-hair-detail {
+  transform-origin: 50% 20%;
+}
+
+.fighter-art:not(.fighter-pose-profile).hair-style-bald .fighter-art-hair,
+.fighter-art:not(.fighter-pose-profile).hair-style-bald .fighter-art-hair-detail {
+  display: none;
+}
+
+.fighter-art:not(.fighter-pose-profile).hair-style-crew-cut .fighter-art-hair,
+.fighter-art:not(.fighter-pose-profile).hair-style-crew-cut .fighter-art-hair-detail,
+.fighter-art:not(.fighter-pose-profile).hair-style-short-fade .fighter-art-hair,
+.fighter-art:not(.fighter-pose-profile).hair-style-short-fade .fighter-art-hair-detail {
+  transform: translateY(0.8%) scaleY(0.58);
+}
+
+.fighter-art:not(.fighter-pose-profile).hair-style-mohawk .fighter-art-hair,
+.fighter-art:not(.fighter-pose-profile).hair-style-mohawk .fighter-art-hair-detail {
+  transform: translateY(-0.8%) scale(0.42, 1.32);
+}
+
+.fighter-art:not(.fighter-pose-profile).hair-style-long-hair .fighter-art-hair,
+.fighter-art:not(.fighter-pose-profile).hair-style-long-hair .fighter-art-hair-detail,
+.fighter-art:not(.fighter-pose-profile).hair-style-storm-tail .fighter-art-hair,
+.fighter-art:not(.fighter-pose-profile).hair-style-storm-tail .fighter-art-hair-detail,
+.fighter-art:not(.fighter-pose-profile).hair-style-braided-top .fighter-art-hair,
+.fighter-art:not(.fighter-pose-profile).hair-style-braided-top .fighter-art-hair-detail {
+  transform: translateY(0.8%) scale(1.12, 1.34);
+}
+
+.fighter-art:not(.fighter-pose-profile).hair-style-slicked-back .fighter-art-hair,
+.fighter-art:not(.fighter-pose-profile).hair-style-slicked-back .fighter-art-hair-detail,
+.fighter-art:not(.fighter-pose-profile).hair-style-wave-cut .fighter-art-hair,
+.fighter-art:not(.fighter-pose-profile).hair-style-wave-cut .fighter-art-hair-detail {
+  transform: translate(-0.8%, 0.25%) rotate(-4deg) scale(1.08, 0.8);
+}
+
 .fighter-art-jacket {
   background: var(--gi-top);
   opacity: 0.92;
@@ -866,8 +938,12 @@ main {
 }
 
 .fighter-art-belt {
-  background: var(--belt-color);
-  opacity: 0.86;
+  z-index: 4;
+  background:
+    linear-gradient(168deg, rgba(255, 255, 255, 0.26), transparent 34%, rgba(0, 0, 0, 0.2) 72%),
+    var(--belt-color);
+  background-blend-mode: overlay;
+  opacity: 0.94;
   -webkit-mask-image: var(--belt-mask);
   mask-image: var(--belt-mask);
 }
@@ -880,6 +956,22 @@ main {
   filter: grayscale(1) brightness(1.16) contrast(1.34);
   -webkit-mask-image: var(--body-mask);
   mask-image: var(--body-mask);
+  -webkit-mask-position: center bottom;
+  mask-position: center bottom;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.fighter-art-belt-detail {
+  z-index: 5;
+  background-image: var(--fighter-src);
+  filter: grayscale(1) invert(1) contrast(1.45);
+  mix-blend-mode: multiply;
+  opacity: 0.3;
+  -webkit-mask-image: var(--belt-mask);
+  mask-image: var(--belt-mask);
   -webkit-mask-position: center bottom;
   mask-position: center bottom;
   -webkit-mask-repeat: no-repeat;
@@ -2040,6 +2132,17 @@ main {
     #07101d;
 }
 
+.profile-stage .profile-art {
+  border-color: rgba(142, 201, 222, 0.22);
+  background:
+    radial-gradient(ellipse at 26% 27%, rgba(205, 235, 245, 0.15), transparent 30%),
+    radial-gradient(ellipse at 78% 40%, rgba(195, 46, 57, 0.12), transparent 28%),
+    linear-gradient(180deg, #111923 0 57%, #090d12 57% 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1.5rem 3.5rem rgba(0, 0, 0, 0.28);
+}
+
 .profile-art::before,
 .profile-art::after {
   content: "";
@@ -2051,14 +2154,16 @@ main {
 .profile-art::before {
   background: var(--country-flag);
   filter: saturate(1.08) contrast(1.08);
-  opacity: 0.72;
+  opacity: 0.2;
 }
 
 .profile-art::after {
   background:
-    radial-gradient(circle at 28% 20%, rgba(255, 255, 255, 0.2), transparent 18rem),
-    linear-gradient(90deg, rgba(4, 8, 14, 0.08), transparent 44%, rgba(4, 8, 14, 0.62)),
-    linear-gradient(180deg, transparent 58%, rgba(4, 8, 14, 0.72));
+    radial-gradient(ellipse at 29% 15%, rgba(222, 244, 255, 0.22), transparent 26%),
+    linear-gradient(174deg, transparent 0 61%, rgba(98, 139, 154, 0.2) 61.2% 61.8%, transparent 62% 100%),
+    repeating-radial-gradient(ellipse at 35% 118%, transparent 0 4.25rem, rgba(123, 171, 188, 0.1) 4.3rem 4.42rem),
+    linear-gradient(90deg, rgba(4, 8, 14, 0.22), transparent 42%, rgba(4, 8, 14, 0.68)),
+    linear-gradient(180deg, transparent 55%, rgba(4, 8, 14, 0.76));
 }
 
 .profile-character-shell {
@@ -2108,11 +2213,13 @@ main {
   max-width: 13.5rem;
   gap: 0.35rem;
   padding: 0.72rem;
-  border: 1px solid rgba(246, 198, 91, 0.28);
+  border: 1px solid rgba(164, 211, 226, 0.24);
   border-radius: var(--radius);
-  background: rgba(5, 8, 14, 0.76);
-  box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.26);
-  backdrop-filter: blur(14px);
+  background: linear-gradient(155deg, rgba(20, 29, 39, 0.88), rgba(7, 11, 16, 0.8));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 1rem 2rem rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(18px) saturate(1.12);
 }
 
 .stance-reference-card span,
@@ -2247,6 +2354,19 @@ main {
     rgba(255, 255, 255, 0.08);
 }
 
+.image-select .image-select-fighter {
+  --fighter-w: 100%;
+  --fighter-h: 3.4rem;
+  width: 100%;
+  height: 3.4rem;
+  overflow: hidden;
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(69, 184, 214, 0.12), transparent 46%),
+    rgba(255, 255, 255, 0.045);
+  filter: drop-shadow(0 0.22rem 0.35rem rgba(0, 0, 0, 0.4));
+}
+
 .image-select.compact img {
   height: 2.45rem;
   padding: 0.12rem;
@@ -2329,6 +2449,20 @@ main {
   height: 2.15rem;
   border: 2px solid rgba(255, 255, 255, 0.14);
   border-radius: 50%;
+}
+
+.swatch-row .swatch-color-120805 {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.46);
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
 }
 
 .swatch-row button.active,
@@ -3483,6 +3617,566 @@ main {
   color: var(--muted);
   font-size: 0.58rem;
   text-transform: none;
+}
+
+.grappling-animation-stage.decision-active {
+  border-color: rgba(246, 198, 91, 0.58);
+  background:
+    radial-gradient(circle at 50% 15%, rgba(246, 198, 91, 0.19), transparent 34%),
+    linear-gradient(145deg, #111926, #03070d 68%);
+  box-shadow:
+    0 1.3rem 3.5rem rgba(0, 0, 0, 0.48),
+    inset 0 0 0 1px rgba(246, 198, 91, 0.08),
+    inset 0 -5rem 6rem rgba(3, 7, 13, 0.5);
+}
+
+.grappling-animation-stage.decision-active::before {
+  opacity: 0.24;
+  background:
+    linear-gradient(90deg, rgba(246, 198, 91, 0.08) 1px, transparent 1px),
+    linear-gradient(rgba(246, 198, 91, 0.055) 1px, transparent 1px);
+  background-size: 3rem 3rem;
+}
+
+.decision-active .animation-canvas {
+  opacity: 0.28;
+  filter: blur(2px) brightness(0.42) saturate(0.5);
+  transform: scale(1.025);
+  transition: opacity 220ms ease, filter 220ms ease, transform 320ms ease;
+}
+
+.decision-ceremony {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 37% 56%, rgba(246, 198, 91, 0.13), transparent 31%),
+    linear-gradient(90deg, rgba(2, 6, 12, 0.2), rgba(2, 6, 12, 0.03) 50%, rgba(2, 6, 12, 0.34)),
+    linear-gradient(180deg, rgba(4, 9, 16, 0.06), rgba(3, 7, 13, 0.68));
+  isolation: isolate;
+  pointer-events: none;
+}
+
+.decision-ceremony::before,
+.decision-ceremony::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.decision-ceremony::before {
+  top: -38%;
+  left: 50%;
+  width: 66%;
+  height: 116%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(255, 247, 218, 0.2), rgba(246, 198, 91, 0.035) 64%, transparent);
+  clip-path: polygon(36% 0, 64% 0, 100% 100%, 0 100%);
+  filter: blur(12px);
+  opacity: 0.62;
+}
+
+.decision-ceremony::after {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 24%;
+  background:
+    radial-gradient(ellipse at 50% 100%, rgba(246, 198, 91, 0.2), transparent 58%),
+    linear-gradient(180deg, transparent, rgba(1, 4, 8, 0.88));
+}
+
+.decision-announcement {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  z-index: 4;
+  display: grid;
+  width: min(29rem, calc(100% - 10rem));
+  justify-items: center;
+  gap: 0.16rem;
+  transform: translateX(-50%);
+  border: 1px solid rgba(246, 198, 91, 0.42);
+  border-radius: 0.8rem;
+  padding: 0.58rem 1rem 0.65rem;
+  background:
+    linear-gradient(135deg, rgba(13, 19, 28, 0.94), rgba(7, 11, 18, 0.78)),
+    rgba(3, 7, 13, 0.9);
+  box-shadow:
+    0 0.8rem 2.4rem rgba(0, 0, 0, 0.42),
+    inset 0 1px rgba(255, 255, 255, 0.08),
+    0 0 2rem rgba(246, 198, 91, 0.08);
+  backdrop-filter: blur(16px);
+  text-align: center;
+  animation: decision-announcement-enter 420ms cubic-bezier(0.2, 0.78, 0.24, 1) both;
+}
+
+.decision-announcement small {
+  color: var(--gold);
+  font-size: 0.6rem;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+}
+
+.decision-announcement strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: #fffdf6;
+  font-size: clamp(1.25rem, 3vw, 2rem);
+  font-weight: 850 !important;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decision-announcement span {
+  color: #c7d0dc;
+  font-size: clamp(0.68rem, 1.4vw, 0.83rem);
+  font-weight: 600 !important;
+}
+
+.decision-announcement b {
+  color: #ffe9a5;
+  font-weight: 800 !important;
+}
+
+.decision-ceremony-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: end center;
+  padding: 4.9rem 0.5rem 1.25rem;
+}
+
+.decision-ceremony-scene svg {
+  display: block;
+  width: min(100%, 58rem);
+  height: 100%;
+  overflow: visible;
+  shape-rendering: geometricPrecision;
+}
+
+.decision-figure,
+.decision-referee {
+  animation: decision-figures-enter 520ms ease-out both;
+}
+
+.decision-loser {
+  opacity: 0.82;
+  filter: saturate(0.72) brightness(0.8) drop-shadow(0 1rem 1.2rem rgba(0, 0, 0, 0.48));
+}
+
+.decision-winner {
+  filter: drop-shadow(0 1rem 1.35rem rgba(0, 0, 0, 0.48)) drop-shadow(0 0 0.9rem color-mix(in srgb, var(--decision-aura) 34%, transparent));
+}
+
+.decision-winner-aura {
+  fill: var(--decision-aura);
+  opacity: 0.18;
+  filter: blur(18px);
+}
+
+.decision-figure-shadow {
+  fill: rgba(0, 0, 0, 0.54);
+  filter: blur(7px);
+}
+
+.decision-torso,
+.decision-pants,
+.decision-sleeve,
+.decision-referee-torso,
+.decision-referee-pants,
+.decision-referee-sleeve {
+  stroke: rgba(2, 6, 12, 0.82);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.decision-torso {
+  fill: var(--decision-gi-top);
+  stroke-width: 4;
+}
+
+.decision-pants {
+  fill: var(--decision-gi-pants);
+  stroke-width: 4;
+}
+
+.decision-sleeve {
+  fill: none;
+  stroke: var(--decision-gi-top);
+  stroke-width: 37;
+}
+
+.decision-gi-lapel,
+.decision-gi-seam,
+.decision-pants-detail {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.decision-gi-lapel {
+  stroke-width: 7;
+}
+
+.decision-gi-seam,
+.decision-pants-detail {
+  stroke-width: 2.5;
+}
+
+.decision-skin-limb {
+  fill: none;
+  stroke: var(--decision-skin);
+  stroke-width: 23;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.decision-head,
+.decision-ear,
+.decision-hand,
+.decision-foot {
+  fill: var(--decision-skin);
+  stroke: rgba(21, 10, 8, 0.5);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.decision-hair {
+  fill: var(--decision-hair);
+  stroke: rgba(0, 0, 0, 0.5);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.decision-hair-long-back {
+  opacity: 0.96;
+  filter: drop-shadow(0 0.35rem 0.28rem rgba(0, 0, 0, 0.45));
+}
+
+.decision-hair-mohawk,
+.decision-hair-crew,
+.decision-hair-slick,
+.decision-hair-long {
+  filter: drop-shadow(0 0.18rem 0.18rem rgba(0, 0, 0, 0.48));
+}
+
+.decision-scalp-highlight {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.decision-fabric-texture {
+  fill: url(#decision-weave);
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.decision-face {
+  fill: none;
+  stroke: color-mix(in srgb, var(--decision-hair) 72%, #30170f);
+  stroke-width: 3;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.decision-belt {
+  fill: var(--decision-belt);
+  stroke: rgba(0, 0, 0, 0.74);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.decision-belt-knot {
+  fill: color-mix(in srgb, var(--decision-belt) 76%, #020408);
+}
+
+.decision-belt-stripe {
+  fill: var(--decision-belt-stripe);
+}
+
+.decision-raised-hand,
+.decision-lowered-hand {
+  filter: drop-shadow(0 0 0.5rem rgba(246, 198, 91, 0.32));
+}
+
+.decision-referee {
+  filter: drop-shadow(0 1rem 1.2rem rgba(0, 0, 0, 0.5));
+}
+
+.decision-referee-pants {
+  fill: #0c1118;
+  stroke-width: 4;
+}
+
+.decision-referee-shoe {
+  fill: #05070b;
+  stroke: #020305;
+  stroke-width: 3;
+}
+
+.decision-referee-torso {
+  fill: #d9e1e9;
+  stroke-width: 4;
+}
+
+.decision-referee-stripe {
+  fill: none;
+  stroke: #0b1017;
+  stroke-width: 11;
+  opacity: 0.94;
+}
+
+.decision-referee-collar {
+  fill: none;
+  stroke: #0b1017;
+  stroke-width: 8;
+  stroke-linejoin: round;
+}
+
+.decision-referee-badge {
+  fill: var(--gold);
+  stroke: #6a501d;
+  stroke-width: 3;
+}
+
+.decision-referee-sleeve {
+  fill: none;
+  stroke: #d9e1e9;
+  stroke-width: 35;
+}
+
+.decision-referee-arm {
+  fill: none;
+  stroke: #bd815f;
+  stroke-width: 23;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.decision-referee-head,
+.decision-referee-hand {
+  fill: #bd815f;
+  stroke: rgba(21, 10, 8, 0.58);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.decision-referee-hair {
+  fill: #171b22;
+}
+
+.decision-referee-face {
+  fill: none;
+  stroke: #332017;
+  stroke-width: 3;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.decision-grip {
+  fill: none;
+  stroke: rgba(246, 198, 91, 0.8);
+  stroke-width: 3;
+  opacity: 0.68;
+  filter: drop-shadow(0 0 0.45rem rgba(246, 198, 91, 0.65));
+  vector-effect: non-scaling-stroke;
+}
+
+.decision-corner {
+  position: absolute;
+  bottom: 0.62rem;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  max-width: 30%;
+  gap: 0.05rem;
+  border: 1px solid rgba(151, 164, 201, 0.18);
+  border-radius: 0.65rem;
+  padding: 0.38rem 0.55rem;
+  background: rgba(4, 8, 14, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.decision-corner-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.04rem;
+}
+
+.decision-corner small {
+  color: var(--muted);
+  font-size: 0.52rem;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+}
+
+.decision-corner-copy > span {
+  overflow: hidden;
+  color: #f6fbff;
+  font-size: 0.67rem;
+  font-weight: 700 !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decision-identity-portrait {
+  position: relative;
+  display: block;
+  width: 2.65rem;
+  height: 2.65rem;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.55rem;
+  background: rgba(7, 12, 18, 0.9);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.decision-identity-portrait i {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-size: 116% auto;
+}
+
+.decision-portrait-base {
+  background-image: var(--decision-profile-src);
+}
+
+.decision-portrait-skin,
+.decision-portrait-hair,
+.decision-portrait-jacket {
+  -webkit-mask-position: center top;
+  mask-position: center top;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 116% auto;
+  mask-size: 116% auto;
+}
+
+.decision-portrait-skin {
+  background: var(--decision-skin);
+  mix-blend-mode: multiply;
+  opacity: 0.6;
+  -webkit-mask-image: var(--decision-profile-skin);
+  mask-image: var(--decision-profile-skin);
+}
+
+.decision-portrait-hair {
+  background: var(--decision-hair);
+  opacity: 0.72;
+  -webkit-mask-image: var(--decision-profile-hair);
+  mask-image: var(--decision-profile-hair);
+}
+
+.decision-portrait-jacket {
+  background: var(--decision-gi-top);
+  mix-blend-mode: multiply;
+  opacity: 0.86;
+  -webkit-mask-image: var(--decision-profile-jacket);
+  mask-image: var(--decision-profile-jacket);
+}
+
+.decision-corner-winner {
+  left: 0.65rem;
+  border-color: rgba(246, 198, 91, 0.35);
+}
+
+.decision-corner-winner small {
+  color: var(--gold);
+}
+
+.decision-corner-loser {
+  right: 0.65rem;
+  text-align: right;
+  justify-content: flex-end;
+}
+
+.grappling-animation-stage.compact .decision-announcement {
+  top: 0.5rem;
+  width: min(23rem, calc(100% - 1rem));
+  padding: 0.42rem 0.75rem 0.5rem;
+}
+
+.grappling-animation-stage.compact .decision-announcement strong {
+  font-size: clamp(1.05rem, 5vw, 1.35rem);
+}
+
+.grappling-animation-stage.compact .decision-ceremony-scene {
+  inset: 0 -4%;
+  padding: 4.2rem 0 0.65rem;
+}
+
+.grappling-animation-stage.compact .decision-corner {
+  display: none;
+}
+
+@keyframes decision-announcement-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -0.7rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@keyframes decision-figures-enter {
+  from {
+    opacity: 0;
+    filter: brightness(0.68);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 680px) {
+  .decision-announcement {
+    top: 0.5rem;
+    width: calc(100% - 1rem);
+    padding: 0.45rem 0.7rem 0.52rem;
+  }
+
+  .decision-announcement strong {
+    font-size: clamp(1.08rem, 6vw, 1.45rem);
+  }
+
+  .decision-ceremony-scene {
+    inset: 0 -7%;
+    padding: 4.35rem 0 0.9rem;
+  }
+
+  .decision-corner {
+    bottom: 0.42rem;
+    max-width: 34%;
+    padding: 0.28rem 0.42rem;
+  }
+
+  .decision-identity-portrait {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .decision-corner-winner {
+    left: 0.42rem;
+  }
+
+  .decision-corner-loser {
+    right: 0.42rem;
+  }
 }
 
 .mat-window.result-mode {
@@ -5131,6 +5825,6 @@ main {
   }
 
   .corner-admin {
-    bottom: 0.45rem;
+    bottom: 4.8rem;
   }
 }

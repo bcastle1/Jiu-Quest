@@ -107,6 +107,35 @@ const cameraProfiles = {
   reset_neutral: { entry: [0.5, 2.2, 4.92], control: [0, 2.24, 5.15], finish: [0, 2.45, 5.9], focus: [0, 0.9, 0] },
 };
 
+const hairAppearanceProfiles = {
+  bald: { visible: false },
+  cropped: {
+    position: [0, -0.035, 0.012],
+    rotation: [0.02, 0, 0],
+    scale: [1, 0.56, 0.98],
+  },
+  mohawk: {
+    position: [0, 0.075, -0.005],
+    rotation: [-0.08, 0, 0],
+    scale: [0.42, 1.42, 0.72],
+  },
+  long: {
+    position: [0, -0.1, -0.035],
+    rotation: [0.08, 0, 0],
+    scale: [1.12, 1.62, 1.08],
+  },
+  swept: {
+    position: [0, -0.018, -0.06],
+    rotation: [-0.22, 0, 0],
+    scale: [1.08, 0.76, 1.2],
+  },
+  default: {
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1],
+  },
+};
+
 function safeColor(value, fallback) {
   try {
     return new THREE.Color(value || fallback);
@@ -156,6 +185,50 @@ function moveTowardsColor(target, color, darkness = 0) {
   target.copy(color);
   if (darkness) target.lerp(new THREE.Color("#050914"), darkness);
   return target;
+}
+
+function getHairAppearanceProfile(hairStyle) {
+  const normalized = String(hairStyle || "shadow spikes").trim().toLowerCase();
+  if (normalized === "bald") return hairAppearanceProfiles.bald;
+  if (["crew cut", "short fade"].includes(normalized)) return hairAppearanceProfiles.cropped;
+  if (normalized === "mohawk") return hairAppearanceProfiles.mohawk;
+  if (["long hair", "storm tail", "braided top"].includes(normalized)) return hairAppearanceProfiles.long;
+  if (["slicked back", "wave cut"].includes(normalized)) return hairAppearanceProfiles.swept;
+  return hairAppearanceProfiles.default;
+}
+
+function applyHairAppearance(node, hairStyle) {
+  if (!node) return;
+  const baseKey = "jqHairBaseTransform";
+  if (!node.userData[baseKey]) {
+    node.userData[baseKey] = {
+      position: node.position.clone(),
+      quaternion: node.quaternion.clone(),
+      scale: node.scale.clone(),
+      visible: node.visible,
+    };
+  }
+
+  const base = node.userData[baseKey];
+  const profile = getHairAppearanceProfile(hairStyle);
+  node.position.copy(base.position);
+  node.quaternion.copy(base.quaternion);
+  node.scale.copy(base.scale);
+  node.visible = base.visible && profile.visible !== false;
+  if (!node.visible) return;
+
+  const position = profile.position || hairAppearanceProfiles.default.position;
+  const rotation = profile.rotation || hairAppearanceProfiles.default.rotation;
+  const scale = profile.scale || hairAppearanceProfiles.default.scale;
+  node.position.x += position[0];
+  node.position.y += position[1];
+  node.position.z += position[2];
+  node.scale.set(
+    base.scale.x * scale[0],
+    base.scale.y * scale[1],
+    base.scale.z * scale[2],
+  );
+  node.quaternion.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2])));
 }
 
 export class MoveAnimationManager {
@@ -746,6 +819,7 @@ export class MoveAnimationManager {
     grappler.materials.giPants.color.copy(pants);
     grappler.materials.skin.color.copy(skin);
     grappler.materials.hair.color.copy(hair);
+    applyHairAppearance(grappler.parts.hair, fighter.hairStyle);
     grappler.materials.belt.color.copy(belt);
     grappler.materials.beltStripe.color.set(fighter.belt === "white" ? "#182030" : "#f8fbff");
     grappler.materials.aura.color.copy(aura);
@@ -924,6 +998,9 @@ export class MoveAnimationManager {
     this.mocap.root.traverse((node) => {
       if (!node.isMesh) return;
       const materials = Array.isArray(node.material) ? node.material : [node.material];
+      const isHairNode = node.name.startsWith(prefix)
+        && node.name.toLowerCase().includes("hair")
+        && materials.some((material) => material?.name === prefix + "Hair");
       materials.forEach((material) => {
         const color = colors[material.name];
         if (color && material.color) material.color.copy(color);
@@ -932,6 +1009,7 @@ export class MoveAnimationManager {
           material.needsUpdate = true;
         }
       });
+      if (isHairNode) applyHairAppearance(node, fighter.hairStyle);
       if (node.name.startsWith(prefix + "BeltStripe_")) {
         const stripe = Number(node.name.slice(node.name.lastIndexOf("_") + 1));
         node.visible = stripe <= Math.min(4, Number(fighter.stripes) || 0);
