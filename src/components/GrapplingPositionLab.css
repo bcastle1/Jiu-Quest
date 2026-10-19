@@ -1,0 +1,84 @@
+.grappling-position-lab.grappling-lab-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 300px);
+  gap: 14px;
+}
+.grappling-position-lab,
+.grappling-position-lab button,
+.grappling-position-lab h1,
+.grappling-position-lab h2 {
+  font-weight: 400;
+}
+.grappling-position-lab .position-lab-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px;
+}
+.position-lab-eyebrow {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  color: #b5a9ef;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.grappling-position-lab h1 { margin: 7px 0 5px; font-size: clamp(23px, 2.3vw, 30px); }
+.grappling-position-lab h2 { margin: 0; font-size: 16px; }
+.position-lab-header p,
+.position-lab-viewer-heading p { margin: 0; color: #a5b1c8; font-size: 12px; line-height: 1.6; }
+.position-lab-level { flex-shrink: 0; color: #b9c5da; font-size: 11px; text-transform: capitalize; }
+.grappling-position-lab .position-lab-viewer,
+.grappling-position-lab .position-lab-controls { padding: 16px; min-width: 0; }
+.position-lab-viewer-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 13px; }
+.position-lab-viewer-heading p { margin-top: 5px; }
+.position-lab-reset { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; min-height: 36px; border-radius: 7px; border: 1px solid #93a0bd33; background: #172136; color: #d9e0f0; font: inherit; font-size: 11px; cursor: pointer; }
+.position-lab-reset:hover { border-color: #b1a0ee; background: #252b46; }
+.position-lab-observation { display: flex; align-items: flex-start; gap: 9px; color: #b9c3d7; padding: 13px 2px 0; }
+.position-lab-observation svg { flex-shrink: 0; margin-top: 2px; color: #ad9ee1; }
+.position-lab-observation p { margin: 0; font-size: 12px; line-height: 1.65; }
+.position-lab-control-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
+.position-lab-control-heading span { font-size: 10px; color: #9da9c0; }
+.position-lab-options { display: grid; gap: 6px; }
+.position-lab-option { display: flex; align-items: center; gap: 9px; min-height: 51px; width: 100%; padding: 9px 10px; background: #0d1526; border: 1px solid #91a3d222; border-radius: 8px; color: #dbe3f3; text-align: left; cursor: pointer; font: inherit; transition: background .15s, border-color .15s; }
+.position-lab-option:hover { background: #1a2238; border-color: #a0a4de66; }
+.position-lab-option.is-selected { background: #7962bb20; border-color: #ac91ef99; }
+.position-lab-number { color: #8090aa; font-size: 10px; font-variant-numeric: tabular-nums; }
+.position-lab-option.is-selected .position-lab-number,
+.position-lab-option.is-selected > svg { color: #c4adff; }
+.position-lab-option-copy { flex: 1; min-width: 0; display: grid; gap: 3px; font-size: 12px; }
+.position-lab-option-copy small { color: #929fb8; font-size: 10px; line-height: 1.35; }
+.position-lab-role { margin: 17px 0 0; padding: 0; border: 0; min-width: 0; }
+.position-lab-role legend { display: flex; align-items: center; gap: 6px; margin-bottom: 9px; padding: 0; color: #b9c4d9; font-size: 11px; }
+.position-lab-role > div { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.position-lab-role button { min-height: 36px; padding: 7px 5px; border: 1px solid #8d9fc533; border-radius: 6px; background: #10192a; color: #afbad0; font: inherit; font-size: 10px; cursor: pointer; }
+.position-lab-role button[aria-pressed="true"] { border-color: #b09bdc88; color: #e0d6fb; background: #7b64ac22; }
+.position-lab-role:disabled button { opacity: .4; cursor: default; }
+.position-lab-role p { font-size: 10px; line-height: 1.5; color: #9ca9c0; margin: 7px 0 0; }
+.position-lab-feedback { min-height: 34px; margin: 13px 0 0; font-size: 10px; line-height: 1.65; color: #c2b7e9; }
+.position-lab-note { border-top: 1px solid #9ca9c522; padding-top: 11px; margin: 11px 0 0; color: #93a0b8; font-size: 10px; line-height: 1.65; }
+.grappling-position-lab button:focus-visible { outline: 2px solid #c0acff; outline-offset: 3px; }
+@media (max-width: 1050px) {
+  .grappling-position-lab.grappling-lab-grid { grid-template-columns: minmax(0, 1fr); }
+  .position-lab-options { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .position-lab-option { padding: 10px 8px; gap: 6px; }
+  .position-lab-number { display: none; }
+  .position-lab-role { max-width: 340px; }
+  .position-lab-feedback { min-height: 0; }
+}
+@media (max-width: 600px) {
+  .grappling-position-lab .position-lab-header { padding: 15px; align-items: flex-start; }
+  .position-lab-level { display: none; }
+  .grappling-position-lab .position-lab-viewer,
+  .grappling-position-lab .position-lab-controls { padding: 11px; }
+  .position-lab-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .position-lab-option { min-height: 54px; }
+  .position-lab-role { max-width: none; }
+  .position-lab-role button { min-height: 40px; font-size: 11px; }
+  .position-lab-header p { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .position-lab-option { transition: none; }
+}

@@ -48,6 +48,15 @@ export const positionLabels = {
 
 export const starterMoves = [
   {
+    id: 'protect-position', name: 'Protect Your Position', belt: 'white',
+    lesson: 'Grappling Fundamentals', category: 'defense', type: 'basic', phase: 'Protect',
+    starts: [...positions, 'back-defending', 'half-guard-top', 'half-guard-bottom', 'turtle-top', 'turtle-bottom', 'headlock-top'],
+    good: [], poor: [], endsIn: null, weight: 32, isSubmission: false,
+    steps: ['Protect your neck', 'Keep your elbows close', 'Maintain a stable base'],
+    scenario: 'Protect yourself while looking for a trained escape or transition.',
+    description: 'A position-preserving defense available everywhere. It does not reverse or advance position.',
+  },
+  {
     id: "basic-punch",
     name: "Straight Punch",
     belt: "white",

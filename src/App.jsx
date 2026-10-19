@@ -49,8 +49,12 @@ import {
   loadState,
   MAX_FIGHTERS,
   saveState,
+  getStorageStatus,
 } from "./storage";
-import GrapplingAnimationStage from "./components/GrapplingAnimationStage";
+import GrapplingSnapshotStage from "./components/GrapplingSnapshotStage";
+import CombatArena from "./components/CombatArenaView";
+import GrapplingLab from "./components/GrapplingPositionLab";
+import { createArenaState, getPositionForSide, getArenaPositionLabel, isArenaCounterApplicable, resolveArenaOutcome } from "./arena/outcome.js";
 import {
   BJJ_ANIMATION_KEYS,
   bjjAnimationCatalog,
@@ -312,6 +316,16 @@ function correctRatio(order, steps) {
 
 function App() {
   const [store, setStore] = useState(loadState);
+  const [saveStatus, setSaveStatus] = useState(getStorageStatus);
+  const previousStorageOkRef = useRef(saveStatus.ok);
+  const [notice, setNotice] = useState(null);
+  const noticeTimer = useRef(null);
+  const notify = useCallback((message, tone = "success") => {
+    window.clearTimeout(noticeTimer.current);
+    setNotice({ message, tone, id: Date.now() });
+    if (tone !== "error") noticeTimer.current = window.setTimeout(() => setNotice(null), 4500);
+  }, []);
+  useEffect(() => () => window.clearTimeout(noticeTimer.current), []);
   const [view, setView] = useState("dashboard");
   const [selectedBelt, setSelectedBelt] = useState("blue");
   const [selectedMoveId, setSelectedMoveId] = useState("rear-naked-choke");
@@ -324,6 +338,14 @@ function App() {
   const [combat, setCombat] = useState(() => createCombatState(store.npcs[0]));
   const audioRef = useRef(null);
   const recordedCombatSignalRef = useRef(null);
+  const activeFighterRef = useRef(store.selectedFighterId);
+
+  useEffect(() => {
+    if (activeFighterRef.current === store.selectedFighterId) return;
+    activeFighterRef.current = store.selectedFighterId;
+    setCombat(createCombatState(store.npcs[0]));
+    notify('Active fighter changed. Your next match will use this fighter and appearance.', 'info');
+  }, [store.selectedFighterId, store.npcs, notify]);
 
   const fighter = useMemo(
     () => store.fighters.find((item) => item.id === store.selectedFighterId) ?? store.fighters[0],
@@ -362,7 +384,14 @@ function App() {
     );
   }, [musicTracks, playerMusicTracks, store.adminSettings.music?.activeTrackId]);
 
-  useEffect(() => saveState(store), [store]);
+  useEffect(() => {
+    const status = saveState(store);
+    const recoveredStorage = previousStorageOkRef.current === false && status.ok;
+    previousStorageOkRef.current = status.ok;
+    setSaveStatus(status);
+    if (!status.ok || status.recovered) notify(status.message, status.ok ? "info" : "error");
+    else if (recoveredStorage) notify(status.message, "success");
+  }, [store, notify]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -394,18 +423,26 @@ function App() {
   }, [selectedMove, trainingOrder.length]);
 
   useEffect(() => {
+    const nextNpc = store.npcs.find((npc) => npc.id === combat.npc?.id);
+    if (!nextNpc) {
+      setCombat(createCombatState(store.npcs[0]));
+      notify("Selected opponent was removed. The arena has been reset.", "info");
+      return;
+    }
     setCombat((current) => {
-      const nextNpc = store.npcs.find((npc) => npc.id === current.npc?.id) ?? store.npcs[0];
-      return nextNpc && nextNpc !== current.npc ? { ...current, npc: nextNpc } : current;
+      return current.npc?.id === nextNpc.id && nextNpc !== current.npc ? { ...current, npc: nextNpc } : current;
     });
-  }, [store.npcs]);
+  }, [store.npcs, combat.npc?.id, notify]);
 
   useEffect(() => {
     if (!musicOn) {
       stopAudio(audioRef);
       return;
     }
-    startAudio(audioRef, view, store.adminSettings.music.volume, activeMusicTrack);
+    startAudio(audioRef, view, store.adminSettings.music.volume, activeMusicTrack, (message) => {
+      setMusicOn(false);
+      notify(message, "error");
+    });
     return () => stopAudio(audioRef);
   }, [activeMusicTrack, musicOn, view, store.adminSettings.music.volume]);
 
@@ -465,7 +502,7 @@ function App() {
   };
 
   const createNewFighter = () => {
-    if (store.fighters.length >= MAX_FIGHTERS) return;
+    if (store.fighters.length >= MAX_FIGHTERS) { notify("Your roster is full. Remove a fighter before creating another.", "error"); return; }
     const next = createFighter({
       name: `Fighter ${store.fighters.length + 1}`,
       giTop: customizationOptions.giColors[store.fighters.length % customizationOptions.giColors.length],
@@ -477,6 +514,7 @@ function App() {
       fighters: [...current.fighters, next],
     }));
     setView("profile");
+    notify(`${next.name} created. Customize your fighter below.`);
   };
 
   const deleteFighter = (fighterId) => {
@@ -496,6 +534,7 @@ function App() {
         selectedFighterId: current.selectedFighterId === fighterId ? nextFighters[0].id : current.selectedFighterId,
       };
     });
+    notify(`${target.name} removed from your roster.`);
   };
 
   const runTrainingTest = () => {
@@ -533,6 +572,9 @@ function App() {
       setAdminGateOpen(false);
       setAdminCode("");
       setView("admin");
+      notify("Admin controls opened for this device.");
+    } else {
+      notify("That access code was not accepted. Please try again.", "error");
     }
   };
 
@@ -541,12 +583,18 @@ function App() {
       ...createCombatState(npc),
       active: true,
       phase: "selecting",
-      position: startPosition,
-      log: [`Gate opened from ${positionLabels[startPosition]}. Choose your first action.`],
+      ...createArenaState(startPosition),
+      startPosition,
+      log: [`Match started from ${getArenaPositionLabel(createArenaState(startPosition))}. Choose your first action.`],
     });
   };
 
   const chooseCombatMove = (move) => {
+    if (!combat.active || combat.phase === "ordering" || !move.starts.includes(getPositionForSide(combat))) {
+      notify("That technique is unavailable from your current position.", "error");
+      return;
+    }
+    notify(`${move.name} selected. Order the steps, then submit.`, "info");
     setCombat((current) => ({
       ...current,
       active: true,
@@ -556,7 +604,7 @@ function App() {
       phase: "ordering",
       result: null,
       log: [
-        `${move.name} selected. Put the incantation in order before the clock burns out.`,
+        `${move.name} selected. Put the steps in order before the timer ends.`,
         ...(current.active ? [] : [`Gate opened from ${positionLabels[current.position]}.`]),
         ...current.log,
       ].slice(0, 8),
@@ -564,19 +612,23 @@ function App() {
   };
 
   const resolveCombatTurn = () => {
-    if (!combat.active || !combat.selectedMoveId) return;
-    const npcMoveForTurn = chooseNpcMove(combat.npc, combat.position);
+    if (!combat.active || combat.phase !== "ordering" || !combat.selectedMoveId) return;
+    const npcPosition = getPositionForSide(combat, "opponent");
+    const playerMoveForTurn = allMoves.find((move) => move.id === combat.selectedMoveId);
+    const npcMoveForTurn = chooseNpcMove(combat.npc, npcPosition, playerMoveForTurn);
     const npcScoreForTurn = scoreNpc({
       npc: combat.npc,
       move: npcMoveForTurn,
-      position: combat.position,
+      position: npcPosition,
       settings: store.adminSettings,
     });
     const resolutionTimestamp = Date.now();
     setCombat((current) => {
-      if (!current.active || !current.selectedMoveId) return current;
+      if (!current.active || current.phase !== "ordering" || !current.selectedMoveId) return current;
       const move = allMoves.find((item) => item.id === current.selectedMoveId);
+      if (!move || !move.starts.includes(getPositionForSide(current))) return { ...current, phase: "selecting", selectedMoveId: null };
       const npcMove = npcMoveForTurn;
+      const playerCounterApplies = isArenaCounterApplicable(move, current, npcMove, "fighter");
       const playerScore = scoreMove({
         move,
         fighter,
@@ -585,8 +637,9 @@ function App() {
         settings: store.adminSettings,
         belt: beltStatus.belt,
       });
+      if (!playerCounterApplies) playerScore.total = 0;
       const npcScore = npcScoreForTurn;
-      const exchangePlayerWins = playerScore.total >= npcScore.total;
+      const exchangePlayerWins = playerCounterApplies && playerScore.total >= npcScore.total;
       const winnerMove = exchangePlayerWins ? move : npcMove;
       const losingMove = exchangePlayerWins ? npcMove : move;
       const actorName = exchangePlayerWins ? fighter.name : current.npc.name;
@@ -594,7 +647,7 @@ function App() {
       const actorScore = exchangePlayerWins ? playerScore.total : npcScore.total;
       const opponentScore = exchangePlayerWins ? npcScore.total : playerScore.total;
       const techniqueName = winnerMove.name;
-      const nextPosition = winnerMove.endsIn ?? current.position;
+      const nextArenaState = resolveArenaOutcome(current, winnerMove, exchangePlayerWins ? "fighter" : "opponent", { opposingMove: losingMove });
       const submission = winnerMove.isSubmission && Math.max(playerScore.total, npcScore.total) >= 52;
       const finished = submission || current.round >= 8;
       const nextPlayerExchanges = (current.playerExchanges ?? 0) + (exchangePlayerWins ? 1 : 0);
@@ -626,7 +679,8 @@ function App() {
           ? `${winnerName} wins by decision — winning technique: ${winningTechniqueName}`
           : `${actorName} successfully executes ${techniqueName}`;
       const animationHeadline = `${actorName} successfully executes ${techniqueName}`;
-      const resolutionLine = `${actorName} successfully executes ${techniqueName} at ${formatPercent(actorScore)}. ${opponentName}'s ${losingMove.name} scores ${formatPercent(opponentScore)}.`;
+      const counterFeedback = playerCounterApplies ? "" : `${fighter.name}'s ${move.name} could not trigger because ${current.npc.name} did not use the required attack. `;
+      const resolutionLine = `${counterFeedback}${actorName} successfully executes ${techniqueName} at ${formatPercent(actorScore)}. ${opponentName}'s ${losingMove.name} scores ${formatPercent(opponentScore)}.`;
       const outcomeLine = submission
         ? `${winnerName} wins by submission with ${winningTechniqueName}. ${opponentName} taps.`
         : finished
@@ -651,6 +705,7 @@ function App() {
         playerScore,
         npcScore,
         line: resolutionLine,
+        positionLabel: getArenaPositionLabel(nextArenaState),
       };
 
       return {
@@ -658,7 +713,7 @@ function App() {
         phase: finished ? "finished" : "result",
         active: !finished,
         round: finished ? current.round : current.round + 1,
-        position: nextPosition,
+        ...nextArenaState,
         playerExchanges: nextPlayerExchanges,
         npcExchanges: nextNpcExchanges,
         playerPoints: nextPlayerPoints,
@@ -710,6 +765,8 @@ function App() {
       wins: 0,
       losses: 0,
     });
+    setCombat(createCombatState(combat.npc));
+    notify(`Progress cleared for ${fighter.name}. Your appearance is saved.`);
   };
 
   const selectMusicTrack = (activeTrackId) => {
@@ -728,6 +785,9 @@ function App() {
   return (
     <div className={`app-shell view-${view}`}>
       <div className="energy-field" aria-hidden="true" />
+      {notice && <div className={`app-feedback ${notice.tone}`} role={notice.tone === "error" ? "alert" : "status"} aria-live={notice.tone === "error" ? "assertive" : "polite"}>
+        <span>{notice.message}</span><button aria-label="Dismiss notification" onClick={() => setNotice(null)}><X size={16} /></button>
+      </div>}
       <Header
         fighter={fighter}
         fighters={store.fighters}
@@ -745,6 +805,20 @@ function App() {
       <BottomNav view={view} setView={setView} />
 
       <main>
+        <div className={`save-status ${saveStatus.ok === false ? "error" : ""}`}>
+          <span role="status">{saveStatus.message}</span>
+          {saveStatus.ok === false && (
+            <button className="save-retry" type="button" onClick={() => {
+              const status = saveState(store);
+              previousStorageOkRef.current = status.ok;
+              setSaveStatus(status);
+              notify(status.message, status.ok ? "success" : "error");
+            }}>
+              <RotateCcw size={13} aria-hidden="true" />
+              Retry save
+            </button>
+          )}
+        </div>
         {view === "dashboard" && (
           <Dashboard
             fighter={fighter}
@@ -770,6 +844,7 @@ function App() {
             createNewFighter={createNewFighter}
             canCreate={store.fighters.length < MAX_FIGHTERS}
             resetProgress={resetProgress}
+            saveStatus={saveStatus}
           />
         )}
 
@@ -800,6 +875,8 @@ function App() {
             chooseCombatMove={chooseCombatMove}
             resolveCombatTurn={resolveCombatTurn}
             startCombat={startCombat}
+            notify={notify}
+            onTrain={() => setView("training")}
           />
         )}
 
@@ -807,6 +884,7 @@ function App() {
           <GrapplingLab
             fighter={fighter}
             opponent={combat.npc}
+            notify={notify}
             beltStatus={beltStatus}
           />
         )}
@@ -870,7 +948,7 @@ function Header({
 
   return (
     <header className="topbar">
-      <button className="brand-lockup" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+      <button className="brand-lockup" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Scroll to top">
         <span className="brand-sigil">JQ</span>
         <span>JiuQuest</span>
       </button>
@@ -881,6 +959,7 @@ function Header({
           <small>{beltLabels[beltStatus.belt]}</small>
         </span>
         <select
+          aria-label="Active fighter"
           value={selectedId}
           onChange={(event) =>
             setStore((current) => ({
@@ -897,7 +976,7 @@ function Header({
         </select>
         <ChevronDown size={18} />
       </label>
-      <button className={`music-toggle ${musicOn ? "active" : ""}`} onClick={() => setMusicOn((value) => !value)}>
+      <button className={`music-toggle ${musicOn ? "active" : ""}`} aria-label={musicOn ? "Turn music off" : "Turn music on"} aria-pressed={musicOn} onClick={() => setMusicOn((value) => !value)}>
         <Music size={19} />
         <span>Music</span>
         <span className="toggle-dot" />
@@ -1100,18 +1179,8 @@ function Dashboard({
 
         <div className="panel combat-card">
           <h2>Scenario Readiness</h2>
-          <div className="versus-preview">
-            <FighterArt fighter={fighter} beltStatus={beltStatus} pose="profile" className="duel-fighter" facing="right" showPatches={false} showPatchCovers={false} />
-            <span>VS</span>
-            <FighterArt
-              fighter={npcs[0]}
-              beltStatus={{ belt: npcs[0].belt, stripes: npcs[0].stripes }}
-              pose="profile"
-              className="duel-fighter"
-              facing="left"
-              showPatches={false}
-              showPatchCovers={false}
-            />
+          <div className="arena-preview">
+            <GrapplingSnapshotStage state={createArenaState(fighter.startPose)} fighter={fighter} opponent={npcs[0]} fighterBelt={beltStatus} compact />
           </div>
           <button
             className="danger-button full"
@@ -1135,7 +1204,7 @@ function Dashboard({
   );
 }
 
-function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, canCreate, resetProgress }) {
+function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, canCreate, resetProgress, saveStatus }) {
   return (
     <section className="profile-grid">
       <div className="profile-stage panel">
@@ -1245,10 +1314,10 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
         </div>
 
         <div className="button-row">
-          <button className="primary-button">
+          <span className={`save-indicator ${saveStatus.ok === false ? 'form-error' : ''}`} role="status">
             <Save size={18} />
-            Saved Automatically
-          </button>
+            {saveStatus.ok === false ? 'Changes could not be saved on this device' : 'Appearance saved on this device'}
+          </span>
           <button className="secondary-button" onClick={resetProgress}>
             <RotateCcw size={18} />
             Clear Progress
@@ -1274,9 +1343,7 @@ function Training({
 }) {
   const selectedProgress = fighter.progress?.[selectedMove.id] ?? 0;
   const lockedFullPath = selectedMove.belt !== "blue" && selectedMove.preview;
-  const animationRef = useRef(null);
-  const [animationLocked, setAnimationLocked] = useState(false);
-  const selectedAnimation = getBjjAnimationForMove(selectedMove);
+  const trainingPosition = createArenaState(selectedMove.endsIn ?? selectedMove.starts[0]);
 
   return (
     <section className="training-grid">
@@ -1326,31 +1393,9 @@ function Training({
             <small>clean reps</small>
           </div>
         </div>
-        <TechniqueSnapshot move={selectedMove} fighter={fighter} opponent={null} fighterBeltStatus={beltStatus} />
         <div className="training-animation-card">
-          <div className="training-animation-head">
-            <span>
-              <h3>Move Animation</h3>
-              <p>{selectedAnimation.label} paired grappler sequence.</p>
-            </span>
-            <button
-              className="secondary-button"
-              onClick={() => animationRef.current?.playMove(selectedAnimation.key)}
-              disabled={animationLocked}
-            >
-              <Activity size={18} />
-              {animationLocked ? "Animating" : "Show Animation"}
-            </button>
-          </div>
-          <GrapplingAnimationStage
-            ref={animationRef}
-            move={selectedMove}
-            fighter={fighter}
-            fighterBelt={beltStatus}
-            compact
-            title="Skill Animation"
-            onLockChange={setAnimationLocked}
-          />
+          <div className="training-animation-head"><span><h3>Position reference</h3><p>The settled position for this technique. Follow the steps below for the full sequence and required setup.</p></span></div>
+          <GrapplingSnapshotStage state={trainingPosition} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact />
         </div>
         <div className="scenario-box">
           <h3>Ideal Scenario</h3>
@@ -1413,374 +1458,6 @@ function Training({
         <div className="belt-mini">
           <FighterArt fighter={fighter} beltStatus={beltStatus} pose="profile" className="mini-fighter" />
           <Belt belt={beltStatus.belt} stripes={beltStatus.stripes} />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function CombatArena({ fighter, beltStatus, combat, setCombat, npcs, unlockedMoves, chooseCombatMove, resolveCombatTurn, startCombat }) {
-  const selectedMove = combat.selectedMoveId ? allMoves.find((move) => move.id === combat.selectedMoveId) : null;
-  const combatAnimationRef = useRef(null);
-  const nextActionRef = useRef(null);
-  const [combatAnimationLocked, setCombatAnimationLocked] = useState(false);
-  const [decisionPresentation, setDecisionPresentation] = useState(null);
-  const combatResultRef = useRef(combat.result);
-  combatResultRef.current = combat.result;
-  const handleCombatAnimationComplete = useCallback(() => {
-    const result = combatResultRef.current;
-    if (!result?.finished) {
-      window.requestAnimationFrame(() => nextActionRef.current?.focus());
-      return;
-    }
-    setDecisionPresentation({
-      winner: result.matchPlayerWins ? "fighter" : "opponent",
-      technique: result.winningTechniqueName,
-      headline: result.outcome === "submission" ? "Submission victory" : "Official decision",
-      methodLabel: result.outcome === "submission" ? "Winner by" : "Wins by decision - Winning technique:",
-    });
-  }, []);
-
-  useEffect(() => {
-    setDecisionPresentation(null);
-  }, [combat.result?.animationSignal]);
-
-  const grouped = unlockedMoves.reduce((acc, move) => {
-    acc[move.belt] = [...(acc[move.belt] ?? []), move];
-    return acc;
-  }, {});
-  const arenaKey = combat.arenaKey ?? "studio";
-  const arenaLabel = arenaSceneLabels[arenaKey] ?? arenaSceneLabels.studio;
-
-  return (
-    <section className="combat-grid">
-      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {combat.result?.finished
-          ? decisionPresentation
-            ? combat.result.headline
-            : combat.result.animationHeadline
-          : combat.result?.headline ?? ""}
-      </div>
-      <div className="panel arena-panel">
-        <div className="arena-top">
-          <FighterCard fighter={fighter} beltStatus={beltStatus} />
-          <div className="round-core">
-            <span>Round {combat.result?.round ?? combat.round}</span>
-            <strong>{combat.phase === "ordering" ? combat.secondsLeft : "VS"}</strong>
-            <small>{positionLabels[combat.position]}</small>
-            <em>{arenaLabel}</em>
-          </div>
-          <FighterCard fighter={combat.npc} beltStatus={{ belt: combat.npc.belt, stripes: combat.npc.stripes }} reverse />
-        </div>
-
-        <div className={`mat-window cinematic-mode arena-${arenaKey} ${combat.result ? "result-mode" : ""}`}>
-          <GrapplingAnimationStage
-            ref={combatAnimationRef}
-            move={combat.result?.move}
-            animationKey={combat.result?.animationKey ?? (combat.active ? "grip_fighting" : "standing_stance")}
-            autoPlaySignal={combat.result?.animationSignal}
-            fighter={fighter}
-            opponent={combat.npc}
-            fighterBelt={beltStatus}
-            opponentBelt={{ belt: combat.npc.belt, stripes: combat.npc.stripes }}
-            performerSide={combat.result?.actorIsPlayer === false ? "opponent" : "fighter"}
-            title={combat.result ? combat.result.animationHeadline : combat.active ? "Arena live feed" : "Arena preview"}
-            onLockChange={setCombatAnimationLocked}
-            onComplete={handleCombatAnimationComplete}
-            decision={decisionPresentation}
-          />
-        </div>
-
-        <div className="combat-actions">
-          {!combat.active && combat.phase !== "ordering" ? (
-            <>
-              <select
-                aria-label="Choose opponent"
-                value={combat.npc.id}
-                disabled={combatAnimationLocked || (combat.phase === "finished" && !decisionPresentation)}
-                onChange={(event) => {
-                  const nextNpc = npcs.find((npc) => npc.id === event.target.value) ?? npcs[0];
-                  setCombat(createCombatState(nextNpc));
-                }}
-              >
-                {npcs.map((npc) => (
-                  <option key={npc.id} value={npc.id}>
-                    {npc.name} - {beltLabels[npc.belt]} {npc.stripes ? `${npc.stripes} stripe` : ""}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="primary-button"
-                disabled={combatAnimationLocked || (combat.phase === "finished" && !decisionPresentation)}
-                onClick={() => startCombat(combat.npc, "standing")}
-              >
-                Standing Start
-              </button>
-              <button
-                className="secondary-button"
-                disabled={combatAnimationLocked || (combat.phase === "finished" && !decisionPresentation)}
-                onClick={() => startCombat(combat.npc, "kneeling")}
-              >
-                Kneeling Start
-              </button>
-            </>
-          ) : combat.phase === "ordering" ? (
-            <>
-              <button className="danger-button" onClick={resolveCombatTurn} disabled={combatAnimationLocked}>
-                Execute Technique
-              </button>
-              <span className="clock-pill">{combat.secondsLeft}s remaining</span>
-            </>
-          ) : combat.phase === "result" ? (
-            <button
-              ref={nextActionRef}
-              className="primary-button"
-              disabled={combatAnimationLocked}
-              onClick={() =>
-                setCombat((current) => ({
-                  ...current,
-                  active: true,
-                  phase: "selecting",
-                  result: null,
-                  log: ["Prepare for next action.", ...current.log].slice(0, 8),
-                }))
-              }
-            >
-              {combatAnimationLocked ? "Animation Playing" : "Prepare Next Action"}
-            </button>
-          ) : (
-            <span className="clock-pill">Choose a technique from the Combat Deck</span>
-          )}
-        </div>
-      </div>
-
-      <div className="panel move-command">
-        <div className="section-heading">
-          <span>
-            <h1>Combat Deck</h1>
-            <p>Only learned techniques appear here. Basic strikes stay available but score lower.</p>
-          </span>
-          <Swords size={28} />
-        </div>
-        <div className="combat-moves">
-          {["white", "blue", "purple", "brown", "black"].map((belt) =>
-            grouped[belt]?.length ? (
-              <div key={belt} className="combat-group">
-                <h3>{beltLabels[belt]}</h3>
-                {grouped[belt].map((move) => (
-                  <button
-                    key={move.id}
-                    className={combat.selectedMoveId === move.id ? "selected" : ""}
-                    onClick={() => chooseCombatMove(move)}
-                    disabled={!combat.active || combat.phase === "ordering" || combat.phase === "finished" || combatAnimationLocked}
-                  >
-                    <span>{move.name}</span>
-                    <small>{move.category} - {move.steps.length} steps</small>
-                  </button>
-                ))}
-              </div>
-            ) : null,
-          )}
-        </div>
-      </div>
-
-      <div className="panel sequence-panel">
-        {selectedMove ? (
-          <>
-            <div className="section-heading">
-              <span>
-                <h2>{selectedMove.name}</h2>
-                <p>Reorder fast. The arena accepts whatever sequence is showing when the timer ends.</p>
-              </span>
-            </div>
-            <div className="order-stack">
-              {combat.order.map((step, index) => (
-                <div key={`${step}-${index}`} className="order-card">
-                  <span>{index + 1}</span>
-                  <p>{step}</p>
-                  <div>
-                    <button
-                      aria-label={`Move ${step} up`}
-                      disabled={combatAnimationLocked}
-                      onClick={() => setCombat((current) => ({ ...current, order: moveItem(current.order, index, index - 1) }))}
-                    >
-                      <ChevronLeft size={16} />
-                    </button>
-                    <button
-                      aria-label={`Move ${step} down`}
-                      disabled={combatAnimationLocked}
-                      onClick={() => setCombat((current) => ({ ...current, order: moveItem(current.order, index, index + 1) }))}
-                    >
-                      <ChevronRight size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        ) : combat.result ? (
-          <div
-            className={`result-card ${combat.result.finished ? (combat.result.playerWins ? "success" : "danger") : ""}`.trim()}
-          >
-            <strong>{combat.result.headline}</strong>
-            <p>{combat.result.line}</p>
-          </div>
-        ) : (
-          <div className="empty-state">
-            <Swords size={42} />
-            <h2>Select a move</h2>
-            <p>Pick an unlocked technique from the combat deck to start the 10-second order test.</p>
-          </div>
-        )}
-
-        <div className="combat-log">
-          <h3>Fight Log</h3>
-          {combat.log.map((line, index) => (
-            <p key={`${line}-${index}`}>{line}</p>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function GrapplingLab({ fighter, opponent, beltStatus }) {
-  const stageRef = useRef(null);
-  const stagePanelRef = useRef(null);
-  const [selectedKey, setSelectedKey] = useState("standing_stance");
-  const [selectedMoveId, setSelectedMoveId] = useState(null);
-  const [locked, setLocked] = useState(false);
-  const selectedMove = allMoves.find((move) => move.id === selectedMoveId);
-  const activeAnimation = selectedMove ? getBjjAnimationForMove(selectedMove) : { key: selectedKey, ...bjjAnimationCatalog[selectedKey] };
-
-  const scrollStageIntoView = () => {
-    window.requestAnimationFrame(() => {
-      stagePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  };
-
-  const playTemplate = (key) => {
-    setSelectedKey(key);
-    setSelectedMoveId(null);
-    stageRef.current?.playMove(key);
-    scrollStageIntoView();
-  };
-
-  const playTechnique = (move) => {
-    const animationKey = getBjjAnimationKeyForMove(move);
-    setSelectedMoveId(move.id);
-    setSelectedKey(animationKey);
-    stageRef.current?.playMove(animationKey, { move });
-    scrollStageIntoView();
-  };
-
-  const replayCurrent = () => {
-    stageRef.current?.playMove(activeAnimation.key, { move: selectedMove });
-    scrollStageIntoView();
-  };
-
-  const resetStage = () => {
-    stageRef.current?.resetToNeutral();
-    scrollStageIntoView();
-  };
-
-  return (
-    <section className="grappling-lab-grid">
-      <div className="panel grappling-lab-hero">
-        <span>
-          <h1>Grappling Animation Lab</h1>
-          <p>A cinematic paired-fighter system for Brazilian jiu-jitsu transitions, takedowns, controls, submissions, tap-outs, and neutral resets.</p>
-        </span>
-        <div className="lab-status-card">
-          <strong>{activeAnimation.label}</strong>
-          <small>Profile-aware attire, belt, patch, and aura rendering</small>
-          <em>{locked ? "Sequence in progress — controls protected" : "Cinematic choreography ready"}</em>
-        </div>
-      </div>
-
-      <div className="panel lab-stage-panel" ref={stagePanelRef}>
-        <GrapplingAnimationStage
-          ref={stageRef}
-          move={selectedMove}
-          animationKey={activeAnimation.key}
-          fighter={fighter}
-          opponent={opponent}
-          fighterBelt={beltStatus}
-          opponentBelt={{ belt: opponent?.belt, stripes: opponent?.stripes }}
-          title="Cinematic BJJ Pair System"
-          onLockChange={setLocked}
-        />
-        <div className="lab-command-row">
-          <button className="primary-button" onClick={replayCurrent} disabled={locked}>
-            <Activity size={18} />
-            Replay Current
-          </button>
-          <button className="secondary-button" onClick={() => playTemplate("tap_out")} disabled={locked}>
-            Tap Out
-          </button>
-          <button className="secondary-button" onClick={resetStage} disabled={locked}>
-            Reset Neutral
-          </button>
-        </div>
-      </div>
-
-      <div className="panel lab-template-panel">
-        <div className="section-heading">
-          <span>
-            <h2>Core BJJ Animation Templates</h2>
-            <p>Each template now replays an authored paired GLB with profile-aware gi, belt, patch, and aura treatment. Licensed two-actor BJJ mocap can replace these clips through the same asset contract.</p>
-          </span>
-          <Dumbbell size={28} />
-        </div>
-        <div className="animation-template-grid">
-          {BJJ_ANIMATION_KEYS.map((key) => (
-            <button
-              key={key}
-              className={activeAnimation.key === key && !selectedMove ? "selected" : ""}
-              onClick={() => playTemplate(key)}
-              disabled={locked}
-            >
-              <strong>{bjjAnimationCatalog[key].label}</strong>
-              <small>{key}</small>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="panel lab-technique-panel">
-        <div className="section-heading">
-          <span>
-            <h2>Curriculum Technique Coverage</h2>
-            <p>Every move in JiuQuest maps to one of the grappling animation templates, including preview belts.</p>
-          </span>
-          <BookOpen size={28} />
-        </div>
-        <div className="lab-technique-groups">
-          {BELTS.map((belt) => {
-            const beltTechniques = allMoves.filter((move) => move.belt === belt);
-            if (!beltTechniques.length) return null;
-            return (
-              <div key={belt} className="lab-technique-group">
-                <h3>{beltLabels[belt]}</h3>
-                <div>
-                  {beltTechniques.map((move) => {
-                    const animation = getBjjAnimationForMove(move);
-                    return (
-                      <button
-                        key={move.id}
-                        className={selectedMoveId === move.id ? "selected" : ""}
-                        onClick={() => playTechnique(move)}
-                        disabled={locked}
-                      >
-                        <span>{move.name}</span>
-                        <small>{animation.label}</small>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
         </div>
       </div>
     </section>
@@ -2329,7 +2006,7 @@ function createCombatState(npc) {
     arenaKey: chooseArenaKey(npc?.belt),
     active: false,
     phase: "idle",
-    position: "standing",
+    ...createArenaState("standing"),
     round: 1,
     selectedMoveId: null,
     order: [],
@@ -2341,19 +2018,19 @@ function createCombatState(npc) {
     bestPlayer: null,
     bestNpc: null,
     result: null,
-    log: ["Choose standing or kneeling start to open the gate."],
+    log: ["Choose a standing or kneeling start to begin your match."],
   };
 }
 
-function chooseNpcMove(npc, position) {
+function chooseNpcMove(npc, position, opposingMove) {
   const known = allMoves.filter((move) => {
     if (move.belt === "white") return true;
     const beltRank = BELTS.indexOf(move.belt);
     const npcRank = BELTS.indexOf(npc.belt);
     return beltRank <= Math.max(1, npcRank + 1) && !move.preview;
   });
-  const fitting = known.filter((move) => move.starts.includes(position) || move.good.includes(position));
-  return shuffle(fitting.length ? fitting : known)[0] ?? starterMoves[0];
+  const fitting = known.filter((move) => move.starts.includes(position) && isArenaCounterApplicable(move, { position }, opposingMove));
+  return shuffle(fitting)[0] ?? starterMoves.find((move) => move.id === "protect-position");
 }
 
 function scoreMove({ move, fighter, position, order, settings, belt }) {
@@ -2397,21 +2074,26 @@ function scoreNpc({ npc, move, position, settings }) {
   };
 }
 
-function startAudio(audioRef, view, volume, track) {
+function startAudio(audioRef, view, volume, track, onError) {
   if (audioRef.current) return;
   const hostedUrl = track?.url?.trim();
   if (hostedUrl) {
     const audio = new Audio(hostedUrl);
     audio.loop = true;
     audio.volume = volume;
-    audio.play().catch(() => {
+    const reportError = () => {
+      if (audioRef.current?.audio !== audio) return;
       audio.pause();
-    });
+      audioRef.current = null;
+      onError?.("Music could not play. Check your connection and try again.");
+    };
     audioRef.current = { audio };
+    audio.onerror = reportError;
+    audio.play().catch(reportError);
     return;
   }
   const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) return;
+  if (!AudioContext) { onError?.("Audio is unavailable in this browser."); return; }
   const context = new AudioContext();
   const gain = context.createGain();
   gain.gain.value = volume;
@@ -2438,6 +2120,7 @@ function startAudio(audioRef, view, volume, track) {
     gain.gain.linearRampToValueAtTime(volume * 0.48, now + 0.22);
   }, tempo * 1000);
   audioRef.current = { context, oscillators, pulse };
+  context.resume().catch(() => { if (audioRef.current?.context === context) onError?.("Audio playback was blocked. Try enabling music again."); });
 }
 
 function stopAudio(audioRef) {
@@ -2934,6 +2617,17 @@ function SwatchInput({ value, onChange, options = customizationOptions.giColors,
 }
 
 function Modal({ title, children, onClose }) {
+  useEffect(() => {
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
   return (
     <div className="modal-backdrop" role="presentation">
       <div className="modal" role="dialog" aria-modal="true" aria-label={title}>

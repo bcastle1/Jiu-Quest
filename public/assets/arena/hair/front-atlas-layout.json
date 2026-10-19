@@ -1,0 +1,18 @@
+{
+  "src": "/assets/arena/hair/front-hairstyles.png",
+  "size": [1983, 793],
+  "anchorSpace": "full-image",
+  "notes": "Strict frontal hair-only sprites. Hairline is the center of the upper transparent face opening; map it above the eyes. Crops separate adjacent sprites. Crown estimates refer to the underlying scalp, not the outermost hair tips.",
+  "styles": {
+    "shadow spikes": { "crop": [7, 7, 397, 333], "crown": [210, 100], "hairline": [210, 183], "skullWidth": 260 },
+    "short fade": { "crop": [440, 39, 340, 300], "crown": [610, 88], "hairline": [610, 223], "skullWidth": 278 },
+    "braided top": { "crop": [841, 0, 300, 375], "crown": [990, 112], "hairline": [990, 214], "skullWidth": 245 },
+    "curly guard": { "crop": [1198, 48, 364, 300], "crown": [1380, 108], "hairline": [1380, 219], "skullWidth": 270 },
+    "wave cut": { "crop": [1580, 46, 402, 316], "crown": [1785, 102], "hairline": [1785, 201], "skullWidth": 280 },
+    "storm tail": { "crop": [5, 366, 410, 380], "crown": [210, 493], "hairline": [210, 572], "skullWidth": 260 },
+    "crew cut": { "crop": [448, 437, 320, 269], "crown": [610, 470], "hairline": [610, 599], "skullWidth": 270 },
+    "mohawk": { "crop": [841, 394, 306, 325], "crown": [993, 505], "hairline": [993, 567], "skullWidth": 235 },
+    "long hair": { "crop": [1159, 394, 441, 397], "crown": [1381, 450], "hairline": [1381, 531], "skullWidth": 300 },
+    "slicked back": { "crop": [1595, 418, 372, 305], "crown": [1780, 470], "hairline": [1780, 570], "skullWidth": 300 }
+  }
+}

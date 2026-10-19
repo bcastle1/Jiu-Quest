@@ -1,0 +1,28 @@
+{
+  "notes": "Pixel coordinates in each original atlas. Crops are measured alpha bounds plus padding. Crown, ear and eye points are initial visual fit anchors to validate against each arena pose. Each crop is x,y,width,height; anchors are full-atlas coordinates.",
+  "hair": {
+    "src": "/assets/arena/hair/hairstyles.png",
+    "size": [1983, 793],
+    "styles": {
+      "shadow spikes": { "crop": [23, 5, 414, 364], "crown": [240, 100], "ear": [185, 235], "skullWidth": 230 },
+      "short fade": { "crop": [469, 34, 317, 262], "crown": [630, 83], "ear": [529, 262], "skullWidth": 240 },
+      "braided top": { "crop": [844, 19, 320, 327], "crown": [1003, 110], "ear": [936, 260], "skullWidth": 224 },
+      "curly guard": { "crop": [1223, 34, 336, 276], "crown": [1388, 104], "ear": [1292, 259], "skullWidth": 234 },
+      "wave cut": { "crop": [1607, 44, 362, 267], "crown": [1789, 97], "ear": [1684, 261], "skullWidth": 242 },
+      "storm tail": { "crop": [7, 366, 462, 401], "crown": [245, 462], "ear": [191, 624], "skullWidth": 230 },
+      "crew cut": { "crop": [479, 418, 290, 249], "crown": [628, 450], "ear": [527, 622], "skullWidth": 236 },
+      "mohawk": { "crop": [841, 355, 298, 376], "crown": [1000, 490], "ear": [910, 618], "skullWidth": 224 },
+      "long hair": { "crop": [1174, 383, 425, 401], "crown": [1398, 451], "ear": [1305, 628], "skullWidth": 244 },
+      "slicked back": { "crop": [1620, 406, 326, 315], "crown": [1797, 460], "ear": [1681, 620], "skullWidth": 252 }
+    }
+  },
+  "heads": {
+    "src": "/assets/arena/hair/heads.png",
+    "size": [2172, 724],
+    "presets": {
+      "boy": { "crop": [127, 26, 508, 673], "crown": [416, 34], "ear": [250, 326], "eye": [477, 355], "skullWidth": 425 },
+      "girl": { "crop": [835, 27, 481, 670], "crown": [1093, 35], "ear": [928, 330], "eye": [1153, 355], "skullWidth": 420 },
+      "non-binary": { "crop": [1520, 26, 479, 673], "crown": [1775, 34], "ear": [1608, 328], "eye": [1841, 355], "skullWidth": 420 }
+    }
+  }
+}

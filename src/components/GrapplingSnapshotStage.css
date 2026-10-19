@@ -1,0 +1,22 @@
+.grappling-snapshot-stage{margin:0;width:100%;overflow:hidden;background:#0d1422;border-radius:10px}
+.snapshot-image-wrap{position:relative;aspect-ratio:3/2;overflow:hidden;background:#101623}
+.snapshot-canvas{width:100%;height:100%;object-fit:contain;display:block;opacity:0}
+.snapshot-canvas.is-ready{opacity:1;animation:position-arrive .42s ease-out both}
+.snapshot-loading{position:absolute;inset:0;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;padding:28px;text-align:center;color:#c4cbdc;font-size:13px}
+.snapshot-loading button,.snapshot-replay{display:flex;align-items:center;gap:6px;border:1px solid #38465f;background:#172139;color:#dce3f5;border-radius:7px;padding:8px 10px;font:inherit;cursor:pointer}
+.snapshot-spinner{animation:position-spin 1s linear infinite}
+.snapshot-round{position:absolute;top:14px;left:14px;background:#101421e8;border:1px solid #a7b7ee33;border-radius:6px;color:#e6e9f5;padding:6px 10px;font-size:11px}
+.snapshot-caption{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border-top:1px solid #ffffff10}
+.snapshot-position>span{font-size:15px;color:#eef0fb}.snapshot-position small{display:block;margin-top:4px;font-size:10px;color:#909eb8}
+.snapshot-identities{display:flex;gap:18px}.snapshot-athlete{display:flex;align-items:center;gap:8px;font-size:12px;color:#dfe4f3}.snapshot-athlete small{display:block;font-size:10px;color:#9ca8bd;margin-top:3px}
+.snapshot-kit{width:16px;height:25px;display:flex;flex-direction:column;gap:2px;flex-shrink:0}.snapshot-kit i{display:block;flex:1;border:1px solid #ffffff4d;border-radius:2px}
+.snapshot-replay{font-size:11px;padding:7px 9px;min-height:36px}.snapshot-replay:disabled{opacity:.45;cursor:wait}
+.arena-outcome{padding:13px 16px;border-top:1px solid #9b9fff25;background:#8b6aff09;display:flex;flex-direction:column;gap:5px}.arena-outcome span{font-size:14px;color:#ded8ff}.arena-outcome small{color:#a6b2c9;font-size:12px;line-height:1.5}
+.app-feedback{position:fixed;z-index:1000;bottom:20px;right:22px;max-width:min(460px,calc(100vw - 32px));display:flex;align-items:center;gap:12px;padding:12px 15px;background:#162033;border:1px solid #7185b8;border-radius:10px;box-shadow:0 8px 32px #0005;color:#e1e9ff;font-size:13px;line-height:1.5}.app-feedback.error{border-color:#e38c8c}.app-feedback button{background:none;color:inherit;border:0;display:flex;padding:4px;cursor:pointer}
+.save-status{font-size:11px;color:#9eacc7;min-height:16px;margin:0 0 12px}.save-status.error{color:#ffc0bf}
+.save-indicator{display:inline-flex;align-items:center;gap:8px;padding:10px 0;font-size:12px;color:#b8c6e2}
+.arena-preview{margin:12px 0;overflow:hidden;border:1px solid #ffffff12;border-radius:8px}.arena-preview .snapshot-caption{display:none}
+.combat-moves button.unavailable{opacity:.45}.combat-moves button small{line-height:1.4}.arena-help{padding:10px 0;font-size:12px;line-height:1.6;color:#a9b4c9}.arena-help button{margin-top:8px}
+@keyframes position-arrive{from{opacity:.2;transform:scale(1.015)}to{opacity:1;transform:scale(1)}}@keyframes position-spin{to{transform:rotate(360deg)}}
+@media(max-width:760px){.snapshot-caption{flex-wrap:wrap;gap:10px;padding:11px}.snapshot-position{flex:1}.snapshot-identities{order:3;width:100%;justify-content:space-between;gap:8px}.snapshot-round{top:8px;left:8px;font-size:10px;padding:4px 7px}.app-feedback{bottom:82px;right:16px}.snapshot-image-wrap{aspect-ratio:3/2}.snapshot-athlete{font-size:11px}}
+@media(prefers-reduced-motion:reduce){.snapshot-canvas.is-ready,.snapshot-spinner{animation:none}}

@@ -10,6 +10,16 @@ jiuquest.com
 
 The app ships `public/CNAME`, so Vite copies `CNAME` into `dist/` during build. The GitHub Actions workflow in `.github/workflows/deploy-pages.yml` builds the React app and deploys `dist` to GitHub Pages on every push to `main`.
 
+The workflow runs the arena/persistence regression tests before publishing and writes `release.json` with the exact Git commit and Actions run. After deployment, verify `https://jiuquest.com/release.json` against the release commit and exercise the arena on the custom domain. A successful build alone does not verify the deployed experience.
+
+## Arena artwork
+
+The arena uses original generated anime position illustrations, with reviewed body proportions, as settled outcome snapshots. They are not continuous motion capture or a frame-by-frame demonstration of every technique. `src/arena/outcome.js` owns physical top/control roles independently of the player's perspective.
+
+Clean position plates live in `public/assets/arena/base`. `src/arena/appearance.js` maps per-athlete skin, hair, belts, patches and aura to authored coordinates; four isolated source fabric hues keep the two gi jackets and trousers independent. Hair/head atlas layouts live in `public/assets/arena/hair/atlas-layout.json` and `front-atlas-layout.json`; the overhead side-control view uses dedicated frontal hair. Replacing a position plate requires rechecking its coordinates and both participant roles, not simply replacing the PNG.
+
+Before releasing artwork, inspect all eight positions with contrasting gi and skin colors, multiple hairstyles, and reversed control. Check the actual composed canvas for extra limbs, elongated necks/torso, detached hair, color leaking onto the mat, and mismatched athlete identity. The original illustration, clean plate, masks and visible result must agree. No external image generation service is called during gameplay.
+
 ## Required GitHub Settings
 
 1. Create or open the GitHub repository for this project.
