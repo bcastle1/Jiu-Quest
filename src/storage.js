@@ -1,8 +1,12 @@
-import { allMoves, beltMoveCount, moves } from "./data/curriculum";
+import { allMoves, beltMoveCount, moves } from "./data/curriculum.js";
 
 export const ADMIN_CODE = "patriots";
 export const MAX_FIGHTERS = 5;
 const STORAGE_KEY = "jiuquest:v1";
+const RECOVERY_KEY = `${STORAGE_KEY}:recovery`;
+let unreadableStoredState = null;
+let storageStatus = { ok: true, message: "Progress is stored on this device." };
+const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
 const palette = {
   skin: ["#f1c6a8", "#d99b71", "#a86b4d", "#6f432f", "#3d241b", "#120805"],
@@ -215,21 +219,23 @@ const defaultState = () => ({
 
 function normalizeState(state) {
   const fallback = defaultState();
-  const fighters = Array.isArray(state?.fighters) && state.fighters.length ? state.fighters.slice(0, MAX_FIGHTERS) : fallback.fighters;
+  const validFighters = Array.isArray(state?.fighters) ? state.fighters.filter(isRecord) : [];
+  const fighters = validFighters.length ? validFighters.slice(0, MAX_FIGHTERS) : fallback.fighters;
   const normalizedFighters = fighters.map((fighter) => ({
     ...createFighter(fighter),
     ...fighter,
     stance: normalizeStance(fighter.stance),
     progress: { ...defaultProgress(), ...(fighter.progress ?? {}) },
   }));
-  const rawNpcs = Array.isArray(state?.npcs) && state.npcs.length ? state.npcs : fallback.npcs;
+  const validNpcs = Array.isArray(state?.npcs) ? state.npcs.filter(isRecord) : [];
+  const rawNpcs = validNpcs.length ? validNpcs : fallback.npcs;
   const normalizedNpcs = rawNpcs.map((npc, index) => ({
     ...(fallback.npcs[index % fallback.npcs.length] ?? fallback.npcs[0]),
     ...npc,
     stance: normalizeStance(npc.stance),
   }));
   const rawMusic = state?.adminSettings?.music ?? {};
-  const rawTracks = Array.isArray(rawMusic.tracks) && rawMusic.tracks.length ? rawMusic.tracks : [];
+  const rawTracks = Array.isArray(rawMusic.tracks) ? rawMusic.tracks.filter((track) => typeof track === "string" || isRecord(track)) : [];
   const baseTracks = [...rawTracks];
   defaultMusicTracks.forEach((track) => {
     const exists = baseTracks.some((item) => (typeof item === "string" ? item === track.title : item.id === track.id));
@@ -288,20 +294,65 @@ function normalizeState(state) {
 }
 
 export function loadState() {
+  unreadableStoredState = null;
+  storageStatus = { ok: true, message: "Progress is stored on this device." };
   if (typeof window === "undefined") return defaultState();
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState();
-    return normalizeState(JSON.parse(raw));
+    try {
+      return normalizeState(JSON.parse(raw));
+    } catch {
+      unreadableStoredState = raw;
+      storageStatus = {
+        ok: false,
+        error: "invalid-data",
+        message: "Saved progress could not be read. A recovery copy will be kept before new progress is saved.",
+      };
+      return defaultState();
+    }
   } catch {
+    storageStatus = {
+      ok: false,
+      error: "unavailable",
+      message: "Device storage is unavailable. Changes will last only while this page remains open.",
+    };
     return defaultState();
   }
 }
 
+export function getStorageStatus() {
+  return { ...storageStatus };
+}
+
 export function saveState(state) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeState(state)));
+  if (typeof window === "undefined") {
+    storageStatus = { ok: false, error: "unavailable", message: "Device storage is unavailable. Changes have not been saved." };
+    return getStorageStatus();
+  }
+  try {
+    const serialized = JSON.stringify(normalizeState(state));
+    const recovered = unreadableStoredState !== null;
+    // Never overwrite unreadable progress unless an exact recovery copy was saved.
+    if (recovered) window.localStorage.setItem(RECOVERY_KEY, unreadableStoredState);
+    window.localStorage.setItem(STORAGE_KEY, serialized);
+    unreadableStoredState = null;
+    storageStatus = {
+      ok: true,
+      recovered,
+      message: recovered ? "New progress saved. Previous unreadable data was preserved in a recovery copy." : "Changes saved on this device.",
+    };
+  } catch (error) {
+    storageStatus = {
+      ok: false,
+      error: error?.name ?? "storage-error",
+      message: error?.name === "QuotaExceededError"
+        ? "Device storage is full. Changes are still on this page but have not been saved. Free some browser storage and try again."
+        : "Changes could not be saved on this device. Keep this page open and check your browser storage settings.",
+    };
+  }
+  return getStorageStatus();
 }
 
 export function getBeltStatus(fighter) {

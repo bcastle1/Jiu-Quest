@@ -38,6 +38,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Verify arena and persistence rules
+        run: node --test tests/*.test.js
+
+      - name: Record exact release
+        run: node -e "require('node:fs').writeFileSync('dist/release.json', JSON.stringify({commit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,repository:process.env.GITHUB_REPOSITORY}))"
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
