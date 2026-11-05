@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { readFile, mkdir, stat, writeFile, rename } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
+import { installUnityStartupTelemetry } from './unity_startup_telemetry.mjs';
 
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser');
 await mkdir(artifacts, { recursive: true });
@@ -71,6 +72,7 @@ async function staticSite() {
 
 async function context(options = {}) {
   const next = await browser.newContext(options);
+  await next.addInitScript(installUnityStartupTelemetry, { moveId: 'double_leg' });
   await next.addInitScript(() => {
     window.__unityEvents = [];
     window.__unityLifecycle = [];
@@ -344,7 +346,35 @@ try {
   await checkpoint('cold-network:starting');
   const cold = await context({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1, reducedMotion: 'reduce' });
   const cdp = await cold.newCDPSession(page); await cdp.send('Network.enable'); await cdp.send('Network.setCacheDisabled', { cacheDisabled: true }); await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 150, downloadThroughput: 500000, uploadThroughput: 150000 });
-  const began = Date.now(); await page.goto(`${base}/?preview=unity`); await ready(); await state(0, { playing: false }); networkMeasurement = { downloadMbps: 4, latencyMs: 150, cacheDisabled: true, readyMs: Date.now() - began, physicalPhone: false }; assert.ok(networkMeasurement.readyMs < 90000); await capture('mobile-cold-network', true); await closeContext(cold, 'cold-network');
+  const began = Date.now();
+  await page.goto(`${base}/?preview=unity`);
+  // Numeric polling avoids adding another render-frame wait to the controller.
+  // The unchanged 90s gate measures the page's genuine settled-and-rendered
+  // milestone, not the cost of later CDP/DOM round trips on a software GPU.
+  await page.waitForFunction(() => Number.isFinite(window.__unityStartupTelemetry?.renderedReadyMs)
+    || document.querySelector('.unity-stage')?.dataset.unityStatus === 'error', null, { polling: 100, timeout: 95000 });
+  const telemetry = await bounded(page.evaluate(() => ({
+    startup: window.__unityStartupTelemetry,
+    stage: document.querySelector('.unity-stage')?.dataset.unityStatus,
+    resources: performance.getEntriesByType('resource').filter((entry) => /\/(unity|animations)\//.test(entry.name)).map((entry) => ({
+      name: new URL(entry.name).pathname, startTime: entry.startTime, responseEnd: entry.responseEnd,
+      duration: entry.duration, transferSize: entry.transferSize, encodedBodySize: entry.encodedBodySize,
+    })),
+    factoryCreatedMs: window.__unityLifecycle[0]?.createdAt ?? null,
+  })), 10000, 'Cold startup telemetry');
+  const controllerElapsedMs = Date.now() - began;
+  networkMeasurement = { downloadMbps: 4, latencyMs: 150, cacheDisabled: true,
+    readyMs: telemetry.startup?.renderedReadyMs, readyClock: 'page performance.now, navigation-relative, after matching paused initial move and two rendered frames',
+    controllerElapsedMs, navigationCommandDelayMs: telemetry.startup.navigationTimeOrigin - began,
+    automationDelayMs: controllerElapsedMs - (telemetry.startup.renderedReadyMs ?? 0) - (telemetry.startup.navigationTimeOrigin - began),
+    ...telemetry, physicalPhone: false };
+  await checkpoint('cold-network:measured');
+  assert.equal(telemetry.stage, 'ready');
+  assert.equal(telemetry.startup.error, null);
+  assert.equal(telemetry.startup.renderedFrames, 2);
+  assert.ok(Number.isFinite(networkMeasurement.readyMs) && networkMeasurement.readyMs < 90000);
+  await ready(); await state(0, { moveId: 'double_leg', playing: false, progress: 0 });
+  await capture('mobile-cold-network', true); await closeContext(cold, 'cold-network');
   checks.push('A fresh emulated mobile viewport reaches actual rendered readiness under 4Mbps/150ms network emulation within 90 seconds.');
 
   // This is an explicit negative test of a real missing-manifest response, never a substitute renderer.

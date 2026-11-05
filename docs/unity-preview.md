@@ -76,6 +76,8 @@ Automated checks cover paired GLB structure, curriculum mapping, combat role/out
 
 The browser harness saves atomic progress checkpoints at clip, capture and lifecycle boundaries. Render-frame waits, failure diagnostics and shutdown are bounded, so an interrupted run retains its completed checks. The GitHub build job allows 45 minutes for software-rendered browser verification; this runner budget is not an estimate of a player's loading or playback performance.
 
+Cold-start timing uses a passive in-page observer. It requires the current player's paused initial move, a visible ready canvas and enabled controls, followed by two animation frames with the same state. The 90-second gate uses that navigation-relative timestamp. Reports retain the test controller's elapsed time, factory and move milestones, and resource timings separately so slow automation round trips cannot be mistaken for loading time. Actual screenshots and the existing runtime-state assertions still verify the loaded scene.
+
 Viewport emulation and network throttling run on a desktop browser/GPU. Physical iPhone Safari and Android Chrome loading, sustained frame time, thermal behavior and memory remain separate device checks. Before broad release, review a cold load, several move changes, portrait/landscape rotation, touch seeking, free rotation, fullscreen where supported, and ten minutes of play on both devices. Choreography still requires qualified BJJ review before presenting it as verified instruction.
 
 Native apps, real-time PvP simulation, NPC quests and networking are later scope. No networking provider or paid asset has been purchased for this candidate.
