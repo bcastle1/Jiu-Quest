@@ -249,13 +249,14 @@ test('selection after a failed manifest preserves the initialization error until
   assert.equal(callbacks.length, 0, 'a failed player does not start a doomed move watchdog');
   state.dispose();
   const retry = loadStateHarness();
-  retry.state.playerCreated(); retry.state.ready(); retry.state.settled();
+  retry.state.startPlayerLoad(); retry.state.playerCreated(); retry.state.ready(); retry.state.settled();
   assert.equal(retry.changes.at(-1).phase, 'ready', 'a fresh successful initialization is independent of the failed one');
   retry.state.dispose();
 });
 
 test('every subsequent selection and replay gets a watchdog; queued old timeouts cannot fail a newer move', () => {
   const { state, changes, callbacks, cleared } = loadStateHarness();
+  state.startPlayerLoad();
   state.playerCreated();
   const handshakeTimeout = callbacks.at(-1);
   state.ready();
@@ -283,6 +284,7 @@ test('every subsequent selection and replay gets a watchdog; queued old timeouts
 
 test('disposed preview sessions ignore all late progress, ready, errors and timer callbacks', () => {
   const { state, changes, callbacks } = loadStateHarness();
+  state.startPlayerLoad();
   state.playerCreated(); state.ready(); state.requestScene();
   const count = changes.length;
   state.dispose();
@@ -303,6 +305,9 @@ test('initial watchdog covers manifest, script and factory wait without inventin
   assert.equal(abortCount, 1);
   assert.equal(state.requestScene(), false);
   assert.equal(state.settled(), false);
+  state.playerCreated(); state.ready(); state.progress(1);
+  assert.equal(state.settled(), false, 'late factory or handshake completion cannot revive an expired startup');
+  assert.equal(changes.at(-1).phase, 'error');
   callbacks.at(-1)();
   assert.equal(abortCount, 1, 'a queued duplicate timeout cannot abort a newer session');
   state.dispose();
@@ -313,6 +318,73 @@ test('initial watchdog covers manifest, script and factory wait without inventin
   oldInitialTimer();
   assert.equal(valid.changes.at(-1).phase, 'ready');
   valid.state.dispose();
+});
+
+function loadDeadlineHarness() {
+  let now = 0, nextId = 0;
+  const scheduled = new Map(), history = [], changes = [];
+  let aborts = 0;
+  const state = createUnityLoadState({
+    onChange: (value) => changes.push(value),
+    onInitialTimeout: () => { aborts += 1; },
+    setTimer: (callback, milliseconds) => {
+      const timer = { id: ++nextId, due: now + milliseconds, callback };
+      scheduled.set(timer.id, timer); history.push(timer); return timer.id;
+    },
+    clearTimer: (id) => scheduled.delete(id),
+  });
+  const advanceTo = (target) => {
+    while (true) {
+      const timer = [...scheduled.values()].filter((value) => value.due <= target).sort((a, b) => a.due - b.due)[0];
+      if (!timer) break;
+      now = timer.due; scheduled.delete(timer.id); timer.callback();
+    }
+    now = target;
+  };
+  return { state, changes, history, advanceTo, aborts: () => aborts };
+}
+
+test('factory completion and initial handshake preserve one original 90-second deadline through first scene', () => {
+  const f = loadDeadlineHarness();
+  f.state.startPlayerLoad();
+  f.advanceTo(10000); f.state.startPlayerLoad();
+  f.advanceTo(22649); f.state.playerCreated();
+  f.advanceTo(52650);
+  assert.notEqual(f.changes.at(-1).phase, 'error', 'a first GLB import is not cut off 30 seconds after factory completion');
+  f.advanceTo(80000); f.state.ready(); f.state.requestScene();
+  f.advanceTo(89999);
+  assert.equal(f.changes.at(-1).phase, 'loading-move');
+  assert.equal(f.history.length, 1, 'initial selection or duplicate start cannot extend or shorten the startup deadline');
+  f.advanceTo(90000);
+  assert.equal(f.changes.at(-1).phase, 'error');
+  assert.equal(f.changes.at(-1).reloadRequired, true);
+  assert.equal(f.aborts(), 1);
+  f.state.ready(); f.state.settled(); f.history[0].callback();
+  assert.equal(f.changes.at(-1).phase, 'error', 'late readiness and an already queued timeout cannot revive or abort again');
+  assert.equal(f.aborts(), 1);
+  f.state.dispose();
+});
+
+test('first settled scene ends startup budget, while each later scene gets its own 30-second deadline', () => {
+  const f = loadDeadlineHarness();
+  f.state.startPlayerLoad(); f.advanceTo(22000); f.state.playerCreated();
+  f.advanceTo(80000); f.state.ready(); f.advanceTo(88000); f.state.settled();
+  f.advanceTo(90000); f.history[0].callback();
+  assert.equal(f.changes.at(-1).phase, 'ready');
+  assert.equal(f.aborts(), 0);
+  f.advanceTo(100000); f.state.requestScene();
+  assert.equal(f.history.at(-1).due, 130000);
+  f.advanceTo(110000); f.state.requestScene();
+  f.history[1].callback(); f.advanceTo(139999);
+  assert.equal(f.changes.at(-1).phase, 'loading-move', 'stale selection deadlines do not fail the newest request');
+  f.advanceTo(140000);
+  assert.equal(f.changes.at(-1).phase, 'error');
+  assert.equal(f.changes.at(-1).reloadRequired, undefined);
+  assert.equal(f.aborts(), 0, 'a later move timeout is not a whole-player startup failure');
+  f.state.requestScene(); f.state.settled();
+  f.history.at(-1).callback();
+  assert.equal(f.changes.at(-1).phase, 'ready');
+  f.state.dispose();
 });
 
 test('Unity string, Error and missing rejections always produce meaningful user-facing messages', () => {

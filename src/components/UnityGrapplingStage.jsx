@@ -53,6 +53,10 @@ export default function UnityGrapplingStage({ moveId, moveLabel, performerSide =
       // the loader retains its lease until that factory returns and Quit finishes.
       controller.abort();
       bridge.dispose();
+      // The same initial deadline also covers the first scene after factory
+      // completion. Release an existing instance; unresolved factories still
+      // keep their loader lease until they return and can be disposed safely.
+      player?.dispose().catch(() => {});
     } });
     loadStateRef.current = loadState;
     const bridge = createUnityBridge({ instanceId, onEvent: (event) => {
