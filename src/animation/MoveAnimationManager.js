@@ -178,6 +178,42 @@ function disposeObject(object) {
   });
 }
 
+function disposeAnimationSource(object, disposed) {
+  // Live scene clones borrow the source GLB's maps. Release them only when the
+  // source cache is torn down, after the active clone has been detached.
+  const images = new Set();
+  object.traverse((child) => {
+    if (child.geometry && !disposed.geometries.has(child.geometry)) {
+      disposed.geometries.add(child.geometry);
+      child.geometry.dispose();
+    }
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    for (const material of materials) {
+      if (!material || disposed.materials.has(material)) continue;
+      disposed.materials.add(material);
+      // glTF PBR extension maps (clearcoat, sheen, etc.) are Texture properties
+      // too; avoid a fixed list that would miss newly authored material maps.
+      for (const value of Object.values(material)) {
+        if (!value?.isTexture || disposed.textures.has(value)) continue;
+        disposed.textures.add(value);
+        const data = value.source?.data ?? value.image;
+        for (const image of Array.isArray(data) ? data : [data]) {
+          if (typeof ImageBitmap !== "undefined" && image instanceof ImageBitmap) images.add(image);
+        }
+        value.dispose();
+      }
+      material.dispose();
+    }
+  });
+  // Multiple glTF textures can share one ImageBitmap. Close that owned backing
+  // once, after disposing its textures; ordinary DOM/data images are not closed.
+  for (const image of images) {
+    if (disposed.images.has(image)) continue;
+    disposed.images.add(image);
+    image.close();
+  }
+}
+
 function copyVector(target, values) {
   target.set(values[0], values[1], values[2]);
 }
@@ -279,6 +315,9 @@ export class MoveAnimationManager {
     this.options = options;
     this.assetCache = new Map();
     this.disposedAssetScenes = new WeakSet();
+    this.disposedAssetResources = {
+      geometries: new WeakSet(), materials: new WeakSet(), textures: new WeakSet(), images: new WeakSet(),
+    };
     this.textureCache = new Map();
     this.failedEmblemAssets = new Set();
     this.loader = new GLTFLoader();
@@ -1168,7 +1207,7 @@ export class MoveAnimationManager {
     const scene = asset?.gltf?.scene;
     if (!scene || this.disposedAssetScenes.has(scene)) return;
     this.disposedAssetScenes.add(scene);
-    disposeObject(scene);
+    disposeAnimationSource(scene, this.disposedAssetResources);
   }
 
   _disposeCachedAnimationAssets() {
