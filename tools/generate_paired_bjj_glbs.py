@@ -11,11 +11,14 @@ from __future__ import annotations
 import math
 import os
 import subprocess
+import sys
 
 import bmesh
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from clean_bjj_decorations import clean_decorations
 
 FPS = 30
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1220,6 +1223,10 @@ def build_move(key: str, duration: float) -> None:
         export_lights=False,
         export_cameras=False,
     )
+    # Rigid spine-bound chest discs and lapel bars protrude during grappling.
+    # Keep their semantic slots/nodes, but remove only those render meshes.
+    # The cleaner preserves every animation, joint and other garment byte.
+    clean_decorations(os.path.join(OUTPUT_DIR, f"{key}.glb"))
 
 
 def main() -> None:

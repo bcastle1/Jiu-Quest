@@ -22,8 +22,10 @@
       "BeltStripe_3",
       "BeltStripe_4"
     ],
-    "requirement": "Future licensed paired mocap may replace a file only when both roots and the cosmetic slots are preserved."
+    "requirement": "Future licensed paired mocap may replace a file only when both roots and the cosmetic slots are preserved.",
+    "reservedAttachments": "ChestPatch and Lapel_L/Lapel_R remain named empty nodes. Their rigid decorative meshes are intentionally absent; Patch materials are reserved for a future skinned cosmetic design."
   },
+  "cosmeticRevision": "2026-11-05-clean-gi-no-rigid-chest-decorations",
   "animations": {
     "standing_stance": "/animations/bjj/standing_stance.glb",
     "grip_fighting": "/animations/bjj/grip_fighting.glb",

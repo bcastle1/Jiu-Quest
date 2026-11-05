@@ -36,6 +36,17 @@ for (const [move, path] of Object.entries(manifest.animations)) {
       const channels = animation.channels.filter((channel) => actorNodes.has(channel.target.node));
       assert.ok(channels.length > 3, `${role} needs skeletal motion, not just root motion`);
       assert.ok([...actorNodes].some((index) => animatedNodes.has(index)), `${role} is animated`);
+      for (const part of ['ChestPatch', 'Lapel_L', 'Lapel_R']) {
+        const attachment = gltf.nodes.find((node) => node.name === `${role}_${part}`);
+        assert.ok(attachment, `${role} ${part} reserved attachment node`);
+        assert.equal(attachment.mesh, undefined, 'rigid chest decorations must not render');
+        assert.equal(attachment.skin, undefined, 'empty attachment nodes cannot carry a mesh skin');
+      }
+      for (const part of ['Body', 'GiJacket', 'GiPantsMesh', 'Belt', 'HairCrew']) {
+        const garment = gltf.nodes.find((node) => node.name === `${role}_${part}`);
+        assert.ok(Number.isInteger(garment?.mesh), `${role} ${part} essential mesh preserved`);
+        assert.ok(gltf.meshes[garment.mesh]?.primitives.length > 0, `${role} ${part} retains geometry`);
+      }
       for (const slot of manifest.replacementContract.materialSlots) {
         assert.ok(gltf.materials.some((material) => material.name === `${role}_${slot}`), `${role} ${slot} slot`);
       }
