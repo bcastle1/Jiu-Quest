@@ -164,7 +164,7 @@ namespace JiuQuest.Combat
                 clock.Load(legacyAnimation.clip.length, CombatProtocol.IsLooping(moveId), desiredProgress, desiredPlaying);
                 ApplyAppearances();
                 Sample();
-                stage.Frame(MeasureChoreography());
+                stage.Frame(MeasureChoreography(), moveId);
                 loading = false;
                 status = "Authored animation · draft technique review";
                 if (ready) Emit("ready", "Unity URP paired animation ready.", setupRequest);

@@ -13,6 +13,7 @@ namespace JiuQuest.Combat
         Transform environment;
         Vector3 lookAt = new Vector3(0, .65f, 0);
         string preset = "front";
+        string moveId = "standing_stance";
         float orbitAngle = 27;
         float orbitElevation = 25;
         Bounds motionBounds = new Bounds(new Vector3(0, .8f, 0), new Vector3(2.4f, 1.8f, 1.2f));
@@ -29,9 +30,9 @@ namespace JiuQuest.Combat
             environment = new GameObject("JiuQuest dojo").transform;
             environment.SetParent(transform, false);
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(.43f, .51f, .65f);
-            RenderSettings.ambientEquatorColor = new Color(.25f, .31f, .39f);
-            RenderSettings.ambientGroundColor = new Color(.13f, .16f, .21f);
+            RenderSettings.ambientSkyColor = new Color(.34f, .40f, .49f);
+            RenderSettings.ambientEquatorColor = new Color(.20f, .25f, .31f);
+            RenderSettings.ambientGroundColor = new Color(.09f, .12f, .16f);
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogColor = new Color(.026f, .044f, .07f);
@@ -65,9 +66,9 @@ namespace JiuQuest.Combat
             Cube("Ceiling light", new Vector3(0, 4.5f, 0), new Vector3(5.2f, .035f, .08f), brass);
             CombineArchitecture();
 
-            Light("Key", new Vector3(50, -30, 0), new Color(1, .91f, .78f), 2.0f, true);
-            Light("Fill", new Vector3(32, 132, 0), new Color(.55f, .75f, 1), .7f, false);
-            Light("Rim", new Vector3(35, 210, 0), new Color(.63f, 1f, .91f), .8f, false);
+            Light("Key", new Vector3(50, -30, 0), new Color(1, .91f, .78f), 1.2f, true);
+            Light("Fill", new Vector3(32, 132, 0), new Color(.55f, .75f, 1), .4f, false);
+            Light("Rim", new Vector3(35, 210, 0), new Color(.63f, 1f, .91f), .45f, false);
             sceneCamera = new GameObject("Combat Camera").AddComponent<Camera>();
             sceneCamera.transform.SetParent(environment, false);
             sceneCamera.tag = "MainCamera";
@@ -84,8 +85,9 @@ namespace JiuQuest.Combat
             PlaceCamera(true);
         }
 
-        public void Frame(Bounds bounds)
+        public void Frame(Bounds bounds, string authoredMoveId)
         {
+            moveId = authoredMoveId;
             motionBounds = bounds;
             lookAt = bounds.center;
             PlaceCamera(true);
@@ -139,9 +141,8 @@ namespace JiuQuest.Combat
         void PlaceCamera(bool immediate)
         {
             if (sceneCamera == null) return;
-            float yaw = preset == "side" ? 94 : preset == "orbit" ? orbitAngle : 27;
+            float yaw = CombatFraming.CameraYaw(moveId, preset, orbitAngle);
             float elevation = preset == "overhead" ? 76 : preset == "orbit" ? orbitElevation : 25;
-            if (preset == "overhead") yaw = 0;
             var targetOrientation = Quaternion.Euler(elevation, yaw, 0);
             cameraOrientation = immediate ? targetOrientation : Quaternion.Slerp(cameraOrientation, targetOrientation, 1 - Mathf.Exp(-8 * Time.unscaledDeltaTime));
             // Refit at the interpolated angle too: even a camera transition cannot crop a limb.

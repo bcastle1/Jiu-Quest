@@ -6,6 +6,15 @@ namespace JiuQuest.Combat
     // Fits the complete choreography envelope, including depth, instead of chasing limbs.
     public static class CombatFraming
     {
+        public static float CameraYaw(string moveId, string preset, float orbitYaw = 27)
+        {
+            // This authored seated pair faces +Z. Its previous global front viewed the
+            // performer's back and concealed the choke; rotate this clip's view basis.
+            float basis = moveId == "rear_naked_choke" ? 180 : 0;
+            float angle = preset == "side" ? 94 : preset == "overhead" ? 0 : preset == "orbit" ? orbitYaw : 27;
+            return basis + angle;
+        }
+
         public static float Distance(Bounds bounds, Quaternion orientation, float verticalFov, float aspect, float occupancy = .86f)
         {
             if (!CombatProtocol.Finite(aspect) || aspect <= 0) throw new ArgumentOutOfRangeException(nameof(aspect));

@@ -1,47 +1,47 @@
 {
   "format": 1,
   "player": "player.bundle.gz",
-  "bytes": 9701706,
-  "sha256": "86d45818fa35358db1a2baa62acab36664eb6eb9e816b8f7f1d114ac9abe6fe8",
-  "sourceFingerprint": "9da348b994b964c839e2fe5cd8411d1b05af875b7da13dd2e1487eac7d4c0a77",
+  "bytes": 9704913,
+  "sha256": "8613440cb54703badfce7031403961e673bdc381ea51674fb8f3a4f0fba0c708",
+  "sourceFingerprint": "c2f70cb07136a5508e3f556bfe5cef0a511d9ac1912ad19d2284961d481a49f6",
   "unityVersion": "6000.3.28f1",
-  "generatedUtc": "2026-11-05T20:13:19.0968107Z",
+  "generatedUtc": "2026-11-05T20:19:18.9041129Z",
   "compression": "gzip-with-decompression-fallback",
   "files": [
     {
-      "path": "Build/6093a4d3d55173d50d5cbe5eb80d2b79.loader.js",
+      "path": "Build/2c19fb3d2fc4e40baa80200b278850bd.loader.js",
       "bytes": 47867,
-      "sha256": "03cf47247cf13aea647c3cad75c15691d91cc509ac7cde5f85545f363697ec42"
+      "sha256": "8149a17298e83a0966f4cf67f7385670af21294aad2f8b4115869e008811f095"
     },
     {
-      "path": "Build/a8996dfe008bf0e3e0c66e0acfc31611.data.unityweb",
-      "bytes": 2075718,
-      "sha256": "805915770dd1052fc9f20e8543118e440a8161d865d9d71df22a1489482506f5"
+      "path": "Build/5b50b3d7fd497d844da2f2572ed41b96.data.unityweb",
+      "bytes": 2075652,
+      "sha256": "5f30ad68f32d98e691de1f8b23364cb0c470917c073c7e007ef0ee066b550e42"
     },
     {
-      "path": "Build/fe1c5288433f8784b97a87b0e7013cfb.framework.js.unityweb",
-      "bytes": 83550,
-      "sha256": "8ddb1b443de8059c321071927bad95b7e07aabaa1c1f32eb735bee3cf935523b"
+      "path": "Build/89597581652f6e0630635176e3e98970.framework.js.unityweb",
+      "bytes": 83566,
+      "sha256": "51c4460ae7361ddd0023689e9617627f296e9b915fbbdb710a11086cd93324dd"
     },
     {
-      "path": "Build/7d439115efb31ef91dfaa57f4ef0e3cf.wasm.unityweb",
-      "bytes": 7659303,
-      "sha256": "26e265a01744f5968510ab20735df80a756598e765dd52316200bb09871679da"
+      "path": "Build/c809533c5673a585263d37257447d82d.wasm.unityweb",
+      "bytes": 7663692,
+      "sha256": "cb0ae6efe7028fbe274a1ae49185a2459456b1f6fa5ec6981462e1afda822393"
     },
     {
       "path": "build-manifest.json",
       "bytes": 1012,
-      "sha256": "ef21a96c45444b91434a6babcda106ed949f6055d28e036abe19fa43d440d4f6"
+      "sha256": "86d2df97ad1911537df15cddc34d287db81ca6187bc10f602c4aff62825a3567"
     },
     {
       "path": "build-privacy-check.json",
       "bytes": 137,
-      "sha256": "37d2f9e74075cb63dfe40c2fcaa7d772659de2b87cb7c827bf29874ec30ac150"
+      "sha256": "82ac42925cdcb44338e18c3d0ee6411264ea77e5b4cc2fac8067374c1e06aa29"
     },
     {
       "path": "build-source.json",
       "bytes": 12537,
-      "sha256": "02a44e178d2691fa778eb3ed9db0b6f114ee15aaaccbb8f2d1284dbb50914182"
+      "sha256": "48e9102921b283fa938511663f200ec6dc13ef3a6c710871cacc228c5263b92a"
     }
   ],
   "clips": [

@@ -7,7 +7,7 @@ import { chromium } from 'playwright';
 
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser');
 await mkdir(artifacts, { recursive: true });
-const checks = [], images = [], moves = [], errors = [], assetFailures = [], dimensions = [];
+const checks = [], images = [], moves = [], errors = [], assetFailures = [], dimensions = [], pauses = [];
 let browser, server, page, networkMeasurement, speedMeasurement;
 let expectedMissingManifest = false;
 
@@ -88,8 +88,27 @@ async function camera(value) {
 
 async function pause() {
   const button = page.getByRole('button', { name: 'Pause animation', exact: true });
-  if (!await button.count()) return;
-  const since = await count(); await button.click(); await state(since, { playing: false });
+  const since = await count();
+  let clicked = false;
+  let completedBeforeClick = false;
+  if (await button.count()) {
+    try { await button.click({ timeout: 1000 }); clicked = true; }
+    catch (error) {
+      // A short clip may finish while Playwright is scrolling the control into
+      // view. Only actual stopped runtime state below can validate this race.
+      if (error.name !== 'TimeoutError') throw error;
+      completedBeforeClick = true;
+    }
+  }
+  if (clicked) await state(since, { playing: false });
+  await page.waitForFunction(() => {
+    const current = window.__unityEvents.findLast((event) => ['state', 'completed'].includes(event.type));
+    return current?.playing === false && Boolean(document.querySelector('button[aria-label="Play animation"]'));
+  }, null, { timeout: 5000 });
+  const observed = await page.evaluate(() => window.__unityEvents.findLast((event) => ['state', 'completed'].includes(event.type)));
+  assert.equal(observed.playing, false);
+  pauses.push({ moveId: observed.moveId, type: observed.type, progress: observed.progress, clicked, completedBeforeClick });
+  return observed;
 }
 
 async function seek(progress) {
@@ -140,6 +159,8 @@ try {
     console.log(`Rendered ${moveId}`);
   }
   checks.push('All 16 actual clips render and seek to their shared paired midpoint.');
+  await select('Technique', 'rear_naked_choke'); await pause(); await camera('front'); await seek(0.5); await capture('review-rnc-front');
+  await select('Technique', 'double_leg'); await pause(); await camera('front'); await seek(1); await capture('review-doubleleg-finish');
   await select('Technique', 'trap_roll_escape'); await pause(); await camera('front');
   await seek(1); const finish = await capture('escape-finish'); await seek(0); const start = await capture('escape-start'); await seek(0.5); const middle = await capture('escape-middle');
   assert.equal(new Set([start.sha256, middle.sha256, finish.sha256]).size, 3);
@@ -227,11 +248,11 @@ try {
   checks.push('Missing-build fallback changes to snapshots in-place, preserves saved progression/document state, and retains other URL settings.');
   assert.deepEqual(errors, []);
   assert.deepEqual(assetFailures, []);
-  report = { checkedAtUtc: new Date().toISOString(), scope: 'Actual Unity WebGL; desktop GPU with mobile viewport/network emulation, not a physical-device performance benchmark. Only the final negative test mocks a 404 manifest.', manifest, checks, moves, images, dimensions, speedMeasurement, networkMeasurement, pageErrors: errors, assetFailures };
+  report = { checkedAtUtc: new Date().toISOString(), scope: 'Actual Unity WebGL; desktop GPU with mobile viewport/network emulation, not a physical-device performance benchmark. Only the final negative test mocks a 404 manifest.', manifest, checks, moves, images, dimensions, pauses, speedMeasurement, networkMeasurement, pageErrors: errors, assetFailures };
   console.log(JSON.stringify({ checks, moveCount: moves.length, dimensions, speedMeasurement, networkMeasurement, artifacts }, null, 2));
 } catch (error) {
   await page?.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true }).catch(() => {});
-  report = { checkedAtUtc: new Date().toISOString(), checks, moves, images, dimensions, speedMeasurement, networkMeasurement, pageErrors: errors, assetFailures, failure: error.stack };
+  report = { checkedAtUtc: new Date().toISOString(), checks, moves, images, dimensions, pauses, speedMeasurement, networkMeasurement, pageErrors: errors, assetFailures, failure: error.stack };
   console.error(error); process.exitCode = 1;
 } finally {
   await writeFile(resolve(artifacts, 'report.json'), JSON.stringify(report, null, 2));

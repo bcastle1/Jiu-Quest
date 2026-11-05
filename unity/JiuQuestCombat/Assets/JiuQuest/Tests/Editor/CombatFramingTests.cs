@@ -6,6 +6,28 @@ namespace JiuQuest.Combat.Tests
 {
     public class CombatFramingTests
     {
+        [Test]
+        public void RearNakedChokeFrontViewsFacesAndHoldInsteadOfPerformersBack()
+        {
+            float front = CombatFraming.CameraYaw("rear_naked_choke", "front");
+            var cameraFromPair = Quaternion.Euler(25, front, 0) * Vector3.back;
+            Assert.That(Vector3.Dot(cameraFromPair, Vector3.forward), Is.GreaterThan(.7f));
+            Assert.That(CombatFraming.CameraYaw("rear_naked_choke", "side") - front, Is.EqualTo(67));
+            Assert.That(CombatFraming.CameraYaw("rear_naked_choke", "orbit", 27), Is.EqualTo(front));
+            Assert.That(CombatFraming.CameraYaw("rear_naked_choke", "overhead"), Is.EqualTo(180));
+        }
+
+        [TestCase("standing_stance")]
+        [TestCase("double_leg")]
+        [TestCase("trap_roll_escape")]
+        [TestCase("back_control")]
+        public void OtherAuthoredMovesKeepTheirReviewedCameraBasis(string moveId)
+        {
+            Assert.That(CombatFraming.CameraYaw(moveId, "front"), Is.EqualTo(27));
+            Assert.That(CombatFraming.CameraYaw(moveId, "side"), Is.EqualTo(94));
+            Assert.That(CombatFraming.CameraYaw(moveId, "orbit", -25), Is.EqualTo(-25));
+        }
+
         [TestCase(.75f, 25, 27)]
         [TestCase(.75f, 25, 94)]
         [TestCase(.75f, 76, 0)]
