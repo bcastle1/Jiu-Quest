@@ -87,33 +87,35 @@ async function camera(value) {
 }
 
 async function pause() {
-  const button = page.getByRole('button', { name: 'Pause animation', exact: true });
   const since = await count();
-  let clicked = false;
-  let completedBeforeClick = false;
-  if (await button.count()) {
-    try { await button.click({ timeout: 1000 }); clicked = true; }
-    catch (error) {
-      // A short clip may finish while Playwright is scrolling the control into
-      // view. Only actual stopped runtime state below can validate this race.
-      if (error.name !== 'TimeoutError') throw error;
-      completedBeforeClick = true;
-    }
-  }
+  // Check and invoke the currently displayed transport control in one browser
+  // task. A short clip can otherwise finish during locator scrolling on a slow
+  // software renderer, leaving Playwright waiting for an obsolete Pause label.
+  const clicked = await page.evaluate(() => {
+    const button = document.querySelector('button[aria-label="Pause animation"]');
+    if (!button || button.disabled) return false;
+    button.click(); return true;
+  });
   if (clicked) await state(since, { playing: false });
   await page.waitForFunction(() => {
     const current = window.__unityEvents.findLast((event) => ['state', 'completed'].includes(event.type));
     return current?.playing === false && Boolean(document.querySelector('button[aria-label="Play animation"]'));
-  }, null, { timeout: 5000 });
+  }, null, { timeout: 30000 });
   const observed = await page.evaluate(() => window.__unityEvents.findLast((event) => ['state', 'completed'].includes(event.type)));
   assert.equal(observed.playing, false);
-  pauses.push({ moveId: observed.moveId, type: observed.type, progress: observed.progress, clicked, completedBeforeClick });
+  pauses.push({ moveId: observed.moveId, type: observed.type, progress: observed.progress, clicked });
   return observed;
 }
 
 async function seek(progress) {
   const slider = page.getByRole('slider', { name: 'Review movement', exact: true });
-  if (Number(await slider.inputValue()) === progress * 1000) return;
+  // Pointer placement may round a midpoint to 499/501. An unchanged thumb does
+  // not fire React's change handler, so confirm this already-settled position.
+  if (Math.abs(Number(await slider.inputValue()) - progress * 1000) <= 2) {
+    const observed = await pause();
+    assert.ok(Math.abs(observed.progress - progress) < 0.005);
+    return;
+  }
   const since = await count();
   if (progress === 0) await slider.press('Home');
   else if (progress === 1) await slider.press('End');
@@ -144,7 +146,9 @@ let report;
 try {
   const base = process.env.JIUQUEST_PREVIEW_URL?.replace(/\/$/, '') || await staticSite();
   browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) });
-  const desktop = await context({ viewport: { width: 1440, height: 1000 } });
+  // Inventory is deliberately paused, including on slow CI software rendering.
+  // Separate transport checks below start and stop the actual playing runtime.
+  const desktop = await context({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
   const manifestResponse = await desktop.request.get(`${base}/unity/build-manifest.json`);
   assert.equal(manifestResponse.status(), 200);
   const manifest = await manifestResponse.json();
@@ -176,7 +180,11 @@ try {
   await state(rapidStart, { moveId: 'trap_roll_escape' }); await ready(); await pause();
   assert.deepEqual(await page.evaluate(() => [...new Set(window.__unityEvents.map((event) => event.instanceId))]), [firstSession]);
   assert.equal(await page.evaluate(() => window.__unityEvents.filter((event) => event.type === 'error').length), 0);
-  await select('Technique', 'double_leg'); await pause(); const normal = await measureRate(1); const slow = await measureRate(0.25); speedMeasurement = { normal, slow, ratio: slow.progressPerMs / normal.progressPerMs }; assert.ok(speedMeasurement.ratio > 0.1 && speedMeasurement.ratio < 0.5);
+  await select('Technique', 'double_leg'); await pause(); await select('Speed', '0.25'); await seek(0);
+  const playStart = await count(); await page.getByRole('button', { name: 'Play animation', exact: true }).click(); await state(playStart, { playing: true });
+  const pauseStart = await count(); await page.getByRole('button', { name: 'Pause animation', exact: true }).click({ timeout: 30000 }); await state(pauseStart, { playing: false });
+  checks.push('A real Playwright click on Play and Pause controls starts and stops actual runtime playback.');
+  const normal = await measureRate(1); const slow = await measureRate(0.25); speedMeasurement = { normal, slow, ratio: slow.progressPerMs / normal.progressPerMs }; assert.ok(speedMeasurement.ratio > 0.1 && speedMeasurement.ratio < 0.5);
   checks.push('Rapid selections keep one runtime; measured quarter-speed playback is slower than normal.');
   await select('Technique', 'trap_roll_escape'); await pause(); await camera('front'); await seek(0.5); await capture('desktop-page', true);
   assert.deepEqual(await page.evaluate(() => window.__progressWrites), []);
@@ -208,6 +216,18 @@ try {
           for (const progress of [0, 0.5, 1]) { await seek(progress); await capture(`phone-framing-${moveId}-${view}-${progress}`); }
         }
       }
+      await camera('orbit'); await seek(0.5);
+      const beforeTouch = await capture('phone-orbit-before-touch');
+      await page.locator('.unity-canvas').scrollIntoViewIfNeeded();
+      const touchBox = await page.locator('.unity-canvas').boundingBox();
+      const touchSession = await phone.newCDPSession(page);
+      const x = touchBox.x + touchBox.width * 0.35, y = touchBox.y + touchBox.height * 0.5;
+      await touchSession.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] });
+      for (let step = 1; step <= 8; step += 1) await touchSession.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + touchBox.width * 0.3 * step / 8, y: y - 20 * step / 8, id: 1 }] });
+      await touchSession.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await page.waitForTimeout(350);
+      assert.notEqual((await capture('phone-orbit-after-touch')).sha256, beforeTouch.sha256, 'Touch drag must rotate the actual paused scene');
+      await touchSession.detach();
       const instanceBeforeResize = await page.evaluate(() => window.__unityEvents.find((event) => event.type === 'ready').instanceId);
       await page.setViewportSize({ width: 844, height: 390 });
       await page.waitForFunction(() => document.querySelector('.unity-canvas').getBoundingClientRect().width > 640);
@@ -228,7 +248,7 @@ try {
     assert.deepEqual(await page.evaluate(() => window.__progressWrites), []);
     await phone.close();
   }
-  checks.push('Portrait, small-width and landscape mobile viewports have large readable stages, 44px camera controls, no overflow, reduced-motion pause and explicit playback.');
+  checks.push('Portrait, small-width and landscape mobile viewports have large readable stages, 44px camera controls, touch-drag orbit, no overflow, reduced-motion pause and explicit playback.');
 
   const cold = await context({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1, reducedMotion: 'reduce' });
   const cdp = await cold.newCDPSession(page); await cdp.send('Network.enable'); await cdp.send('Network.setCacheDisabled', { cacheDisabled: true }); await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 150, downloadThroughput: 500000, uploadThroughput: 150000 });
@@ -248,11 +268,12 @@ try {
   checks.push('Missing-build fallback changes to snapshots in-place, preserves saved progression/document state, and retains other URL settings.');
   assert.deepEqual(errors, []);
   assert.deepEqual(assetFailures, []);
-  report = { checkedAtUtc: new Date().toISOString(), scope: 'Actual Unity WebGL; desktop GPU with mobile viewport/network emulation, not a physical-device performance benchmark. Only the final negative test mocks a 404 manifest.', manifest, checks, moves, images, dimensions, pauses, speedMeasurement, networkMeasurement, pageErrors: errors, assetFailures };
+  report = { checkedAtUtc: new Date().toISOString(), scope: 'Actual Unity WebGL in desktop Chromium with mobile viewport/network emulation, not a physical-device performance benchmark. Only the final negative test mocks a 404 manifest.', manifest, checks, moves, images, dimensions, pauses, speedMeasurement, networkMeasurement, pageErrors: errors, assetFailures };
   console.log(JSON.stringify({ checks, moveCount: moves.length, dimensions, speedMeasurement, networkMeasurement, artifacts }, null, 2));
 } catch (error) {
   await page?.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true }).catch(() => {});
-  report = { checkedAtUtc: new Date().toISOString(), checks, moves, images, dimensions, pauses, speedMeasurement, networkMeasurement, pageErrors: errors, assetFailures, failure: error.stack };
+  const diagnostics = await page?.evaluate(() => ({ url: location.href, stage: document.querySelector('.unity-stage')?.dataset.unityStatus, stageText: document.querySelector('.unity-stage')?.innerText, visibleTransport: [...document.querySelectorAll('button[aria-label="Play animation"],button[aria-label="Pause animation"]')].map((button) => ({ label: button.getAttribute('aria-label'), disabled: button.disabled })), recentUnityEvents: window.__unityEvents?.slice(-20) })).catch(() => null);
+  report = { checkedAtUtc: new Date().toISOString(), checks, moves, images, dimensions, pauses, speedMeasurement, networkMeasurement, pageErrors: errors, assetFailures, failure: error.stack, diagnostics };
   console.error(error); process.exitCode = 1;
 } finally {
   await writeFile(resolve(artifacts, 'report.json'), JSON.stringify(report, null, 2));
