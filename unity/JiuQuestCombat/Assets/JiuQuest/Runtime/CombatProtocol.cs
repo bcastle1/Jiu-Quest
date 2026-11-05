@@ -29,6 +29,7 @@ namespace JiuQuest.Combat
         public float speed = 1;
         public string camera;
         public bool paused;
+        public bool compactViewport;
         public FighterAppearance fighter;
         public FighterAppearance opponent;
     }
@@ -64,7 +65,7 @@ namespace JiuQuest.Combat
         };
         static readonly HashSet<string> Moves = new HashSet<string>(MoveIds, StringComparer.Ordinal);
         static readonly HashSet<string> Commands = new HashSet<string>(new[] {
-            "configure", "play", "pause", "resume", "seek", "setSpeed", "setCamera", "reset", "requestState"
+            "configure", "play", "pause", "resume", "seek", "setSpeed", "setCamera", "setViewport", "reset", "requestState"
         }, StringComparer.Ordinal);
         static readonly HashSet<string> Cameras = new HashSet<string>(new[] { "front", "side", "overhead", "orbit" }, StringComparer.Ordinal);
 

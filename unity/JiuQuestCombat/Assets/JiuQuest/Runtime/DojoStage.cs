@@ -8,13 +8,16 @@ namespace JiuQuest.Combat
     public sealed class DojoStage : MonoBehaviour
     {
         readonly List<Material> materials = new List<Material>();
+        readonly List<Mesh> stageMeshes = new List<Mesh>();
         Camera sceneCamera;
         Transform environment;
         Vector3 lookAt = new Vector3(0, .65f, 0);
         string preset = "front";
         float orbitAngle = 27;
         float orbitElevation = 25;
-        float distance = 5.4f;
+        Bounds motionBounds = new Bounds(new Vector3(0, .8f, 0), new Vector3(2.4f, 1.8f, 1.2f));
+        Quaternion cameraOrientation = Quaternion.Euler(25, 27, 0);
+        bool compactViewport;
         bool dragging;
         Vector2 lastPointer;
         public Shader FighterShader { get; private set; }
@@ -60,6 +63,7 @@ namespace JiuQuest.Combat
             Cube("Rear inset", new Vector3(0, 2.0f, 6.9f), new Vector3(4, 1.15f, .05f), edge);
             Cube("Jade wordmark bar", new Vector3(0, 2, 6.84f), new Vector3(2.2f, .06f, .015f), accent);
             Cube("Ceiling light", new Vector3(0, 4.5f, 0), new Vector3(5.2f, .035f, .08f), brass);
+            CombineArchitecture();
 
             Light("Key", new Vector3(50, -30, 0), new Color(1, .91f, .78f), 2.0f, true);
             Light("Fill", new Vector3(32, 132, 0), new Color(.55f, .75f, 1), .7f, false);
@@ -80,15 +84,18 @@ namespace JiuQuest.Combat
             PlaceCamera(true);
         }
 
-        public void Frame(GameObject actorPair)
+        public void Frame(Bounds bounds)
         {
-            var renderers = actorPair.GetComponentsInChildren<Renderer>();
-            if (renderers.Length == 0) return;
-            var bounds = renderers[0].bounds;
-            foreach (var renderer in renderers) bounds.Encapsulate(renderer.bounds);
-            // Frame the choreography's start, never chase limbs while the technique plays.
-            lookAt = new Vector3(bounds.center.x, Mathf.Clamp(bounds.center.y, .45f, 1.05f), bounds.center.z);
-            distance = Mathf.Clamp(Mathf.Max(bounds.size.x, bounds.size.z) * 2 + 1.8f, 4.5f, 7.3f);
+            motionBounds = bounds;
+            lookAt = bounds.center;
+            PlaceCamera(true);
+        }
+
+        public void SetViewport(bool compact)
+        {
+            compactViewport = compact;
+            Application.targetFrameRate = compact ? 30 : 60;
+            sceneCamera.allowMSAA = !compact;
             PlaceCamera(true);
         }
 
@@ -96,13 +103,15 @@ namespace JiuQuest.Combat
         {
             if (preset == cameraPreset) return;
             preset = cameraPreset;
+            dragging = false;
             if (preset == "orbit") { orbitAngle = 27; orbitElevation = 25; }
         }
 
         void LateUpdate()
         {
             // Pointer drags are limited to this Unity canvas; React owns accessible controls.
-            if (Input.touchCount == 1)
+            if (preset != "orbit") dragging = false;
+            else if (Input.touchCount == 1)
             {
                 var touch = Input.GetTouch(0);
                 if (touch.phase == TouchPhase.Began) { dragging = true; lastPointer = touch.position; }
@@ -123,7 +132,6 @@ namespace JiuQuest.Combat
             var delta = point - lastPointer;
             lastPointer = point;
             if (delta.sqrMagnitude < .05f) return;
-            preset = "orbit";
             orbitAngle += delta.x * .18f;
             orbitElevation = Mathf.Clamp(orbitElevation - delta.y * .13f, 12, 65);
         }
@@ -134,11 +142,38 @@ namespace JiuQuest.Combat
             float yaw = preset == "side" ? 94 : preset == "orbit" ? orbitAngle : 27;
             float elevation = preset == "overhead" ? 76 : preset == "orbit" ? orbitElevation : 25;
             if (preset == "overhead") yaw = 0;
-            float adjustedDistance = distance * (sceneCamera.aspect < 1 ? 1.22f : 1);
-            var offset = Quaternion.Euler(elevation, yaw, 0) * new Vector3(0, 0, -adjustedDistance);
-            var targetPosition = lookAt + offset;
-            sceneCamera.transform.position = immediate ? targetPosition : Vector3.Lerp(sceneCamera.transform.position, targetPosition, 1 - Mathf.Exp(-8 * Time.unscaledDeltaTime));
-            sceneCamera.transform.LookAt(lookAt);
+            var targetOrientation = Quaternion.Euler(elevation, yaw, 0);
+            cameraOrientation = immediate ? targetOrientation : Quaternion.Slerp(cameraOrientation, targetOrientation, 1 - Mathf.Exp(-8 * Time.unscaledDeltaTime));
+            // Refit at the interpolated angle too: even a camera transition cannot crop a limb.
+            float distance = CombatFraming.Distance(motionBounds, cameraOrientation, sceneCamera.fieldOfView,
+                Mathf.Max(.1f, sceneCamera.aspect), compactViewport ? .9f : .85f);
+            sceneCamera.transform.SetPositionAndRotation(lookAt + cameraOrientation * new Vector3(0, 0, -distance), cameraOrientation);
+        }
+
+        void CombineArchitecture()
+        {
+            // Static scenery uses one draw per material rather than a separate draw per tile.
+            var filters = environment.GetComponentsInChildren<MeshFilter>();
+            foreach (var material in materials)
+            {
+                var instances = new List<CombineInstance>();
+                foreach (var filter in filters)
+                {
+                    var renderer = filter.GetComponent<MeshRenderer>();
+                    if (renderer == null || renderer.sharedMaterial != material) continue;
+                    instances.Add(new CombineInstance { mesh = filter.sharedMesh, transform = environment.worldToLocalMatrix * filter.transform.localToWorldMatrix });
+                    renderer.enabled = false;
+                    Destroy(filter.gameObject);
+                }
+                if (instances.Count == 0) continue;
+                var mesh = new Mesh { name = "Dojo architecture - " + material.name };
+                mesh.CombineMeshes(instances.ToArray(), true, true);
+                stageMeshes.Add(mesh);
+                var combined = new GameObject(mesh.name);
+                combined.transform.SetParent(environment, false);
+                combined.AddComponent<MeshFilter>().sharedMesh = mesh;
+                combined.AddComponent<MeshRenderer>().sharedMaterial = material;
+            }
         }
 
         Material Material(string label, Color color, float smoothness, bool emissive = false)
@@ -175,6 +210,10 @@ namespace JiuQuest.Combat
             light.shadowNormalBias = .2f;
         }
 
-        void OnDestroy() { foreach (var material in materials) if (material != null) Destroy(material); }
+        void OnDestroy()
+        {
+            foreach (var material in materials) if (material != null) Destroy(material);
+            foreach (var mesh in stageMeshes) if (mesh != null) Destroy(mesh);
+        }
     }
 }

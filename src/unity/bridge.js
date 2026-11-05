@@ -35,9 +35,18 @@ export function resolveUnityMove(moveId, { canonical = false } = {}) {
   return Object.hasOwn(curriculumMoves, moveId) ? curriculumMoves[moveId] : null;
 }
 
-export function isUnityEnabled(search = '') {
+export function isUnityEnabled(search = '', configuredEngine = import.meta.env?.VITE_COMBAT_ENGINE) {
   const params = new URLSearchParams(search);
-  return params.get('engine') === 'unity' || params.get('preview') === 'unity';
+  const override = params.get('engine');
+  if (override === 'snapshot') return false;
+  if (override === 'unity') return true;
+  return params.get('preview') === 'unity' || configuredEngine === 'unity';
+}
+
+export function snapshotFallbackUrl(href) {
+  const url = new URL(href);
+  url.searchParams.set('engine', 'snapshot');
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 export function resolveArenaUnityPlayback(result) {
@@ -83,7 +92,7 @@ export function createUnityBridge({ instanceId, onEvent = () => {} }) {
   };
   const command = (type, values = {}) => {
     if (disposed) return null;
-    for (const field of ['speed', 'camera']) if (values[field] !== undefined) scene[field] = values[field];
+    for (const field of ['speed', 'camera', 'compactViewport']) if (values[field] !== undefined) scene[field] = values[field];
     currentRequest = `${instanceId}:${++requestNumber}`;
     if (!ready && type !== 'play' && scene.moveId) {
       // A control during startup changes the desired scene; it must not replace

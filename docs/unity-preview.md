@@ -1,62 +1,71 @@
-# Unity combat preview
+# Unity combat release candidate
 
-This branch adds an opt-in Unity 6.3 LTS combat renderer to the existing React app. The app remains responsible for combat outcomes and saved progress. Unity only presents paired character animation.
+Unity 6.3 LTS/URP presents paired animation inside the existing React app. React retains combat outcomes, athlete customization, and saved progress. Unity does not decide winners, award progress, or implement online multiplayer.
 
-## Review routes
+## Routes and coverage
 
-- `/?preview=unity` opens the isolated scene review page. It does not mount the persisted app or read/write player progress.
-- `/?engine=unity` enables supported Unity movement previews in Training and Arena.
-- `/` retains the existing renderer.
+- `/?preview=unity` opens the isolated scene reviewer without mounting the persisted app or reading/writing player progress.
+- `/?engine=unity` explicitly enables supported Unity moves in Training/Arena.
+- `/?engine=snapshot` explicitly uses the existing position snapshots.
+- A release build enables Unity by default with `VITE_COMBAT_ENGINE=unity`. Ordinary `pnpm build`/development remains opt-in unless that flag is supplied.
 
-The preview has pause, replay, speed, timeline and camera controls, with fighter appearance and performer-role swapping. Reduced-motion preference starts animation paused. Failed or unsupported arena exchanges retain a labeled settled-position snapshot. A missing player build produces an explicit error; a snapshot is never presented as a working Unity animation.
+Sixteen paired clips are available in the reviewer. Exact curriculum mappings are deliberately limited to:
 
-The existing paired GLBs are authored choreography, not motion capture. They have not been reviewed by a BJJ coach. A generic armbar finish or guard pass must not stand in for a different named curriculum technique. The browser bridge accepts only explicitly supported IDs.
+| Curriculum move | Paired animation |
+| --- | --- |
+| Trap and roll escape | `trap_roll_escape` |
+| Double-leg takedown | `double_leg` |
+| Triangle choke | `triangle_choke` |
+| Rear-naked choke | `rear_naked_choke` |
 
-## Local build
+Failed attacks and unsupported lessons retain clearly labeled settled-position snapshots. A generic armbar or guard pass is not substituted for another named technique. All clips are authored choreography, not motion capture or coach-reviewed instruction. Double-leg, triangle and rear-naked-choke choreography has been refined for contact, grounded positions and clearer finishes; the technical review remains separate from a qualified BJJ review.
 
-Required tools: Node 24, pnpm 11, Unity `6000.3.28f1` with Web Build Support, and an activated eligible editor license. No secret, license file or account credential belongs in this repository.
+Controls include play/pause, replay, timeline seeking, quarter/half speed, camera presets, free rotation, and supported-browser fullscreen. Reduced motion starts paused; hidden tabs pause. Phone layouts give the scene a taller viewport, 44px touch controls, and collapsed appearance options. Camera fitting covers the complete motion envelope and adjusts to the viewport; compact rendering targets 30fps and desktop 60fps. These are target rates, not measured physical-device performance claims.
 
-From the repository root in PowerShell 7:
+If Unity cannot initialize, the view reports the error and offers the existing snapshot view without resetting the active match or saved progress.
+
+## Build the player after source or animation changes
+
+Required: Node 24, pnpm 11, Unity `6000.3.28f1` with Web Build Support and an activated eligible editor license. Never commit a license file, account credential, cache or raw editor log.
 
 ```powershell
 pnpm install --frozen-lockfile
-pnpm test
 pnpm unity:test
 pnpm unity:build
-pnpm build
-pnpm preview
+pnpm release:pack
+pnpm test
+pnpm release:build
+pnpm exec playwright install chromium
+pnpm test:browser
+pnpm preview --port 4173 --strictPort
 ```
 
-If the editor is installed elsewhere, pass its executable explicitly:
+For an editor outside the default locations:
 
 ```powershell
-pwsh -NoProfile -File tools/build_unity_preview.ps1 -UnityEditor 'C:\Unity\6000.3.28f1\Editor\Unity.exe' -TestOnly
 pwsh -NoProfile -File tools/build_unity_preview.ps1 -UnityEditor 'C:\Unity\6000.3.28f1\Editor\Unity.exe'
 ```
 
-The Unity build stages and hashes the paired GLBs, generates its URP scene, and writes `public/unity/build-manifest.json` plus the actual player files. Logs and EditMode results stay in ignored `tmp/unity`. Player binaries, staged assets, Unity caches and local logs are ignored. Commit source, package locks and tests. A hosting build must produce or receive the verified Unity player before `pnpm build`; building React alone does not create the game.
+Only one Unity Editor may operate on the project at a time. Stop this checkout's local Vite development/preview servers before building or restoring the player: Windows directory watchers can lock the generated output during replacement. Editor output and test results stay in ignored `tmp/unity`. The builder stages and hashes all GLBs, prepares a generated URP scene, takes a normalized source snapshot, and verifies that snapshot after compilation. It excludes generated performance-test metadata and checks the packed-asset report before publishing a successful build.
 
-Do not treat a successful React build or an HTTP 200 response as proof that Unity runs. The following browser acceptance checks require the real player, without a simulated loader:
+The player uses gzip with Unity decompression fallback, so a static host need not supply custom Content-Encoding headers. Hashed engine filenames and build-specific GLB requests prevent old cached content from silently mixing with a new player. This follows [Unity's static hosting guidance](https://docs.unity.com/en-us/engine/6000.3/manual/platform-specific/webgl/develop/class-player-settings-web-gl).
 
-1. Load the standalone preview from a fresh browser context; confirm visible paired fighters, URP scene, and actual movement.
-2. Pause and seek both fighters together, change speed/camera, and replay. Verify the chosen frame is stable while paused.
-3. Swap the performer and both kits. Fighter identity, skin, hair and belt must remain attached to the intended athlete.
-4. Switch moves rapidly, navigate away and return, retry an asset failure, and check for stale scenes or surviving WebGL contexts.
-5. In Training/Arena, verify a supported success and reversed NPC success. Failed attacks and unsupported techniques must not display a completed successful animation.
-6. With reduced motion, confirm the first scene is paused. Hidden tabs must pause playback.
-7. Confirm saved player progress is unchanged by the standalone preview.
-8. Measure loading, sustained frame time and memory on physical iPhone Safari and Android Chrome. A desktop viewport emulation is a layout check, not a mobile GPU test.
+`release:pack` creates the allowlisted, versioned `releases/unity/player.bundle.gz` and its SHA-256 descriptor. The archive includes the engine and build metadata; canonical GLBs are already in the repo and are not duplicated inside it. Source or asset changes require rebuilding and repackaging. [Release package details](../releases/unity/README.md).
 
-## Release boundary
+## Review and production workflow
 
-This is a review branch. Merging the default branch triggers the existing GitHub Pages production workflow, so merge and production release require approval. No multiplayer provider, paid asset, new hosting service or purchase is part of this preview. Future real-time PvP requires its own authoritative simulation and networking design; this renderer does not implement online combat.
+GitHub Actions restores and validates the pinned player before building the website. It runs Node tests and actual Chromium/WebGL browser checks, then saves a downloadable release-candidate artifact and browser evidence. Pull requests cannot execute the production deployment job.
 
-## Observed verification — November 5, 2026
+`release:build` also checks the exact Unity file set, sizes, SHA-256 values and CNAME in the finished website. A React build alone does not establish a complete game release. The workflow records the exact Git commit, Unity source fingerprint and archive hash in release.json.
 
-- 69 Node tests and 25 Unity EditMode tests passed; the actual WebGL player and React build succeeded.
-- Edge loaded and rendered all 16 authored clips without simulated assets or engine events. Pause, seek, replay, role and kit changes, four camera modes, rapid move changes, and Training teardown/remount passed. Quarter-speed playback measured 0.2497 times normal playback.
-- The standalone preview did not read or write JiuQuest progression. Missing-build, asset/loading failure handling, startup timeout, and stale-event safeguards were checked separately.
-- At a 390 px emulated phone viewport, the real player started paused with reduced motion, explicit Play worked, and there was no horizontal overflow. This uses a desktop GPU; physical iPhone/Android loading, memory and frame performance remain unmeasured. Closer mobile framing also needs review.
-- All 16 exported GLBs match source and staged copies by bytes and SHA-256. Generated performance-test resources are excluded from non-test builds and checked before a build manifest is published.
+An approved merge to main triggers the existing GitHub Pages production workflow. A manual production run is restricted to main. **Erik's approval is required before merging or deploying.** No production change is authorized by preparing this candidate.
 
-These checks establish a working engine preview, not coach-approved choreography, online multiplayer, a physical-phone performance guarantee, or a production release. The current GitHub Pages workflow still builds only React; approved release work must add the verified Unity player to the deployment artifact before exposing these routes publicly.
+After approval and deployment, verify the deployed release.json, real Unity rendering on jiuquest.com, supported Training/Arena outcomes, athlete identity, persistence after reload, and the snapshot fallback. Roll back to the previous approved commit through Pages if those checks fail; never delete saved player progress as a rollback step.
+
+## Verification boundaries
+
+Automated checks cover paired GLB structure, curriculum mapping, combat role/outcome correctness, saved-progress behavior, lifecycle and failure handling, portrait/landscape framing, source provenance, archive corruption/path rejection, real-player loading, playback controls and phone-width layouts. Browser reports and screenshots are in ignored tmp/browser and the corresponding CI artifact.
+
+Viewport emulation and network throttling run on a desktop browser/GPU. Physical iPhone Safari and Android Chrome loading, sustained frame time, thermal behavior and memory remain separate device checks. Before broad release, review a cold load, several move changes, portrait/landscape rotation, touch seeking, free rotation, fullscreen where supported, and ten minutes of play on both devices. Choreography still requires qualified BJJ review before presenting it as verified instruction.
+
+Native apps, real-time PvP simulation, NPC quests and networking are later scope. No networking provider or paid asset has been purchased for this candidate.

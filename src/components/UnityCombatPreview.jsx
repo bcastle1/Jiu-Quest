@@ -18,13 +18,14 @@ export default function UnityCombatPreview() {
   const settled = createArenaState(selected.position, performerSide);
   return <main className="unity-preview-page">
     <div className="unity-preview-top"><span className="unity-preview-brand">JIUQUEST</span><a href="/">Return to JiuQuest</a></div>
-    <header className="unity-preview-intro"><span className="unity-eyebrow">ENGINE PREVIEW · WEBSITE FIRST</span><h1>See the movement.<br />Study the exchange.</h1><p>Explore the first Unity combat scenes. Slow down a transition, change your viewing angle, and swap the performing athlete. These draft animations are for review before integration is released.</p></header>
+    <header className="unity-preview-intro"><span className="unity-eyebrow">COMBAT PREVIEW</span><h1><span>See the movement.<br /></span>Study the exchange.</h1><p>Slow down the action. Inspect every angle. Practice seeing the next move.</p></header>
+    <div className="unity-preview-technique"><label htmlFor="unity-preview-technique">Choose a technique</label><select id="unity-preview-technique" aria-label="Technique" value={moveId} onChange={(event) => setMoveId(event.target.value)}>{UNITY_PREVIEWS.map((move) => <option key={move.id} value={move.id}>{move.name}</option>)}</select><span>16 paired sequences</span></div>
     <div className="unity-preview-grid">
       <UnityGrapplingStage moveId={moveId} moveLabel={selected.name} performerSide={performerSide} fighter={fighter} opponent={opponent} fallback={<GrapplingSnapshotStage state={settled} fighter={fighter} opponent={opponent} compact />} />
-      <aside className="unity-preview-options" aria-label="Combat preview setup"><h2>Choose your exchange</h2>
-        <label htmlFor="unity-preview-technique">Technique<select id="unity-preview-technique" value={moveId} onChange={(event) => setMoveId(event.target.value)}>{UNITY_PREVIEWS.map((move) => <option key={move.id} value={move.id}>{move.name}</option>)}</select></label>
+      <aside className="unity-preview-options" aria-label="Combat preview setup"><details><summary>Athletes & appearance<span>Change roles and gi colors</span></summary><div className="unity-preview-option-fields">
         <label htmlFor="unity-preview-performer">Performing athlete<select id="unity-preview-performer" value={performerSide} onChange={(event) => setPerformerSide(event.target.value)}><option value="fighter">Your athlete</option><option value="opponent">Training partner</option></select></label>
         <label htmlFor="unity-preview-kit">Gi colors<select id="unity-preview-kit" value={kit} onChange={(event) => setKit(event.target.value)}><option value="classic">White / navy</option><option value="night">Black / gray</option></select></label>
+        </div></details>
         <p>Armbar shows a finish draft. Guard pass shows a generic pass. Neither is labeled as a complete, named curriculum lesson.</p>
         <p className="unity-preview-safe">Preview only. Your saved fighters, training repetitions, unlocks, and arena results stay unchanged.</p>
       </aside>

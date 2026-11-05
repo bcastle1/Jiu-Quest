@@ -12,7 +12,7 @@ jiuquest-*.png
 tmp/
 .tmp/
 # Unity Web builds are generated locally or by an authorized build worker.
-# Commit the Unity source project, not its machine-generated player binaries.
+# Raw builds stay local. Only the verified release bundle in releases/unity is versioned.
 /public/unity/
 public/assets/characters/profile-realistic-v2*.png
 public/assets/stances/*-stance-realistic-v2.png

@@ -32,7 +32,7 @@ MOVE_DURATIONS = {
     "standing_stance": 1.8,
     "grip_fighting": 2.2,
     "single_leg": 2.5,
-    "double_leg": 2.5,
+    "double_leg": 4.2,
     "guard_pull": 2.2,
     "closed_guard": 2.2,
     "guard_pass": 2.6,
@@ -41,11 +41,13 @@ MOVE_DURATIONS = {
     "trap_roll_escape": 5.0,
     "back_control": 2.3,
     "armbar": 2.6,
-    "triangle_choke": 2.7,
-    "rear_naked_choke": 2.7,
+    "triangle_choke": 4.0,
+    "rear_naked_choke": 4.0,
     "tap_out": 1.6,
     "reset_neutral": 1.5,
 }
+
+CONTACT_SAMPLED_MOVES = {"trap_roll_escape", "double_leg", "triangle_choke", "rear_naked_choke", "standing_stance"}
 
 ANIMATED_BONES = (
     "pelvis",
@@ -828,6 +830,147 @@ def pose_trap_roll_escape(performer: dict, opponent: dict, progress: float) -> N
         keep_pair_above_mat((performer, opponent))
 
 
+def pose_double_leg(performer: dict, opponent: dict, progress: float) -> None:
+    """Level change, bilateral knee capture, corner drive, then top in guard.
+
+    Contacts are recomputed on each sampled frame. Neither the landing nor the
+    attacker role is taken from the old upright kneel approximation.
+    """
+    entry = smooth((progress - .08) / .36)
+    drive = smooth((progress - .44) / .34)
+    settle = smooth((progress - .78) / .16)
+    release = smooth((progress - .65) / .13)
+    place_hips(opponent, (drive * .28, .37 + .10 * drive, .94 - .74 * drive),
+               Quaternion((1, 0, 0), -math.pi * .5 * drive))
+    place_hips(performer, (lerp(0, .20, entry) + .08 * drive,
+                          lerp(-.78, -.15, entry) + .635 * drive * drive,
+                          lerp(.90, .46, entry) + .05 * drive),
+               Quaternion((0, 0, 1), math.pi) @ Quaternion((1, 0, 0), lerp(.08, .86, entry) + .06 * drive))
+    for side, sign in (("l", 1), ("r", -1)):
+        ankle = Vector((sign * .22, .40 + sign * .07, .085)).lerp(
+            Vector((.28 - sign * .065, .35, .70 + .025 * sign)), drive)
+        knee = Vector((sign * .28, .19, .53)).lerp(
+            Vector((.28 + sign * .46, .29, .46)), drive)
+        toes = ankle + Vector((0, lerp(-.16, .07, drive), -.045))
+        contact_leg(opponent, side, ankle, knee, toes)
+    for side, sign in (("l", -1), ("r", 1)):
+        ankle = Vector((sign * .21, -.85 + sign * .12, .085)).lerp(
+            Vector((.20 + sign * .23, -.45 + sign * .24, .085)), entry)
+        ankle = ankle.lerp(Vector((.28 + sign * .25, .02, .085)), drive)
+        knee = Vector((sign * .29, -.55, .50)).lerp(
+            Vector((.20 + sign * .30, -.12 + sign * .12, .10)), entry)
+        knee = knee.lerp(Vector((.28 + sign * .31, .61, .12)), drive)
+        contact_leg(performer, side, ankle, knee, ankle + Vector((0, lerp(.16, -.14, drive), -.045)))
+
+    for side, captured_side in (("l", "r"), ("r", "l")):
+        sign = -1 if side == "l" else 1
+        knee = bone_world_point(opponent, "calf_" + captured_side)
+        grip = knee + Vector((0, .07, -.035))
+        guard = bone_world_point(performer, "spine_03") + Vector((sign * .18, .20, -.04))
+        wrist = guard.lerp(grip, smooth((progress - .18) / .26))
+        post = bone_world_point(opponent, "spine_02") + Vector((sign * .16, 0, .11))
+        wrist = wrist.lerp(post, release)
+        contact_arm(performer, side, wrist, (sign * .42 + .15, .10 + drive * .40, .42),
+                    knee + Vector((sign * -.04, -.035, 0)))
+    for side, sign in (("l", 1), ("r", -1)):
+        shoulder = bone_world_point(performer, "upperarm_" + ("r" if side == "l" else "l"))
+        wrist = bone_world_point(opponent, "spine_03") + Vector((sign * .18, -.24, -.08))
+        wrist = wrist.lerp(shoulder + Vector((sign * .025, .02, .025)), entry)
+        contact_arm(opponent, side, wrist, (sign * .42, .16, .70 - .20 * drive),
+                    shoulder + Vector((0, -.08, 0)))
+    keep_pair_above_mat((performer, opponent))
+    if settle:
+        start = [capture_pose(f) for f in (performer, opponent)]
+        for fighter in (performer, opponent):
+            reset_fighter(fighter)
+        top_guard_pose(performer, opponent)
+        for fighter in (performer, opponent):
+            fighter["root"].location += Vector((.76, .47, 0))
+        bpy.context.view_layer.update()
+        keep_pair_above_mat((performer, opponent))
+        end = [capture_pose(f) for f in (performer, opponent)]
+        for fighter, a, b in zip((performer, opponent), start, end):
+            blend_pose(fighter, a, b, settle)
+        bpy.context.view_layer.update()
+        keep_pair_above_mat((performer, opponent))
+
+
+def pose_rear_naked_choke(performer: dict, opponent: dict, progress: float) -> None:
+    """Seated back control, same-arm hand fighting, then biceps/head contacts."""
+    entry = smooth((progress - .12) / .45)
+    support = smooth((progress - .45) / .35)
+    place_hips(opponent, (0, -.02, .21), Quaternion((1, 0, 0), .08))
+    # A small lateral head offset keeps the performer's cheek beside the
+    # opponent, rather than putting both head centers on the same line.
+    place_hips(performer, (.10, .25, .28), Quaternion((1, 0, 0), .30))
+    for side, sign in (("l", 1), ("r", -1)):
+        contact_leg(opponent, side, (sign * .28, -.66, .085),
+                    (sign * .34, -.29, .48), (sign * .28, -.83, .04))
+        contact_leg(performer, side, (sign * .18, -.49, .14),
+                    (sign * .43, -.16, .38), (sign * .12, -.62, .10))
+    neck = bone_world_point(opponent, "neck_01")
+    head = bone_world_point(opponent, "Head")
+    seatbelt = neck + Vector((-.06, -.13, -.23))
+    support_hand = seatbelt.lerp(head + Vector((.015, .095, .055)), support)
+    contact_arm(performer, "l", support_hand,
+                neck + Vector((.45, -.25, -.06)), head + Vector((-.06, .08, .045)))
+    biceps = bone_world_point(performer, "upperarm_l").lerp(
+        bone_world_point(performer, "lowerarm_l"), .53)
+    choke_hand = seatbelt.lerp(biceps + Vector((0, -.035, .01)), entry)
+    contact_arm(performer, "r", choke_hand,
+                neck + Vector((-.13, -.28, -.02)), biceps + Vector((.03, .015, 0)))
+    forearm_start = bone_world_point(performer, "lowerarm_r")
+    forearm_end = bone_world_point(performer, "hand_r")
+    for side, amount, lateral in (("l", .72, .025), ("r", .25, -.025)):
+        grip = forearm_start.lerp(forearm_end, amount) + Vector((lateral, -.025, -.02))
+        contact_arm(opponent, side, grip,
+                    neck + Vector((.31 if side == "l" else -.31, -.25, -.28)),
+                    grip + Vector((-.035 if side == "l" else .035, .04, 0)))
+    keep_pair_above_mat((performer, opponent))
+
+
+def pose_triangle_choke(performer: dict, opponent: dict, progress: float) -> None:
+    """Guard-based one-arm-in triangle draft using reachable limb contacts."""
+    entry = smooth((progress - .15) / .42)
+    lock = smooth((progress - .50) / .30)
+    angle = smooth((progress - .38) / .42)
+    place_hips(performer, (0, 0, .21 + .055 * entry),
+               Quaternion((0, 0, 1), -.20 * angle) @ Quaternion((1, 0, 0), -math.pi / 2))
+    place_hips(opponent, (0, -.10, .52),
+               Quaternion((0, 0, 1), math.pi) @ Quaternion((1, 0, 0), 1.02 + .28 * entry))
+    for side, sign in (("l", -1), ("r", 1)):
+        contact_leg(opponent, side, (sign * .27, -.54, .085),
+                    (sign * .34, .09, .12), (sign * .27, -.69, .04))
+    neck = bone_world_point(opponent, "neck_01")
+    # Left leg lies across the upper back/neck. Its ankle moves to the bend
+    # behind the opposite knee, rather than both legs simply pointing upward.
+    left_ankle = Vector((-.065, -.12, .72)).lerp(neck + Vector((-.18, .01, .12)), entry)
+    contact_leg(performer, "l", left_ankle,
+                neck + Vector((.40, -.07, .03)), left_ankle + Vector((-.10, -.07, -.035)))
+    left_ankle = bone_world_point(performer, "foot_l")
+    right_ankle = Vector((.065, -.12, .745)).lerp(neck + Vector((.15, -.18, .15)), entry)
+    contact_leg(performer, "r", right_ankle,
+                left_ankle + Vector((-.02, -.03, .01)), right_ankle + Vector((.10, -.08, -.06)))
+    # Tighten the second leg onto the already positioned first ankle.
+    if lock:
+        knee = bone_world_point(performer, "calf_r")
+        left_ankle_target = left_ankle.lerp(knee + Vector((.025, .01, .025)), lock)
+        contact_leg(performer, "l", left_ankle_target,
+                    neck + Vector((.40, -.07, .03)), knee + Vector((-.10, -.02, .01)))
+    chest = bone_world_point(performer, "spine_03")
+    # Opponent's left arm is explicitly inside; right arm remains outside.
+    contact_arm(opponent, "l", chest + Vector((-.12, -.06, .12)),
+                neck + Vector((-.18, .02, -.21)), chest + Vector((-.07, .03, .10)))
+    contact_arm(opponent, "r", (.38, .17, .15), (.45, .07, .45), (.39, .28, .10))
+    head = bone_world_point(opponent, "Head")
+    for side, sign in (("l", 1), ("r", -1)):
+        wrist = chest + Vector((sign * .16, -.11, .14))
+        wrist = wrist.lerp(head + Vector((sign * .09, .035, .075)), entry)
+        contact_arm(performer, side, wrist, chest + Vector((sign * .34, -.05, .08)),
+                    head + Vector((sign * .035, -.025, .05)))
+    keep_pair_above_mat((performer, opponent))
+
+
 def pose_pair(key: str, attacker: dict, defender: dict, progress: float) -> None:
     reset_fighter(attacker)
     reset_fighter(defender)
@@ -836,9 +979,21 @@ def pose_pair(key: str, attacker: dict, defender: dict, progress: float) -> None
 
     if key == "trap_roll_escape":
         pose_trap_roll_escape(attacker, defender, progress)
+    elif key == "double_leg":
+        pose_double_leg(attacker, defender, progress)
+    elif key == "triangle_choke":
+        pose_triangle_choke(attacker, defender, progress)
+    elif key == "rear_naked_choke":
+        pose_rear_naked_choke(attacker, defender, progress)
     elif key == "standing_stance":
-        stance(attacker, -0.90, 0.08, 1, 0.12 + abs(pulse), -0.03, 0.04)
-        stance(defender, 0.90, -0.02, -1, 0.10 + abs(pulse), 0.03, -0.04)
+        # Same neutral entry as the takedown. Feet stay planted; a full-cycle
+        # breathing motion returns exactly to its first pose without a loop pop.
+        pose_double_leg(attacker, defender, 0)
+        for fighter, phase in ((attacker, 1), (defender, -1)):
+            spine = fighter["armature"].pose.bones["spine_02"]
+            spine.rotation_quaternion = spine.rotation_quaternion @ Quaternion((1, 0, 0),
+                .012 * phase * math.sin(progress * math.pi * 2))
+        bpy.context.view_layer.update()
     elif key == "grip_fighting":
         stance(attacker, lerp(-1.12, -0.42, p), 0.09, 1, 0.22 * p, -0.12 * p, 0.06)
         stance(defender, lerp(1.12, 0.42, p), -0.02, -1, 0.20 * p, 0.12 * p, -0.06)
@@ -846,10 +1001,10 @@ def pose_pair(key: str, attacker: dict, defender: dict, progress: float) -> None
         set_arm(attacker, "L", 0.96, 0.18, 0.48, 0.76)
         set_arm(defender, "L", 1.18 - pulse, 0.20, 0.72, 1.05)
         set_arm(defender, "R", 0.96, -0.18, -0.48, 0.76)
-    elif key in {"single_leg", "double_leg"}:
+    elif key == "single_leg":
         if p < 0.64:
             q = smooth(p / 0.64)
-            stance(attacker, lerp(-1.18, -0.08, q), 0.10, 1, (0.78 if key == "single_leg" else 0.88) * q, -0.18 * q, 0.18)
+            stance(attacker, lerp(-1.18, -0.08, q), 0.10, 1, 0.78 * q, -0.18 * q, 0.18)
             stance(defender, lerp(1.10, 0.24, q), -0.04, -1, 0.18, 0.50 * q, -0.10)
             set_arm(attacker, "L", 1.52, 0.25, 0.35, 1.20)
             set_arm(attacker, "R", 1.48, -0.25, -0.35, 1.20)
@@ -945,64 +1100,6 @@ def pose_pair(key: str, attacker: dict, defender: dict, progress: float) -> None
         aim_leg_world(attacker, "L", head_knee, head_ankle)
         aim_leg_world(attacker, "R", chest_knee, chest_ankle)
         set_arm(defender, "L", lerp(0.78, 1.08, p), 0.12, 0.52, lerp(0.70, 0.94, p))
-    elif key == "triangle_choke":
-        # Keep the defender centered over the hips, then cross both calves
-        # around the live neck point so the triangle closes visibly on camera.
-        ground(attacker, lerp(-0.14, -0.05, p), lerp(0.18, 0.10, p), -1, lerp(-0.02, -0.08, p), 0.98)
-        kneel(defender, lerp(0.16, 0.02, p), lerp(-0.10, -0.25, p), -1, lerp(0.16, 0.40, p), 0.03)
-        defender["root"].rotation_euler.z = lerp(-0.16, 0.0, p)
-        defender["root"].location.z -= lerp(0.04, 0.28, p)
-        bpy.context.view_layer.update()
-
-        neck = bone_world_point(defender, "neck_01")
-        left_knee = neck + Vector((0.34, 0.10, lerp(0.24, 0.10, p)))
-        left_ankle = neck + Vector((-0.18, -0.10, 0.13))
-        right_knee = neck + Vector((-0.34, 0.12, lerp(0.22, 0.10, p)))
-        right_ankle = neck + Vector((0.18, -0.12, 0.18))
-        aim_leg_world(attacker, "L", left_knee, left_ankle)
-        aim_leg_world(attacker, "R", right_knee, right_ankle)
-
-        defender_head = bone_world_point(defender, "Head")
-        for side, lateral in (("L", 0.11), ("R", -0.11)):
-            shoulder = bone_world_point(attacker, f"upperarm_{side.lower()}")
-            hand = defender_head + Vector((-0.08, lateral, 0.02))
-            elbow = between(shoulder, hand, 0.52, (0.0, lateral * 1.5, 0.06))
-            aim_arm_world(attacker, side, elbow, hand)
-
-        attacker_chest = bone_world_point(attacker, "spine_03")
-        defender_right_shoulder = bone_world_point(defender, "upperarm_r")
-        inside_hand = attacker_chest + Vector((0.02, -0.02, 0.06))
-        aim_arm_world(defender, "R", between(defender_right_shoulder, inside_hand, 0.52, (0.0, -0.08, 0.06)), inside_hand)
-        set_arm(defender, "L", lerp(0.82, 1.16, p), 0.10, 0.48, lerp(0.70, 0.98, p))
-    elif key == "rear_naked_choke":
-        # Close the back-control gap, put the choking forearm across the live
-        # neck point, lock the support hand to the biceps, and make the defender
-        # fight that same forearm instead of reaching generically forward.
-        kneel(defender, lerp(0.14, 0.10, p), 0.02, 1, lerp(0.02, 0.10, p), 0.0)
-        kneel(attacker, lerp(-0.46, -0.18, p), 0.05, 1, lerp(0.02, 0.10, p), 0.0)
-        attacker["root"].rotation_euler.z -= 0.035 * p
-        defender["root"].rotation_euler.z -= 0.035 * p
-        bpy.context.view_layer.update()
-
-        neck = bone_world_point(defender, "neck_01")
-        choke_elbow = neck + Vector((-0.04, -0.25, -0.02))
-        choke_hand = neck + Vector((0.07, 0.19, -0.01))
-        aim_arm_world(attacker, "R", choke_elbow, choke_hand)
-        choking_forearm = bone_world_point(attacker, "lowerarm_r", "tail")
-
-        support_elbow = neck + Vector((-0.05, 0.27, -0.07))
-        support_hand = between(choking_forearm, neck, 0.45, (-0.07, -0.05, 0.10))
-        aim_arm_world(attacker, "L", support_elbow, support_hand)
-
-        for side, lateral in (("L", 0.065), ("R", -0.065)):
-            shoulder = bone_world_point(defender, f"upperarm_{side.lower()}")
-            hand = choking_forearm + Vector((0.01, lateral, -0.03))
-            elbow = between(shoulder, hand, 0.48, (0.03, lateral * 1.6, -0.04))
-            aim_arm_world(defender, side, elbow, hand)
-
-        defender_hip = bone_world_point(defender, "pelvis")
-        aim_leg_world(attacker, "L", defender_hip + Vector((-0.10, 0.28, -0.34)), defender_hip + Vector((0.22, 0.18, -0.58)))
-        aim_leg_world(attacker, "R", defender_hip + Vector((-0.10, -0.28, -0.34)), defender_hip + Vector((0.22, -0.18, -0.58)))
     elif key == "tap_out":
         tap = abs(math.sin(progress * math.pi * 8.0))
         kneel(attacker, lerp(-0.52, -0.30, p), 0.06, 1, lerp(0.0, 0.08, p), 0.0)
@@ -1040,7 +1137,7 @@ def name_actions(key: str, fighter: dict) -> None:
                       for bag in strip.channelbags for curve in bag.fcurves]
         for curve in curves:
             for point in curve.keyframe_points:
-                point.interpolation = "LINEAR" if key == "trap_roll_escape" else "BEZIER"
+                point.interpolation = "LINEAR" if key in CONTACT_SAMPLED_MOVES else "BEZIER"
 
 
 def build_move(key: str, duration: float) -> None:
@@ -1052,8 +1149,9 @@ def build_move(key: str, duration: float) -> None:
     scene["JQ_asset_version"] = "2"
     scene["JQ_motion_type"] = "rigged-paired-choreography"
     scene["JQ_anatomy_source"] = "Quaternius Universal Base Characters CC0"
-    if key == "trap_roll_escape":
+    if key in CONTACT_SAMPLED_MOVES:
         scene["JQ_review_status"] = "AUTHORED DRAFT - requires qualified BJJ coach review; not motion capture"
+    if key == "trap_roll_escape":
         scene["JQ_performer_role"] = "JQ_Attacker: starts bottom mount, ends top inside guard"
         scene["JQ_trapped_side"] = "Opponent left arm and left ankle; performer rolls over right shoulder"
 
@@ -1084,7 +1182,7 @@ def build_move(key: str, duration: float) -> None:
     defender["root"].parent = pair
 
     samples = ([frame / (scene.frame_end - 1) for frame in range(scene.frame_end)]
-               if key == "trap_roll_escape" else (0.0, 0.14, 0.30, 0.48, 0.66, 0.84, 1.0))
+               if key in CONTACT_SAMPLED_MOVES else (0.0, 0.14, 0.30, 0.48, 0.66, 0.84, 1.0))
     for progress in samples:
         frame = 1 + round(progress * (scene.frame_end - 1))
         scene.frame_set(frame)

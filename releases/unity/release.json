@@ -1,0 +1,134 @@
+{
+  "format": 1,
+  "player": "player.bundle.gz",
+  "bytes": 9701706,
+  "sha256": "86d45818fa35358db1a2baa62acab36664eb6eb9e816b8f7f1d114ac9abe6fe8",
+  "sourceFingerprint": "9da348b994b964c839e2fe5cd8411d1b05af875b7da13dd2e1487eac7d4c0a77",
+  "unityVersion": "6000.3.28f1",
+  "generatedUtc": "2026-11-05T20:13:19.0968107Z",
+  "compression": "gzip-with-decompression-fallback",
+  "files": [
+    {
+      "path": "Build/6093a4d3d55173d50d5cbe5eb80d2b79.loader.js",
+      "bytes": 47867,
+      "sha256": "03cf47247cf13aea647c3cad75c15691d91cc509ac7cde5f85545f363697ec42"
+    },
+    {
+      "path": "Build/a8996dfe008bf0e3e0c66e0acfc31611.data.unityweb",
+      "bytes": 2075718,
+      "sha256": "805915770dd1052fc9f20e8543118e440a8161d865d9d71df22a1489482506f5"
+    },
+    {
+      "path": "Build/fe1c5288433f8784b97a87b0e7013cfb.framework.js.unityweb",
+      "bytes": 83550,
+      "sha256": "8ddb1b443de8059c321071927bad95b7e07aabaa1c1f32eb735bee3cf935523b"
+    },
+    {
+      "path": "Build/7d439115efb31ef91dfaa57f4ef0e3cf.wasm.unityweb",
+      "bytes": 7659303,
+      "sha256": "26e265a01744f5968510ab20735df80a756598e765dd52316200bb09871679da"
+    },
+    {
+      "path": "build-manifest.json",
+      "bytes": 1012,
+      "sha256": "ef21a96c45444b91434a6babcda106ed949f6055d28e036abe19fa43d440d4f6"
+    },
+    {
+      "path": "build-privacy-check.json",
+      "bytes": 137,
+      "sha256": "37d2f9e74075cb63dfe40c2fcaa7d772659de2b87cb7c827bf29874ec30ac150"
+    },
+    {
+      "path": "build-source.json",
+      "bytes": 12537,
+      "sha256": "02a44e178d2691fa778eb3ed9db0b6f114ee15aaaccbb8f2d1284dbb50914182"
+    }
+  ],
+  "clips": [
+    {
+      "path": "standing_stance.glb",
+      "bytes": 2144512,
+      "sha256": "d7987b8c6ac2b6f46ed09f81a3bae8081e3947d58de18ef5f4c4928a1eca3bdf"
+    },
+    {
+      "path": "grip_fighting.glb",
+      "bytes": 2172224,
+      "sha256": "51ce3b675b749828c805fff7394f94c48c0aea46056241af5d75c084e1a2f003"
+    },
+    {
+      "path": "single_leg.glb",
+      "bytes": 2177828,
+      "sha256": "f36f7f7ecd1c0ac9a835cdb16cb2d192608d68ca923b309b3dc11e37dbf5fcbf"
+    },
+    {
+      "path": "double_leg.glb",
+      "bytes": 2202724,
+      "sha256": "015cc17c6a7e207a5d702b1f5a3a200964262f88882f6e04fd91bcf84ab9f37a"
+    },
+    {
+      "path": "guard_pull.glb",
+      "bytes": 2156272,
+      "sha256": "d134963c93a15c2d25008fab79c28191d0ba9604cf273871b7e2c0f1166a937f"
+    },
+    {
+      "path": "closed_guard.glb",
+      "bytes": 2171232,
+      "sha256": "ca0bf6359bd0a90d950aa5d6f482185772540a09d804a50295dd46906a99c521"
+    },
+    {
+      "path": "guard_pass.glb",
+      "bytes": 2167328,
+      "sha256": "cf2c80e7d7ffcca433e7041a3612ff8534a63b6077fc74902ef8b6eee714fa98"
+    },
+    {
+      "path": "side_control.glb",
+      "bytes": 2161492,
+      "sha256": "1b78d6c448fe0b6bf651d3acdd4221c46da559e5dee13ad57608c6fb377d7b23"
+    },
+    {
+      "path": "mount.glb",
+      "bytes": 2172028,
+      "sha256": "4041568651b10cf30e86d773f1771c5e1d83e304a98264585d4231bed4259769"
+    },
+    {
+      "path": "back_control.glb",
+      "bytes": 1951176,
+      "sha256": "a9242a91af2d81228aef40f724e1a1b53b04f053efdd2684ce0afb0aebd2f288"
+    },
+    {
+      "path": "armbar.glb",
+      "bytes": 2171296,
+      "sha256": "147c641e3610f9bd6634c048d67471bab442a34247218a19ed12e17562f50ea7"
+    },
+    {
+      "path": "triangle_choke.glb",
+      "bytes": 2200220,
+      "sha256": "46b77bcdfa6d38d432611cb6b866482e1d133f583285ed858401eb0822eb73f7"
+    },
+    {
+      "path": "rear_naked_choke.glb",
+      "bytes": 2169144,
+      "sha256": "6f8dafd83fa1fd49ac7d6f9800a9d75654e9a00cad1bcff1fdfc1d4976678626"
+    },
+    {
+      "path": "tap_out.glb",
+      "bytes": 2160488,
+      "sha256": "17661794deae693240e22755df5cd3b79d4089beccf2b48e41249f2f6c685b16"
+    },
+    {
+      "path": "reset_neutral.glb",
+      "bytes": 2166860,
+      "sha256": "915bb5f3003708bf13acaa17e040c00141a724c3aaf0438a7d59ba067fad5632"
+    },
+    {
+      "path": "trap_roll_escape.glb",
+      "bytes": 2214244,
+      "sha256": "48cc0160aa1c43afc925d01f4da05dbc0dfc64e59d383eefbbc6405deb233a05"
+    },
+    {
+      "path": "manifest.json",
+      "bytes": 4416,
+      "sha256": "be2723405b293029ff9f468c71705a952cf9f041c3f22cdd1ecd6c2067444ffa"
+    }
+  ]
+}

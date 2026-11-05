@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { allMoves } from '../src/data/curriculum.js';
-import { createUnityBridge, isUnityEnabled, resolveArenaUnityPlayback, resolveUnityMove, toUnityAthlete, UNITY_PREVIEWS } from '../src/unity/bridge.js';
+import { createUnityBridge, isUnityEnabled, resolveArenaUnityPlayback, resolveUnityMove, snapshotFallbackUrl, toUnityAthlete, UNITY_PREVIEWS } from '../src/unity/bridge.js';
 import { createUnityPlayer, validateManifest } from '../src/unity/loader.js';
 import { createUnityLoadState, describeUnityError } from '../src/unity/loadState.js';
 
@@ -20,6 +20,26 @@ test('Unity stays opt-in and preview query is exact', () => {
   assert.equal(isUnityEnabled('?engine=three'), false);
   assert.equal(isUnityEnabled('?engine=unity'), true);
   assert.equal(isUnityEnabled('?preview=unity'), true);
+});
+
+test('release build flag enables Unity with an explicit snapshot rollback and preview override', () => {
+  assert.equal(isUnityEnabled('', 'unity'), true);
+  assert.equal(isUnityEnabled('', 'snapshot'), false);
+  assert.equal(isUnityEnabled('?engine=snapshot', 'unity'), false);
+  assert.equal(isUnityEnabled('?engine=unity', 'snapshot'), true);
+  assert.equal(isUnityEnabled('?preview=unity', 'snapshot'), true);
+  assert.equal(isUnityEnabled('?engine=snapshot&preview=unity', 'unity'), false);
+  assert.equal(isUnityEnabled('?engine=UNItY', 'snapshot'), false);
+});
+
+test('snapshot rollback preserves current preview, other query settings and hash while replacing only engine', () => {
+  const fallback = snapshotFallbackUrl('https://jiuquest.com/play?preview=unity&engine=unity&view=training#lesson');
+  const parsed = new URL(fallback, 'https://jiuquest.com');
+  assert.equal(parsed.pathname, '/play');
+  assert.equal(parsed.searchParams.get('engine'), 'snapshot');
+  assert.equal(parsed.searchParams.get('preview'), 'unity');
+  assert.equal(parsed.searchParams.get('view'), 'training');
+  assert.equal(parsed.hash, '#lesson');
 });
 
 test('curriculum mappings are explicit and never substitute armbar for kimura or generic passes', () => {
@@ -99,6 +119,20 @@ test('speed and camera selections persist across later pause and seek commands',
   bridge.command('pause');
   assert.equal(sent.at(-1).speed, 0.5);
   assert.equal(sent.at(-1).camera, 'overhead');
+});
+
+test('viewport resize preserves scene intent during startup and does not reload an active move', () => {
+  const { bridge, attach, ready, sent } = setup();
+  bridge.setScene({ moveId: 'double_leg', compactViewport: false }); attach();
+  bridge.command('setViewport', { compactViewport: true }); ready();
+  assert.equal(sent.at(-1).type, 'play');
+  assert.equal(sent.at(-1).compactViewport, true);
+  const scenePlays = sent.filter((item) => item.type === 'play').length;
+  bridge.command('setViewport', { compactViewport: false });
+  assert.equal(sent.at(-1).type, 'setViewport');
+  assert.equal(sent.filter((item) => item.type === 'play').length, scenePlays);
+  bridge.command('pause');
+  assert.equal(sent.at(-1).compactViewport, false);
 });
 
 test('appearance maps only approved cosmetic fields, including earned belt, stripes and selected hair', () => {

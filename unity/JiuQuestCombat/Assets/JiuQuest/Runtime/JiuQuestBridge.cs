@@ -62,6 +62,7 @@ namespace JiuQuest.Combat
                 if (command.opponent != null) opponent = command.opponent;
                 if (!string.IsNullOrEmpty(command.performerSide)) performerSide = command.performerSide;
                 if (!string.IsNullOrEmpty(command.camera) && (command.type == "configure" || command.type == "play" || command.type == "setCamera")) stage.SetCamera(command.camera);
+                if (command.type == "configure" || command.type == "play" || command.type == "setViewport") stage.SetViewport(command.compactViewport);
                 switch (command.type)
                 {
                     case "configure":
@@ -81,6 +82,7 @@ namespace JiuQuest.Combat
                     case "seek": desiredProgress = command.progress; desiredPlaying = false; clock.Playing = false; clock.Seek(command.progress); Sample(); Emit("state"); break;
                     case "setSpeed": clock.Speed = command.speed; Emit("state"); break;
                     case "setCamera": Emit("state"); break;
+                    case "setViewport": Emit("state"); break;
                     case "reset": desiredProgress = 0; desiredPlaying = false; clock.Seek(0); clock.Playing = false; Sample(); Emit("state"); break;
                     case "requestState": Emit("state"); break;
                 }
@@ -123,6 +125,8 @@ namespace JiuQuest.Combat
                 imported = new GltfImport(materialGenerator: new CombatMaterialGenerator(stage.FighterShader), logger: log);
                 var path = Path.Combine(Application.streamingAssetsPath, "Bjj", requestedMove + ".glb").Replace('\\', '/');
                 if (!path.Contains("://")) path = new Uri(path).AbsoluteUri;
+                if (path.StartsWith("http://", StringComparison.Ordinal) || path.StartsWith("https://", StringComparison.Ordinal))
+                    path += "?build=" + Uri.EscapeDataString(string.IsNullOrEmpty(Application.buildGUID) ? Application.version : Application.buildGUID);
                 bool success = await imported.Load(path, new ImportSettings { AnimationMethod = AnimationMethod.Legacy, NodeNameMethod = NameImportMethod.OriginalUnique }, token);
                 token.ThrowIfCancellationRequested();
                 if (!success) throw new InvalidOperationException("The paired GLB could not be loaded: " + requestedMove);
@@ -160,7 +164,7 @@ namespace JiuQuest.Combat
                 clock.Load(legacyAnimation.clip.length, CombatProtocol.IsLooping(moveId), desiredProgress, desiredPlaying);
                 ApplyAppearances();
                 Sample();
-                stage.Frame(pair);
+                stage.Frame(MeasureChoreography());
                 loading = false;
                 status = "Authored animation · draft technique review";
                 if (ready) Emit("ready", "Unity URP paired animation ready.", setupRequest);
@@ -267,6 +271,7 @@ namespace JiuQuest.Combat
         void Update()
         {
             if (!configured || loading || pair == null) return;
+            if (!clock.Playing) return;
             bool completed = clock.Tick(Time.unscaledDeltaTime);
             Sample();
             if (completed) Emit("completed");
@@ -280,6 +285,44 @@ namespace JiuQuest.Combat
             animationState.weight = 1;
             animationState.time = clock.Time;
             legacyAnimation.Sample();
+        }
+
+        Bounds MeasureChoreography()
+        {
+            // Imported skinned bounds can include every hair variant or a loose bind pose.
+            // Bake actual visible geometry across the shared clip once; playback never rebakes.
+            var renderers = pair.GetComponentsInChildren<Renderer>().Where(renderer => renderer.enabled).ToArray();
+            var baked = new Mesh { name = "Temporary choreography bounds" };
+            Bounds envelope = default;
+            bool measured = false;
+            try
+            {
+                const int intervals = 32;
+                for (int sample = 0; sample <= intervals; sample++)
+                {
+                    animationState.time = legacyAnimation.clip.length * sample / intervals;
+                    legacyAnimation.Sample();
+                    foreach (var renderer in renderers)
+                    {
+                        Bounds world;
+                        if (renderer is SkinnedMeshRenderer skinned)
+                        {
+                            baked.Clear();
+                            skinned.BakeMesh(baked);
+                            baked.RecalculateBounds();
+                            world = CombatFraming.TransformBounds(baked.bounds, skinned.localToWorldMatrix);
+                        }
+                        else world = renderer.bounds;
+                        if (!measured) { envelope = world; measured = true; }
+                        else envelope.Encapsulate(world);
+                    }
+                }
+            }
+            finally { Destroy(baked); Sample(); }
+            if (!measured) throw new InvalidOperationException("The paired animation has no visible geometry to frame.");
+            // A small fixed allowance covers interpolation between sampled poses and cosmetics.
+            envelope.Expand(.16f);
+            return envelope;
         }
 
         void Emit(string type, string message = "", string eventRequest = null, string eventInstance = null, string eventMove = null)

@@ -3,15 +3,15 @@ name: Deploy JiuQuest to GitHub Pages
 on:
   push:
     branches: ["main"]
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: "pages"
+  group: "pages-${{ github.ref }}"
   cancel-in-progress: false
 
 jobs:
@@ -35,24 +35,56 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm build
+      - name: Restore the verified Unity player
+        run: pnpm release:restore
 
-      - name: Verify arena and persistence rules
-        run: node --test tests/*.test.js
+      - name: Verify combat, persistence and release safety
+        run: pnpm test
+
+      - name: Build release candidate
+        run: pnpm release:build
+
+      - name: Install isolated browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Verify real Unity player and mobile layouts
+        run: pnpm test:browser
 
       - name: Record exact release
-        run: node -e "require('node:fs').writeFileSync('dist/release.json', JSON.stringify({commit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,repository:process.env.GITHUB_REPOSITORY}))"
+        run: node -e "const fs=require('node:fs');const u=JSON.parse(fs.readFileSync('releases/unity/release.json'));fs.writeFileSync('dist/release.json',JSON.stringify({commit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,repository:process.env.GITHUB_REPOSITORY,combatEngine:'unity',unityArchiveSha256:u.sha256,unitySourceFingerprint:u.sourceFingerprint}))"
+
+      - name: Save reviewable website artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jiuquest-release-candidate-${{ github.sha }}
+          path: dist
+          retention-days: 14
+
+      - name: Save browser verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jiuquest-browser-verification-${{ github.sha }}
+          path: tmp/browser
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Setup Pages
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
         with:
           path: ./dist
 
   deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

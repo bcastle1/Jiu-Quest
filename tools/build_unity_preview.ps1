@@ -35,9 +35,10 @@ if ($TestOnly) {
 } else {
     if (-not $OutputPath) { $OutputPath = Join-Path $repoRoot 'public\unity' }
     $OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
+    $nodeExecutable = (Get-Command node -CommandType Application -ErrorAction Stop).Source
     # Select WebGL at startup so Unity references its platform-only assemblies.
     # Passing only BuildPlayerOptions.target after a standalone import is insufficient.
-    $arguments += @('-buildTarget', 'WebGL', '-quit', '-executeMethod', 'JiuQuest.Combat.Editor.CombatPreviewBuild.BuildWebGL', '-jiuquestOutput', $OutputPath)
+    $arguments += @('-buildTarget', 'WebGL', '-quit', '-executeMethod', 'JiuQuest.Combat.Editor.CombatPreviewBuild.BuildWebGL', '-jiuquestOutput', $OutputPath, '-jiuquestNode', $nodeExecutable)
 }
 
 # ArgumentList passes each path literally, including paths containing spaces.
@@ -68,5 +69,10 @@ if ($TestOnly) {
     foreach ($key in @('loaderUrl', 'dataUrl', 'frameworkUrl', 'codeUrl')) {
         if (-not $manifest.$key) { throw "Build manifest is missing $key." }
     }
+    foreach ($key in @('dataUrl', 'frameworkUrl', 'codeUrl')) {
+        if ($manifest.$key -notlike '*.unityweb') { throw "Build is missing static-host decompression fallback: $key." }
+    }
+    & $nodeExecutable (Join-Path $repoRoot 'tools\unity_release.mjs') verify-snapshot --output (Join-Path $OutputPath 'build-source.json')
+    if ($LASTEXITCODE -ne 0) { throw 'The Unity build source fingerprint does not match this checkout.' }
     Write-Output "Unity Web build complete: $manifestPath"
 }

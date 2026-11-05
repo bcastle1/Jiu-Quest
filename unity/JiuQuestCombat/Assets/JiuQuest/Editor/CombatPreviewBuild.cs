@@ -39,8 +39,8 @@ namespace JiuQuest.Combat.Editor
             pipeline.msaaSampleCount = 2;
             pipeline.renderScale = 1;
             pipeline.supportsHDR = false;
-            pipeline.mainLightShadowmapResolution = 2048;
-            pipeline.shadowDistance = 15;
+            pipeline.mainLightShadowmapResolution = 1024;
+            pipeline.shadowDistance = 12;
             pipeline.shadowCascadeCount = 1;
             var pipelineSettings = new SerializedObject(pipeline);
             pipelineSettings.FindProperty("m_MainLightShadowsSupported").boolValue = true;
@@ -66,13 +66,15 @@ namespace JiuQuest.Combat.Editor
             PlayerSettings.runInBackground = false;
             PlayerSettings.defaultWebScreenWidth = 960;
             PlayerSettings.defaultWebScreenHeight = 600;
-            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
-            PlayerSettings.WebGL.decompressionFallback = false;
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
+            PlayerSettings.WebGL.decompressionFallback = true;
+            PlayerSettings.WebGL.nameFilesAsHashes = true;
             PlayerSettings.WebGL.dataCaching = true;
             PlayerSettings.WebGL.template = "APPLICATION:Minimal";
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.WebGL, ScriptingImplementation.IL2CPP);
             PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.WebGL, ManagedStrippingLevel.Low);
             AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
 
         [MenuItem("JiuQuest/Build WebGL preview")]
@@ -83,25 +85,82 @@ namespace JiuQuest.Combat.Editor
             Prepare();
             var output = GetArgument("-jiuquestOutput") ?? Path.Combine(RepositoryRoot, "public", "unity");
             output = Path.GetFullPath(output);
-            Directory.CreateDirectory(output);
-            // A failed rebuild must not leave an older success manifest beside newer player files.
-            foreach (var generated in new[] { "build-manifest.json", "build-privacy-check.json", "build-sha256.txt" })
-            {
-                var path = Path.Combine(output, generated);
-                if (File.Exists(path)) File.Delete(path);
-            }
+            if (!output.StartsWith(RepositoryRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                throw new BuildFailedException("Build output must be a dedicated directory inside this checkout.");
+            var staging = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Temp", "WebBuild-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(staging);
+            var snapshot = Path.Combine(staging, "build-source.json");
+            RunSourceCheck("snapshot", snapshot);
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions {
-                scenes = new[] { ScenePath }, locationPathName = output,
+                scenes = new[] { ScenePath }, locationPathName = staging,
                 target = BuildTarget.WebGL, options = BuildOptions.DetailedBuildReport
             });
             if (report.summary.result != BuildResult.Succeeded)
                 throw new BuildFailedException("JiuQuest WebGL build failed: " + report.summary.result);
-            CombatBuildPrivacy.VerifyPackedAssets(report, output);
-            WriteManifest(output);
+            CombatBuildPrivacy.VerifyPackedAssets(report, staging);
+            RunSourceCheck("verify-snapshot", snapshot);
+            WriteManifest(staging);
+            Publish(staging, output);
             Debug.Log("JiuQuest WebGL build succeeded: " + output);
         }
 
         public static string RepositoryRoot => Directory.GetParent(Application.dataPath).Parent.Parent.FullName;
+
+        static void RunSourceCheck(string command, string snapshot)
+        {
+            var node = GetArgument("-jiuquestNode") ?? "node";
+            var script = Path.Combine(RepositoryRoot, "tools", "unity_release.mjs");
+            var info = new System.Diagnostics.ProcessStartInfo {
+                FileName = node, Arguments = "\"" + script + "\" " + command + " --output \"" + snapshot + "\"",
+                WorkingDirectory = RepositoryRoot, UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardOutput = true, RedirectStandardError = true
+            };
+            using var process = System.Diagnostics.Process.Start(info);
+            if (process == null) throw new BuildFailedException("Could not start the Unity source provenance check.");
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(120000)) { process.Kill(); throw new BuildFailedException("Unity source provenance check timed out."); }
+            if (process.ExitCode != 0) throw new BuildFailedException("Unity source provenance check failed: " + stderr.GetAwaiter().GetResult());
+            Debug.Log(stdout.GetAwaiter().GetResult());
+        }
+
+        static void Publish(string staging, string output)
+        {
+            // Keep the previous complete build until the new source and packed-asset checks pass.
+            // Move only known generated paths; unrelated files in the output folder are preserved.
+            Directory.CreateDirectory(output);
+            var backup = Path.Combine(Directory.GetParent(staging).FullName, "PreviousWebBuild-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(backup);
+            var names = new[] { "Build", "StreamingAssets", "TemplateData", "index.html", "build-manifest.json", "build-privacy-check.json", "build-source.json", "build-sha256.txt" };
+            var published = new System.Collections.Generic.List<string>();
+            try
+            {
+                foreach (var name in names)
+                {
+                    var source = Path.Combine(staging, name);
+                    var target = Path.Combine(output, name);
+                    MoveIfPresent(target, Path.Combine(backup, name));
+                    published.Add(name);
+                    MoveIfPresent(source, target);
+                }
+            }
+            catch
+            {
+                // Restore the last complete local output if a file is locked during publication.
+                foreach (var name in published.AsEnumerable().Reverse())
+                {
+                    MoveIfPresent(Path.Combine(output, name), Path.Combine(staging, name));
+                    MoveIfPresent(Path.Combine(backup, name), Path.Combine(output, name));
+                }
+                throw;
+            }
+        }
+
+        static void MoveIfPresent(string source, string destination)
+        {
+            if (Directory.Exists(source)) Directory.Move(source, destination);
+            else if (File.Exists(source)) File.Move(source, destination);
+        }
 
         static string GetArgument(string argument)
         {
@@ -168,7 +227,7 @@ namespace JiuQuest.Combat.Editor
                 return "/unity/Build/" + Path.GetFileName(files[0]);
             }
             var manifest = new BuildManifest {
-                loaderUrl = Asset(".loader.js"), dataUrl = Asset(".data"), frameworkUrl = Asset(".framework.js"), codeUrl = Asset(".wasm"),
+                loaderUrl = Asset(".loader.js"), dataUrl = Asset(".data.unityweb"), frameworkUrl = Asset(".framework.js.unityweb"), codeUrl = Asset(".wasm.unityweb"),
                 streamingAssetsUrl = "/unity/StreamingAssets", unityVersion = Application.unityVersion,
                 generatedUtc = DateTime.UtcNow.ToString("O"), supportedMoves = CombatProtocol.MoveIds
             };
