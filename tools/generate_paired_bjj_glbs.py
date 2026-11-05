@@ -14,7 +14,7 @@ import subprocess
 
 import bmesh
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Quaternion, Vector
 
 
 FPS = 30
@@ -38,6 +38,7 @@ MOVE_DURATIONS = {
     "guard_pass": 2.6,
     "side_control": 2.2,
     "mount": 2.2,
+    "trap_roll_escape": 5.0,
     "back_control": 2.3,
     "armbar": 2.6,
     "triangle_choke": 2.7,
@@ -647,13 +648,195 @@ def ground(fighter: dict, x: float, y: float, face: int, roll: float = 0.0, scal
     set_leg(fighter, "R", 0.78, 0.0, -0.64 * face, 0.98)
 
 
+def place_hips(fighter: dict, position, rotation: Quaternion) -> None:
+    """Place the pelvis independently of the imported rig's floor origin."""
+    root = fighter["root"]
+    root.rotation_mode = "QUATERNION"
+    root.rotation_quaternion = rotation
+    root.scale = (1.0, 1.0, 1.0)
+    pelvis = fighter["armature"].data.bones["pelvis"].head_local
+    root.location = Vector(position) - rotation @ pelvis
+    bpy.context.view_layer.update()
+
+
+def point_bone(fighter: dict, name: str, target) -> None:
+    """Swing a bone toward a contact without replacing its anatomical roll."""
+    bone = fighter["armature"].pose.bones[name]
+    target = fighter["armature"].matrix_world.inverted() @ Vector(target)
+    direction = target - bone.head
+    if direction.length < 1e-6:
+        return
+    change = (bone.tail - bone.head).rotation_difference(direction)
+    posed = change.to_matrix().to_4x4() @ bone.matrix
+    posed.translation = bone.head
+    bone.matrix = posed
+    bpy.context.view_layer.update()
+
+
+def solve_limb(fighter: dict, first: str, second: str, target, pole) -> None:
+    """Analytical two-bone IK: exact reachable contact, unchanged bone lengths."""
+    start = bone_world_point(fighter, first)
+    target = Vector(target)
+    direction = target - start
+    bones = fighter["armature"].pose.bones
+    a, b = bones[first].length, bones[second].length
+    distance = clamp(direction.length, abs(a - b) + 0.002, a + b - 0.002)
+    direction.normalize()
+    bend = Vector(pole) - start
+    bend -= direction * bend.dot(direction)
+    if bend.length < 1e-5:
+        bend = direction.cross(Vector((0.0, 0.0, 1.0)))
+    bend.normalize()
+    along = (a * a - b * b + distance * distance) / (2.0 * distance)
+    height = math.sqrt(max(0.0, a * a - along * along))
+    joint = start + direction * along + bend * height
+    point_bone(fighter, first, joint)
+    point_bone(fighter, second, start + direction * distance)
+
+
+def contact_arm(fighter: dict, side: str, wrist, elbow, fingers) -> None:
+    solve_limb(fighter, f"upperarm_{side}", f"lowerarm_{side}", wrist, elbow)
+    point_bone(fighter, f"hand_{side}", fingers)
+
+
+def contact_leg(fighter: dict, side: str, ankle, knee, toes) -> None:
+    solve_limb(fighter, f"thigh_{side}", f"calf_{side}", ankle, knee)
+    point_bone(fighter, f"foot_{side}", toes)
+
+
+def mounted_trap_pose(performer: dict, opponent: dict, trap: float, bridge: float) -> None:
+    # The performer is the BOTTOM player. Their right side is world -X.
+    # The mounted opponent faces them: opponent LEFT arm + LEFT ankle are
+    # therefore the same physical side that the performer traps and rolls over.
+    place_hips(performer, (0.0, 0.0, 0.20 + 0.23 * bridge),
+               Quaternion((1, 0, 0), -math.pi / 2 - 0.36 * bridge))
+    place_hips(opponent, (0.0, 0.03, 0.50 + 0.13 * bridge),
+               Quaternion((0, 0, 1), math.pi) @ Quaternion((1, 0, 0), 0.78 + 0.75 * bridge))
+
+    for side, x in (("l", -0.32), ("r", 0.32)):
+        contact_leg(opponent, side, (x, -0.42, 0.085),
+                    (x * 1.5, 0.24, 0.12), (x, -0.56, 0.045))
+    contact_leg(performer, "l", (0.23, -0.48, 0.085),
+                (0.25, -0.14, 0.64), (0.23, -0.31, 0.035))
+    # The right heel slides OUTSIDE the opponent's left ankle; the toes wrap
+    # inward. This is an authored foot trap, not a reversed mount animation.
+    hook = Vector((lerp(-0.23, -0.455, trap), -0.44, 0.085))
+    contact_leg(performer, "r", hook, (-0.28, -0.10, 0.64),
+                hook + Vector((0.15 * trap, 0.16 * (1 - trap), -0.035)))
+
+    chest = bone_world_point(performer, "spine_02")
+    captured_wrist = chest + Vector((-0.11, 0.10, 0.10))
+    initial_wrist = Vector((-0.37, 0.36, 0.15))
+    captured_wrist = initial_wrist.lerp(captured_wrist, trap)
+    contact_arm(opponent, "l", captured_wrist, (-0.35, 0.20, 0.58),
+                captured_wrist + Vector((0.06, 0.035, -0.025)))
+    # The free right hand can try to post on its own side; the trapped left
+    # side has no usable post throughout the bridge and roll.
+    contact_arm(opponent, "r", (0.36, 0.43, lerp(0.15, 0.31, bridge)),
+                (0.43, 0.22, 0.56), (0.34, 0.56, lerp(0.09, 0.26, bridge)))
+    wrist = bone_world_point(opponent, "hand_l")
+    forearm = bone_world_point(opponent, "lowerarm_l").lerp(wrist, 0.76)
+    right_hand = (chest + Vector((-0.18, 0.12, 0.14))).lerp(
+        wrist + Vector((-0.035, 0.0, 0.02)), trap)
+    left_hand = (chest + Vector((0.18, 0.12, 0.14))).lerp(
+        forearm + Vector((0.025, -0.025, 0.025)), trap)
+    contact_arm(performer, "r", right_hand, (-0.35, 0.22, 0.23 + 0.17 * bridge),
+                wrist + Vector((0.035, 0.0, 0.015)))
+    contact_arm(performer, "l", left_hand, (0.20, 0.15, 0.26 + 0.13 * bridge),
+                forearm + Vector((-0.04, -0.025, 0.0)))
+
+
+def top_guard_pose(performer: dict, opponent: dict) -> None:
+    """Landing: original bottom player is on top INSIDE opponent's guard."""
+    x = -0.48
+    place_hips(opponent, (x, 0.0, 0.20), Quaternion((1, 0, 0), -math.pi / 2))
+    place_hips(performer, (x, 0.015, 0.51),
+               Quaternion((0, 0, 1), math.pi) @ Quaternion((1, 0, 0), 0.92))
+    for side, offset in (("l", -0.25), ("r", 0.25)):
+        contact_leg(performer, side, (x + offset, -0.45, 0.085),
+                    (x + offset * 1.25, 0.14, 0.12), (x + offset, -0.59, 0.04))
+    # Opponent draws both knees outside the new top player's hips and brings
+    # the ankles behind the waist. The performer has not passed the guard.
+    for side, sign in (("l", 1), ("r", -1)):
+        contact_leg(opponent, side, (x - sign * 0.065, -0.12, 0.70 + 0.025 * sign),
+                    (x + sign * 0.46, -0.18, 0.46), (x - sign * 0.14, -0.05, 0.65))
+    for side, sign in (("l", -1), ("r", 1)):
+        hand = Vector((x + sign * 0.18, 0.36, 0.37))
+        contact_arm(performer, side, hand, (x + sign * 0.36, 0.16, 0.57),
+                    hand + Vector((0.0, 0.10, -0.035)))
+    for side, sign in (("l", 1), ("r", -1)):
+        hand = Vector((x + sign * 0.18, 0.34, 0.58))
+        contact_arm(opponent, side, hand, (x + sign * 0.32, 0.24, 0.26),
+                    hand + Vector((0.0, -0.08, 0.035)))
+
+
+def keep_pair_above_mat(fighters: tuple[dict, dict]) -> None:
+    # A conservative contact envelope for this draft, not a physics solver.
+    radii = {"pelvis": 0.14, "spine_02": 0.115, "spine_03": 0.105,
+             "Head": 0.12, "lowerarm_l": 0.045, "lowerarm_r": 0.045,
+             "calf_l": 0.065, "calf_r": 0.065, "foot_l": 0.04,
+             "foot_r": 0.04, "ball_l": 0.02, "ball_r": 0.02}
+    lowest = min(bone_world_point(f, n).z - radius
+                 for f in fighters for n, radius in radii.items())
+    for fighter in fighters:
+        fighter["root"].location.z += 0.015 - lowest
+    bpy.context.view_layer.update()
+
+
+def capture_pose(fighter: dict) -> tuple:
+    root = fighter["root"]
+    return (root.location.copy(), root.rotation_quaternion.copy(),
+            {b.name: b.matrix_basis.copy() for b in fighter["pose_bones"]})
+
+
+def blend_pose(fighter: dict, start: tuple, end: tuple, amount: float) -> None:
+    root = fighter["root"]
+    root.location = start[0].lerp(end[0], amount)
+    root.rotation_quaternion = start[1].slerp(end[1], amount)
+    for bone in fighter["pose_bones"]:
+        a_loc, a_rot, a_scale = start[2][bone.name].decompose()
+        b_loc, b_rot, b_scale = end[2][bone.name].decompose()
+        bone.matrix_basis = Matrix.LocRotScale(a_loc.lerp(b_loc, amount),
+            a_rot.slerp(b_rot, amount), a_scale.lerp(b_scale, amount))
+
+
+def pose_trap_roll_escape(performer: dict, opponent: dict, progress: float) -> None:
+    trap = smooth((progress - 0.08) / 0.22)
+    bridge = smooth((progress - 0.30) / 0.20)
+    roll = smooth((progress - 0.50) / 0.30)
+    settle = smooth((progress - 0.80) / 0.20)
+    mounted_trap_pose(performer, opponent, trap, bridge)
+    if roll:
+        pivot = Vector((-0.24, 0.0, 0.45))
+        rotation = Quaternion((0, 1, 0), -math.pi * roll)
+        for fighter in (performer, opponent):
+            root = fighter["root"]
+            root.location = pivot + rotation @ (root.location - pivot)
+            root.rotation_quaternion = rotation @ root.rotation_quaternion
+        bpy.context.view_layer.update()
+    keep_pair_above_mat((performer, opponent))
+    if settle:
+        start = [capture_pose(f) for f in (performer, opponent)]
+        for fighter in (performer, opponent):
+            reset_fighter(fighter)
+        top_guard_pose(performer, opponent)
+        keep_pair_above_mat((performer, opponent))
+        end = [capture_pose(f) for f in (performer, opponent)]
+        for fighter, a, b in zip((performer, opponent), start, end):
+            blend_pose(fighter, a, b, settle)
+        bpy.context.view_layer.update()
+        keep_pair_above_mat((performer, opponent))
+
+
 def pose_pair(key: str, attacker: dict, defender: dict, progress: float) -> None:
     reset_fighter(attacker)
     reset_fighter(defender)
     p = smooth(progress)
     pulse = math.sin(progress * math.pi * 4.0) * 0.05
 
-    if key == "standing_stance":
+    if key == "trap_roll_escape":
+        pose_trap_roll_escape(attacker, defender, progress)
+    elif key == "standing_stance":
         stance(attacker, -0.90, 0.08, 1, 0.12 + abs(pulse), -0.03, 0.04)
         stance(defender, 0.90, -0.02, -1, 0.10 + abs(pulse), 0.03, -0.04)
     elif key == "grip_fighting":
@@ -836,7 +1019,7 @@ def pose_pair(key: str, attacker: dict, defender: dict, progress: float) -> None
 def keyframe_fighter(fighter: dict, frame: int) -> None:
     root = fighter["root"]
     root.keyframe_insert(data_path="location", frame=frame)
-    root.keyframe_insert(data_path="rotation_euler", frame=frame)
+    root.keyframe_insert(data_path="rotation_quaternion" if root.rotation_mode == "QUATERNION" else "rotation_euler", frame=frame)
     root.keyframe_insert(data_path="scale", frame=frame)
     for bone in fighter["pose_bones"]:
         bone.keyframe_insert(data_path="location", frame=frame)
@@ -850,9 +1033,14 @@ def name_actions(key: str, fighter: dict) -> None:
         if not action:
             continue
         action.name = f"JQ_{key}_{control.name}"
-        for curve in action.fcurves:
+        # Blender 4.4+ layered actions keep curves in slot channel bags.
+        curves = getattr(action, "fcurves", None)
+        if curves is None:
+            curves = [curve for layer in action.layers for strip in layer.strips
+                      for bag in strip.channelbags for curve in bag.fcurves]
+        for curve in curves:
             for point in curve.keyframe_points:
-                point.interpolation = "BEZIER"
+                point.interpolation = "LINEAR" if key == "trap_roll_escape" else "BEZIER"
 
 
 def build_move(key: str, duration: float) -> None:
@@ -864,6 +1052,10 @@ def build_move(key: str, duration: float) -> None:
     scene["JQ_asset_version"] = "2"
     scene["JQ_motion_type"] = "rigged-paired-choreography"
     scene["JQ_anatomy_source"] = "Quaternius Universal Base Characters CC0"
+    if key == "trap_roll_escape":
+        scene["JQ_review_status"] = "AUTHORED DRAFT - requires qualified BJJ coach review; not motion capture"
+        scene["JQ_performer_role"] = "JQ_Attacker: starts bottom mount, ends top inside guard"
+        scene["JQ_trapped_side"] = "Opponent left arm and left ankle; performer rolls over right shoulder"
 
     pair = add_empty("JQ_Pair")
     attacker = make_fighter(
@@ -891,7 +1083,8 @@ def build_move(key: str, duration: float) -> None:
     attacker["root"].parent = pair
     defender["root"].parent = pair
 
-    samples = (0.0, 0.14, 0.30, 0.48, 0.66, 0.84, 1.0)
+    samples = ([frame / (scene.frame_end - 1) for frame in range(scene.frame_end)]
+               if key == "trap_roll_escape" else (0.0, 0.14, 0.30, 0.48, 0.66, 0.84, 1.0))
     for progress in samples:
         frame = 1 + round(progress * (scene.frame_end - 1))
         scene.frame_set(frame)
@@ -936,6 +1129,8 @@ def main() -> None:
         raise FileNotFoundError(f"Missing CC0 anatomy source: {BASE_MODEL}")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     requested = os.environ.get("JQ_MOVE", "").strip()
+    if requested and requested not in MOVE_DURATIONS:
+        raise ValueError(f"Unknown JQ_MOVE {requested!r}; refusing to regenerate unrelated clips")
     if requested in MOVE_DURATIONS:
         build_move(requested, MOVE_DURATIONS[requested])
         print(f"Generated {requested}.glb")
@@ -948,7 +1143,7 @@ def main() -> None:
         environment = os.environ.copy()
         environment["JQ_MOVE"] = key
         subprocess.run(
-            [bpy.app.binary_path, "--background", "--python", os.path.abspath(__file__)],
+            [bpy.app.binary_path, "--background", "--python-exit-code", "1", "--python", os.path.abspath(__file__)],
             check=True,
             env=environment,
         )

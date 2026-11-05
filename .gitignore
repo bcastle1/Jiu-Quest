@@ -11,6 +11,9 @@ yarn-debug.log*
 jiuquest-*.png
 tmp/
 .tmp/
+# Unity Web builds are generated locally or by an authorized build worker.
+# Commit the Unity source project, not its machine-generated player binaries.
+/public/unity/
 public/assets/characters/profile-realistic-v2*.png
 public/assets/stances/*-stance-realistic-v2.png
 public/assets/characters/masks/v2/*-body.png

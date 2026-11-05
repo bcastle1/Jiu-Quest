@@ -7,6 +7,9 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
+    "test": "node --test tests/*.test.js",
+    "unity:build": "pwsh -NoProfile -File tools/build_unity_preview.ps1",
+    "unity:test": "pwsh -NoProfile -File tools/build_unity_preview.ps1 -TestOnly",
     "optimize:bjj": "powershell -ExecutionPolicy Bypass -File tools/optimize_bjj_glbs.ps1"
   },
   "dependencies": {

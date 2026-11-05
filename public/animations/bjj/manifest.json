@@ -17,11 +17,26 @@
     "guard_pass": "/animations/bjj/guard_pass.glb",
     "side_control": "/animations/bjj/side_control.glb",
     "mount": "/animations/bjj/mount.glb",
+    "trap_roll_escape": "/animations/bjj/trap_roll_escape.glb",
     "back_control": "/animations/bjj/back_control.glb",
     "armbar": "/animations/bjj/armbar.glb",
     "triangle_choke": "/animations/bjj/triangle_choke.glb",
     "rear_naked_choke": "/animations/bjj/rear_naked_choke.glb",
     "tap_out": "/animations/bjj/tap_out.glb",
     "reset_neutral": "/animations/bjj/reset_neutral.glb"
+  },
+  "clipMetadata": {
+    "trap_roll_escape": {
+      "durationSeconds": 5,
+      "reviewStatus": "authored-draft-needs-qualified-BJJ-coach-review",
+      "motionCapture": false,
+      "performerRoot": "JQ_Attacker",
+      "opponentRoot": "JQ_Defender",
+      "startPosition": "performer-bottom-mount",
+      "endPosition": "performer-top-inside-opponent-guard",
+      "trappedLimbs": "opponent-left-arm-and-left-ankle",
+      "rollDirection": "over-performer-right-shoulder",
+      "authoring": "New paired choreography with analytic limb contacts; not reverse playback of another clip."
+    }
   }
 }

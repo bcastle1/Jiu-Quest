@@ -1,0 +1,31 @@
+# JiuQuest Unity combat preview
+
+Unity **6000.3.28f1**, URP **17.3.0**, official Unity glTFast **6.20.0**. This is a presentation renderer for the existing JiuQuest app. It does not calculate winners, award points, modify progression, or implement networked fighting.
+
+The source GLBs are the `public/animations/bjj` paired assets. They are authored choreography based on the project's licensed base rig, not captured motion or instructor-reviewed teaching material. Generic `guard_pass` and `armbar` clips do not assert a specific curriculum entry or variant. The newly authored `trap_roll_escape` starts under mount and finishes on top inside guard. Unsupported IDs produce a bridge error rather than substitution.
+
+## Build and tests
+
+Open this directory in the pinned Unity editor, select the Web platform, and run **JiuQuest > Build WebGL preview**. The equivalent batch entry point is `JiuQuest.Combat.Editor.CombatPreviewBuild.BuildWebGL`; launch Unity with `-buildTarget WebGL` so its platform assemblies are referenced before compilation. An optional `-jiuquestOutput` argument changes the output directory; the default is repository `public/unity`. Unity activation and Web Build Support must already be available. The script does not activate a license or accept commercial terms.
+
+`Prepare` stages source GLBs and verifies their SHA-256 copies, creates a reproducible scene and URP configuration, and retains URP Lit. A small custom glTFast material generator preserves semantic cosmetic slot names and uses the same opaque URP shader, avoiding unnecessary glTF shader graphs for these texture-free assets. Generated assets and staged copies are ignored by Git. A successful build writes the flat `build-manifest.json` expected by the web loader and `build-sha256.txt`. Uncompressed WebGL files are deliberate for the first preview, avoiding a dependency on server content-encoding configuration.
+
+Run Unity EditMode tests with `-runTests -testPlatform EditMode -testResults <absolute XML path>`. Tests cover strict protocol/move validation, actor identity reversal, reduced-motion parsing, pause/seek/speed, loop behavior, and single completion. They do not substitute for a browser render and animation check.
+
+The transitive performance-testing package generates machine and command-line metadata in Resources during its build callback. The project-owned `CombatBuildPrivacy` callback excludes only those generated files from non-test builds after the package callback runs; it does not patch the package. A detailed packed-asset check must confirm exclusion before the public build manifest is written, and `build-privacy-check.json` records the checked asset count without machine data. Actual builds that include test assemblies retain the package's normal test behavior.
+
+## Bridge
+
+Send JSON to `JiuQuestBridge.ReceiveCommand`. Protocol version is 1. Configure with nonempty `instanceId` and `requestId`, optional appearances and camera. The runtime imports a paused standing pair and emits `ready` using the configure request ID only after actual import succeeds. `play` requires an exact supported move ID, accepts `paused` for reduced motion, and applies any supplied cosmetics. Camera values are `front`, `side`, `overhead`, `orbit`. Speed range is 0.1–2; progress range is 0–1. Controls are `pause`, `resume`, `seek`, `setSpeed`, `setCamera`, `reset`, and `requestState`.
+
+The `.jslib` emits `jiuquest:unity` CustomEvents with protocolVersion, instanceId, requestId, type, moveId, progress, playing, and message. Types are ready/state/completed/error. Ticking events identify the latest accepted command. The runtime rejects another instance's commands, cancels stale asynchronous loads, surfaces glTF load/import failures, and releases imported resources on replacement or teardown. The paired asset contains both actor hierarchies; one paused legacy Animation component is manually sampled from one shared clock. Both actors therefore seek and play in lockstep.
+
+Semantic material slots preserve fighter/opponent customization when `performerSide` changes. `hairStyle` selects one authored hair mesh using the existing app's aliases; bald hides all five variants. `stripes` displays only the supplied count clamped to 0–4, with dark stripes on a white belt and light stripes otherwise. Visibility changes use renderer flags and preserve the animated skeleton. Actor signifiers do not depend on camera orientation. The selected performer always maps to `JQ_Attacker`, the other actor to `JQ_Defender`.
+
+## Primary API references checked
+
+- [Unity glTFast runtime import](https://github.com/Unity-Technologies/com.unity.cloud.gltfast/blob/main/Packages/com.unity.cloud.gltfast/Documentation~/ImportRuntime.md): Load, InstantiateMainSceneAsync, logging, disposal, legacy animation instance access.
+- [Unity glTFast ImportSettings](https://github.com/Unity-Technologies/com.unity.cloud.gltfast/blob/main/Packages/com.unity.cloud.gltfast/Runtime/Scripts/ImportSettings.cs): AnimationMethod.Legacy and OriginalUnique names.
+- [Unity 6000.3 URP asset implementation](https://github.com/Unity-Technologies/Graphics/blob/6000.3/staging/Packages/com.unity.render-pipelines.universal/Runtime/Data/UniversalRenderPipelineAsset.cs): editor asset creation and pipeline settings.
+
+On November 5, 2026, package restore, C# compilation, the initial seven EditMode cases, and the first local WebGL build passed in the pinned editor. See [the repository's preview acceptance record](../../docs/unity-preview.md) for the latest test/build results after subsequent fixes and observed browser checks. Physical-phone performance and instructor review are separate acceptance gates; a successful local build does not establish either.
