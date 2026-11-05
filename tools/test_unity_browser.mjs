@@ -109,9 +109,9 @@ async function pause() {
 
 async function seek(progress) {
   const slider = page.getByRole('slider', { name: 'Review movement', exact: true });
-  // Pointer placement may round a midpoint to 499/501. An unchanged thumb does
+  // Pointer/track geometry can map a midpoint click to 504. An unchanged thumb does
   // not fire React's change handler, so confirm this already-settled position.
-  if (Math.abs(Number(await slider.inputValue()) - progress * 1000) <= 2) {
+  if (Math.abs(Number(await slider.inputValue()) - progress * 1000) < 5) {
     const observed = await pause();
     assert.ok(Math.abs(observed.progress - progress) < 0.005);
     return;
