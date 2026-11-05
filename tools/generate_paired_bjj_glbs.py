@@ -1,7 +1,7 @@
 """Generate JiuQuest's realistic, customizable paired BJJ choreography GLBs.
 
-The anatomical base is the 65-bone CC0 Universal Base Characters rig by
-Quaternius. JiuQuest adds a skinned gi, belt/stripe/patch slots, modular hair,
+The anatomical base is a fitted MPFB/MakeHuman CC0 human on the stable
+65-bone Quaternius rest rig. JiuQuest adds a skinned gi, belt/stripe slots, modular hair,
 PBR materials, and paired technique choreography. The named material and node
 contract is consumed by ``MoveAnimationManager`` at runtime.
 """
@@ -19,6 +19,7 @@ from mathutils import Matrix, Quaternion, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from clean_bjj_decorations import clean_decorations
+from realistic_fighter import make_realistic_fighter
 
 FPS = 30
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -365,6 +366,10 @@ def add_spikes(
 
 
 def make_fighter(role: str, colors: dict[str, tuple[float, float, float, float]]) -> dict:
+    return make_realistic_fighter(role, colors, sys.modules[__name__])
+
+
+def make_legacy_fighter(role: str, colors: dict[str, tuple[float, float, float, float]]) -> dict:
     prefix = f"JQ_{role}"
     materials = {
         "skin": make_material(f"{prefix}_Skin", colors["skin"], 0.47, sheen=0.08, coat=0.02),
@@ -621,8 +626,8 @@ def stance(
     root = fighter["root"]
     root.location = (x, y, -crouch * 0.045)
     root.rotation_euler = (lean * 0.08, 0.0, facing_angle(face))
-    scale = 1.05 - crouch * 0.025
-    root.scale = (scale, scale, scale)
+    # Crouching changes joint placement, never the athlete's body size.
+    root.scale = (1.0, 1.0, 1.0)
     set_arm(fighter, "L", 0.74 + crouch * 0.42, 0.04, 0.48, 0.72)
     set_arm(fighter, "R", 0.74 + crouch * 0.42, -0.04, -0.48, 0.72)
     set_leg(fighter, "L", 0.12 + crouch * 0.5 + stride, 0.0, 0.16 + stride, 0.32 + crouch * 0.2)
@@ -633,7 +638,7 @@ def kneel(fighter: dict, x: float, y: float, face: int, lean: float = 0.0, roll:
     root = fighter["root"]
     root.location = (x, y, -0.13)
     root.rotation_euler = (0.10 + lean * 0.10, 0.0, facing_angle(face) + roll)
-    root.scale = (0.98, 0.98, 0.98)
+    root.scale = (1.0, 1.0, 1.0)
     set_arm(fighter, "L", 1.02 + lean * 0.22, 0.10, 0.60, 0.94)
     set_arm(fighter, "R", 1.02 + lean * 0.22, -0.10, -0.60, 0.94)
     aim_bone(fighter, "thigh_l", (0.25, 0.05, 0.34))
@@ -646,7 +651,8 @@ def ground(fighter: dict, x: float, y: float, face: int, roll: float = 0.0, scal
     root = fighter["root"]
     root.location = (x, y, 0.25)
     root.rotation_euler = (math.pi / 2, 0.0 if face > 0 else math.pi, roll)
-    root.scale = (scale, scale, scale)
+    # Keep the legacy parameter for authored call compatibility, not scaling.
+    root.scale = (1.0, 1.0, 1.0)
     set_arm(fighter, "L", 0.92, 0.14, 0.72 * face, 0.92)
     set_arm(fighter, "R", 0.96, -0.14, -0.72 * face, 0.90)
     set_leg(fighter, "L", 0.82, 0.0, 0.64 * face, 1.0)
@@ -1149,9 +1155,9 @@ def build_move(key: str, duration: float) -> None:
     scene.render.fps = FPS
     scene.frame_start = 1
     scene.frame_end = max(2, round(duration * FPS))
-    scene["JQ_asset_version"] = "2"
+    scene["JQ_asset_version"] = "3"
     scene["JQ_motion_type"] = "rigged-paired-choreography"
-    scene["JQ_anatomy_source"] = "Quaternius Universal Base Characters CC0"
+    scene["JQ_anatomy_source"] = "MPFB 2.0.18 / MakeHuman core CC0 on Quaternius 65-bone rest rig"
     if key in CONTACT_SAMPLED_MOVES:
         scene["JQ_review_status"] = "AUTHORED DRAFT - requires qualified BJJ coach review; not motion capture"
     if key == "trap_roll_escape":
@@ -1219,6 +1225,7 @@ def build_move(key: str, duration: float) -> None:
         export_frame_range=True,
         export_optimize_animation_size=True,
         export_materials="EXPORT",
+        export_tangents=True,
         export_extras=True,
         export_lights=False,
         export_cameras=False,

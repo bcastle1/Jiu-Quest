@@ -102,10 +102,11 @@ namespace JiuQuest.Combat
         public static bool IsHairVisible(string nodeName, string hairStyle)
         {
             var selected = HairVariant(hairStyle);
-            if (selected == "bald") return false;
             var name = (nodeName ?? "").ToLowerInvariant();
             foreach (var variant in new[] { "spikes", "crew", "mohawk", "long", "slick" })
-                if (name.Contains("hair" + variant)) return variant == selected;
+                if (name.Contains("hair" + variant)) return selected != "bald" && variant == selected;
+            // Only authored scalp variants are toggled. Brows and other details can
+            // share a hair material without disappearing when the athlete is bald.
             return true;
         }
 

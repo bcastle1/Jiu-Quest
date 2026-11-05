@@ -11,9 +11,10 @@
       "GiPants",
       "Skin",
       "Hair",
+      "Brows",
+      "Eyes",
       "Belt",
-      "BeltStripe",
-      "Patch"
+      "BeltStripe"
     ],
     "attachmentNodes": [
       "ChestPatch",
@@ -23,9 +24,14 @@
       "BeltStripe_4"
     ],
     "requirement": "Future licensed paired mocap may replace a file only when both roots and the cosmetic slots are preserved.",
-    "reservedAttachments": "ChestPatch and Lapel_L/Lapel_R remain named empty nodes. Their rigid decorative meshes are intentionally absent; Patch materials are reserved for a future skinned cosmetic design."
+    "reservedAttachments": "ChestPatch and Lapel_L/Lapel_R remain named empty nodes. Their rigid decorative meshes are intentionally absent.",
+    "texturedMaterials": "Skin, Hair and Brows use _Ref_RRGGBB sRGB suffixes. Appearance tint divides by the reference in linear light, preserving authored texture detail. Eyes remain authored. Hair/Brows use MASK alpha; all other surfaces are opaque.",
+    "hairStyles": ["Crew", "Long", "Slick", "Mohawk", "Spikes", "Bald"],
+    "skinInfluences": 4,
+    "athleteScale": 1
   },
-  "cosmeticRevision": "2026-11-05-clean-gi-no-rigid-chest-decorations",
+  "cosmeticRevision": "2026-11-05-realistic-sports-cc0-athletes",
+  "anatomySource": "MPFB 2.0.18 / MakeHuman core CC0 human fitted to the stable Quaternius 65-bone rest rig. Clothing and paired animation are JiuQuest-authored.",
   "animations": {
     "standing_stance": "/animations/bjj/standing_stance.glb",
     "grip_fighting": "/animations/bjj/grip_fighting.glb",

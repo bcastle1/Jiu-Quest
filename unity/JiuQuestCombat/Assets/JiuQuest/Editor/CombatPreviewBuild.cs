@@ -188,12 +188,18 @@ namespace JiuQuest.Combat.Editor
 
         static void IncludeRuntimeShaders()
         {
-            // Runtime generation and semantic cosmetics share one opaque URP shader.
-            // No glTF shader graphs are needed for this texture-free authored asset contract.
-            var shaders = new[] { Shader.Find("Universal Render Pipeline/Lit") };
+            // Keep the dojo's URP/Lit and only the official glTF PBR shader graphs
+            // used by actor materials. Runtime-only imports are invisible to scene stripping.
+            var shaders = new[] {
+                Shader.Find("Universal Render Pipeline/Lit"),
+                AssetDatabase.LoadAssetAtPath<Shader>("Packages/com.unity.cloud.gltfast/Runtime/Shader/glTF-pbrMetallicRoughness.shadergraph"),
+                AssetDatabase.LoadAssetAtPath<Shader>("Packages/com.unity.cloud.gltfast/Runtime/Shader/URP/glTF-pbrMetallicRoughness-Clearcoat.shadergraph")
+            };
+            if (shaders.Any(shader => shader == null))
+                throw new BuildFailedException("A required dojo or glTF PBR shader is missing; actor surfaces cannot be preserved.");
             var graphics = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset")[0]);
             var included = graphics.FindProperty("m_AlwaysIncludedShaders");
-            foreach (var shader in shaders.Where(shader => shader != null).Distinct())
+            foreach (var shader in shaders.Distinct())
             {
                 bool exists = false;
                 for (int index = 0; index < included.arraySize; index++)

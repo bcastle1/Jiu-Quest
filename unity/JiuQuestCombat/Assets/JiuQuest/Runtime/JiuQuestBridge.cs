@@ -15,6 +15,9 @@ namespace JiuQuest.Combat
     {
         readonly PairedPlaybackClock clock = new PairedPlaybackClock();
         readonly List<Material> appearanceMaterials = new List<Material>();
+        readonly Dictionary<Material, Color> authoredBaseColors = new Dictionary<Material, Color>();
+        readonly CombatMotionBoundsCache motionBounds = new CombatMotionBoundsCache();
+        int[] framedRendererIds;
         CancellationTokenSource lifetime;
         CancellationTokenSource loadCancellation;
         GltfImport currentImport;
@@ -122,7 +125,7 @@ namespace JiuQuest.Combat
             try
             {
                 var log = new CollectingLogger();
-                imported = new GltfImport(materialGenerator: new CombatMaterialGenerator(stage.FighterShader), logger: log);
+                imported = new GltfImport(materialGenerator: new CombatMaterialGenerator(), logger: log);
                 var path = Path.Combine(Application.streamingAssetsPath, "Bjj", requestedMove + ".glb").Replace('\\', '/');
                 if (!path.Contains("://")) path = new Uri(path).AbsoluteUri;
                 if (path.StartsWith("http://", StringComparison.Ordinal) || path.StartsWith("https://", StringComparison.Ordinal))
@@ -164,7 +167,6 @@ namespace JiuQuest.Combat
                 clock.Load(legacyAnimation.clip.length, CombatProtocol.IsLooping(moveId), desiredProgress, desiredPlaying);
                 ApplyAppearances();
                 Sample();
-                stage.Frame(MeasureChoreography(), moveId);
                 loading = false;
                 status = "Authored animation · draft technique review";
                 if (ready) Emit("ready", "Unity URP paired animation ready.", setupRequest);
@@ -191,7 +193,7 @@ namespace JiuQuest.Combat
 
         void ApplyAppearances()
         {
-            // Imported material instances are replaced once, then tinted by semantic slot.
+            // Clone imported surfaces once so cosmetic changes preserve the authored PBR maps.
             // The performer root follows the selected actor; fighter identity never follows the camera.
             foreach (var renderer in pair.GetComponentsInChildren<Renderer>(true))
             {
@@ -204,10 +206,9 @@ namespace JiuQuest.Combat
                     if (!slotName.StartsWith("JQ_", StringComparison.Ordinal)) continue;
                     if (!appearanceMaterials.Contains(material))
                     {
-                        material = new Material(stage.FighterShader) { name = slotName };
-                        material.SetFloat("_Smoothness", .23f);
-                        material.SetFloat("_Metallic", 0);
+                        material = CombatMaterialAppearance.ClonePreservingSurface(material);
                         appearanceMaterials.Add(material);
+                        authoredBaseColors.Add(material, CombatMaterialAppearance.BaseColor(material));
                         materials[i] = material;
                     }
                     var appearance = CombatProtocol.AppearanceForRoot(slotName, performerSide, fighter, opponent);
@@ -218,15 +219,14 @@ namespace JiuQuest.Combat
                     }
                     else if (slotName.Contains("_BeltStripe"))
                         renderer.enabled = CombatProtocol.IsBeltStripeVisible(SemanticNodeName(renderer.transform, "BeltStripe_"), appearance?.stripes ?? 0);
-                    var tint = Tint(slotName, appearance, isFighter);
-                    material.SetColor("_BaseColor", tint);
-                    material.color = tint;
+                    CombatMaterialAppearance.ApplyTint(material, authoredBaseColors[material], slotName, appearance, isFighter);
                 }
                 renderer.sharedMaterials = materials;
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
                 renderer.receiveShadows = true;
                 if (renderer is SkinnedMeshRenderer skinned) skinned.updateWhenOffscreen = true;
             }
+            RefreshFraming();
         }
 
         string SemanticNodeName(Transform node, string marker)
@@ -234,38 +234,6 @@ namespace JiuQuest.Combat
             while (node.parent != null && node.parent != pair.transform && node.name.IndexOf(marker, StringComparison.OrdinalIgnoreCase) < 0)
                 node = node.parent;
             return node.name;
-        }
-
-        static Color Tint(string slot, FighterAppearance appearance, bool isFighter)
-        {
-            string value = null;
-            Color fallback = isFighter ? new Color(.83f, .9f, .93f) : new Color(.12f, .2f, .35f);
-            if (slot.Contains("GiTop")) value = appearance?.giTop;
-            else if (slot.Contains("GiPants")) value = appearance?.giPants;
-            else if (slot.Contains("Skin")) { value = appearance?.skinTone; fallback = new Color(.64f, .42f, .28f); }
-            else if (slot.Contains("Hair")) { value = appearance?.hairColor; fallback = new Color(.08f, .06f, .05f); }
-            else if (slot.Contains("BeltStripe"))
-            {
-                bool whiteBelt = string.IsNullOrEmpty(appearance?.belt) || string.Equals(appearance.belt, "white", StringComparison.OrdinalIgnoreCase);
-                if (ColorUtility.TryParseHtmlString(appearance?.belt ?? "", out var beltColor))
-                    whiteBelt = beltColor.r > .9f && beltColor.g > .9f && beltColor.b > .9f;
-                ColorUtility.TryParseHtmlString(whiteBelt ? "#182030" : "#f8fbff", out fallback);
-            }
-            else if (slot.Contains("Belt"))
-            {
-                value = appearance?.belt;
-                switch (value?.ToLowerInvariant())
-                {
-                    case "white": return new Color(.91f, .9f, .83f);
-                    case "blue": return new Color(.08f, .22f, .7f);
-                    case "purple": return new Color(.39f, .16f, .56f);
-                    case "brown": return new Color(.32f, .17f, .09f);
-                    case "black": return new Color(.035f, .04f, .055f);
-                }
-                fallback = new Color(.91f, .9f, .83f);
-            }
-            else if (slot.Contains("Patch")) fallback = isFighter ? new Color(.12f, .8f, .68f) : new Color(.95f, .55f, .22f);
-            return !string.IsNullOrEmpty(value) && ColorUtility.TryParseHtmlString(value, out var parsed) ? parsed : fallback;
         }
 
         void Update()
@@ -287,14 +255,27 @@ namespace JiuQuest.Combat
             legacyAnimation.Sample();
         }
 
-        Bounds MeasureChoreography()
+        void RefreshFraming()
         {
-            // Imported skinned bounds can include every hair variant or a loose bind pose.
-            // Bake actual visible geometry across the shared clip once; playback never rebakes.
             var renderers = pair.GetComponentsInChildren<Renderer>().Where(renderer => renderer.enabled).ToArray();
+            var ids = renderers.Select(renderer => renderer.GetInstanceID()).ToArray();
+            // Color updates, playback controls and same-clip replay do not alter geometry.
+            if (framedRendererIds != null && framedRendererIds.SequenceEqual(ids)) return;
+            var byId = renderers.ToDictionary(renderer => renderer.GetInstanceID());
+            var envelope = motionBounds.GetEnvelope(pair.GetInstanceID(), ids,
+                missing => MeasureRendererEnvelopes(missing.Select(id => byId[id]).ToArray()));
+            // The complete 33-pose envelope gets the same interpolation allowance as before.
+            envelope.Expand(.16f);
+            stage.Frame(envelope, moveId);
+            framedRendererIds = ids;
+        }
+
+        Bounds[] MeasureRendererEnvelopes(Renderer[] renderers)
+        {
+            // Newly visible hair/stripes need sampling; previously measured human meshes
+            // do not. Imported skinned bounds alone may contain a loose bind pose.
             var baked = new Mesh { name = "Temporary choreography bounds" };
-            Bounds envelope = default;
-            bool measured = false;
+            var envelopes = new Bounds[renderers.Length];
             try
             {
                 const int intervals = 32;
@@ -302,8 +283,9 @@ namespace JiuQuest.Combat
                 {
                     animationState.time = legacyAnimation.clip.length * sample / intervals;
                     legacyAnimation.Sample();
-                    foreach (var renderer in renderers)
+                    for (int index = 0; index < renderers.Length; index++)
                     {
+                        var renderer = renderers[index];
                         Bounds world;
                         if (renderer is SkinnedMeshRenderer skinned)
                         {
@@ -313,16 +295,13 @@ namespace JiuQuest.Combat
                             world = CombatFraming.TransformBounds(baked.bounds, skinned.localToWorldMatrix);
                         }
                         else world = renderer.bounds;
-                        if (!measured) { envelope = world; measured = true; }
-                        else envelope.Encapsulate(world);
+                        if (sample == 0) envelopes[index] = world;
+                        else envelopes[index].Encapsulate(world);
                     }
                 }
             }
             finally { Destroy(baked); Sample(); }
-            if (!measured) throw new InvalidOperationException("The paired animation has no visible geometry to frame.");
-            // A small fixed allowance covers interpolation between sampled poses and cosmetics.
-            envelope.Expand(.16f);
-            return envelope;
+            return envelopes;
         }
 
         void Emit(string type, string message = "", string eventRequest = null, string eventInstance = null, string eventMove = null)
@@ -353,6 +332,9 @@ namespace JiuQuest.Combat
             if (pair != null) { pair.SetActive(false); Destroy(pair); }
             foreach (var material in appearanceMaterials) if (material != null) Destroy(material);
             appearanceMaterials.Clear();
+            authoredBaseColors.Clear();
+            motionBounds.Clear();
+            framedRendererIds = null;
             currentImport?.Dispose();
             currentImport = null;
             pair = null;

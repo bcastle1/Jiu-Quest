@@ -66,9 +66,11 @@ namespace JiuQuest.Combat
             Cube("Ceiling light", new Vector3(0, 4.5f, 0), new Vector3(5.2f, .035f, .08f), brass);
             CombineArchitecture();
 
-            Light("Key", new Vector3(50, -30, 0), new Color(1, .91f, .78f), 1.2f, true);
-            Light("Fill", new Vector3(32, 132, 0), new Color(.55f, .75f, 1), .4f, false);
-            Light("Rim", new Vector3(35, 210, 0), new Color(.63f, 1f, .91f), .45f, false);
+            // Keep colored dojo accents out of facial lighting so the authored
+            // skin texture and selected tone remain natural from every camera.
+            Light("Key", new Vector3(50, -30, 0), new Color(1, .96f, .90f), 1.2f, true);
+            Light("Fill", new Vector3(32, 132, 0), new Color(.85f, .90f, 1), .4f, false);
+            Light("Rim", new Vector3(35, 210, 0), new Color(.94f, .97f, 1), .45f, false);
             sceneCamera = new GameObject("Combat Camera").AddComponent<Camera>();
             sceneCamera.transform.SetParent(environment, false);
             sceneCamera.tag = "MainCamera";

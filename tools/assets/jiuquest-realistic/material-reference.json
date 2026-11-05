@@ -1,0 +1,10 @@
+{
+  "colorSpace": "sRGB, six-digit hexadecimal; compare colors in linear light",
+  "Skin": {"reference":"E9B28D","method":"median of288 original fitted cheek UV samples"},
+  "Brows": {"reference":"0D0605","method":"median of2083 brow pixels with alpha>=128"},
+  "HairCrew": {"reference":"4B3C31","method":"median of3325 sampled hair pixels with alpha>=230"},
+  "HairMohawk": {"reference":"4B3C31","derivedFrom":"HairCrew"},
+  "HairSpikes": {"reference":"4B3C31","derivedFrom":"HairCrew"},
+  "HairSlick": {"reference":"222323","method":"median of4288 sampled hair pixels with alpha>=230"},
+  "HairLong": {"reference":"543727","method":"median of4129 sampled hair pixels with alpha>=230"}
+}

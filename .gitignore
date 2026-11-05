@@ -11,6 +11,9 @@ yarn-debug.log*
 jiuquest-*.png
 tmp/
 .tmp/
+# Blender authoring helpers create local Python bytecode caches.
+__pycache__/
+*.pyc
 # Unity Web builds are generated locally or by an authorized build worker.
 # Raw builds stay local. Only the verified release bundle in releases/unity is versioned.
 /public/unity/

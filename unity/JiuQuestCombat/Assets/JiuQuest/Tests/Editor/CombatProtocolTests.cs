@@ -77,6 +77,15 @@ namespace JiuQuest.Combat.Tests
                 Assert.That(CombatProtocol.IsHairVisible("JQ_Defender_Hair" + variant, defender.hairStyle), Is.False);
         }
 
+        [Test]
+        public void BaldKeepsBrowsVisibleEvenWhenTheyShareHairMaterials()
+        {
+            foreach (var name in new[] { "JQ_Attacker_Brows", "JQ_Attacker_Eyebrows", "JQ_Attacker_HairBrows" })
+                Assert.That(CombatProtocol.IsHairVisible(name, "bald"), Is.True);
+            Assert.That(CombatProtocol.IsHairVisible("JQ_Attacker_HairCrew", "bald"), Is.False);
+            Assert.That(CombatProtocol.IsHairVisible("JQ_Attacker_HairLong", "bald"), Is.False);
+        }
+
         [TestCase(-1, 0)]
         [TestCase(0, 0)]
         [TestCase(2, 2)]

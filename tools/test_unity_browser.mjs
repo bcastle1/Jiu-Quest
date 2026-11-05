@@ -8,7 +8,7 @@ import { chromium } from 'playwright';
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser');
 await mkdir(artifacts, { recursive: true });
 const checks = [], images = [], moves = [], errors = [], assetFailures = [], dimensions = [], pauses = [];
-let browser, server, page, networkMeasurement, speedMeasurement;
+let browser, server, page, networkMeasurement, speedMeasurement, trainingLifecycle;
 let expectedMissingManifest = false;
 
 async function staticSite() {
@@ -40,9 +40,39 @@ async function context(options = {}) {
   const next = await browser.newContext(options);
   await next.addInitScript(() => {
     window.__unityEvents = [];
+    window.__unityLifecycle = [];
     window.__progressWrites = [];
     window.__documentId = crypto.randomUUID();
-    window.addEventListener('jiuquest:unity', (event) => window.__unityEvents.push({ ...event.detail, at: performance.now() }));
+    window.addEventListener('jiuquest:unity', (event) => {
+      window.__unityEvents.push({ ...event.detail, at: performance.now() });
+      if (event.detail.type === 'ready') {
+        const runtime = window.__unityLifecycle.findLast((entry) => !entry.quitStarted);
+        if (runtime) runtime.instanceId = event.detail.instanceId;
+      }
+    });
+    // Observe real factory/Quit promises without substituting their results.
+    // Capture runs before the loader's onload handler reads the factory.
+    document.addEventListener('load', (event) => {
+      if (event.target.tagName !== 'SCRIPT' || !event.target.src.includes('/unity/')) return;
+      const factory = window.createUnityInstance;
+      if (typeof factory !== 'function' || factory.__observedForTest) return;
+      const observed = function (...args) {
+        return factory.apply(this, args).then((instance) => {
+          const runtime = { createdAt: performance.now(), quitStarted: false, quitCompleted: false };
+          window.__unityLifecycle.push(runtime);
+          const quit = instance.Quit.bind(instance);
+          instance.Quit = (...quitArgs) => {
+            runtime.quitStarted = true;
+            return quit(...quitArgs).then((result) => {
+              runtime.quitCompleted = true; runtime.quitCompletedAt = performance.now(); return result;
+            });
+          };
+          return instance;
+        });
+      };
+      observed.__observedForTest = true;
+      window.createUnityInstance = observed;
+    }, true);
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) { if (key.startsWith('jiuquest:')) window.__progressWrites.push(key); return original.call(this, key, value); };
   });
@@ -191,9 +221,22 @@ try {
   checks.push('Standalone playback does not write saved progression.');
   await page.goto(base); await page.getByRole('button', { name: 'Training', exact: true }).click(); await ready();
   assert.equal(new URL(page.url()).searchParams.has('engine'), false);
+  const priorTrainingInstance = await page.evaluate(() => window.__unityEvents.findLast((event) => event.type === 'ready').instanceId);
   await page.getByRole('button', { name: /Kimura Armlock/ }).click(); await page.getByRole('region', { name: 'Unity preview unavailable' }).waitFor();
-  await page.getByRole('button', { name: /Rear Naked Choke/ }).click(); await ready();
+  assert.equal(await page.locator('.unity-canvas').count(), 0);
+  await page.waitForFunction((id) => window.__unityLifecycle.some((entry) => entry.instanceId === id && entry.quitCompleted), priorTrainingInstance, { timeout: 90000 });
+  await page.getByRole('button', { name: /Rear Naked Choke/ }).click();
+  // React may briefly retain the preceding phase='ready' before its new effect.
+  // Require a fresh actual handshake and move state, not that transient label.
+  await page.waitForFunction((prior) => window.__unityEvents.some((event) => event.type === 'ready' && event.instanceId !== prior)
+    && window.__unityEvents.some((event) => event.type === 'state' && event.instanceId !== prior && event.moveId === 'rear_naked_choke'), priorTrainingInstance, { timeout: 95000 });
+  await ready();
   assert.equal(await page.evaluate(() => new Set(window.__unityEvents.filter((event) => event.type === 'ready').map((event) => event.instanceId)).size), 2);
+  trainingLifecycle = await page.evaluate(() => window.__unityLifecycle);
+  assert.equal(trainingLifecycle.length, 2);
+  assert.equal(trainingLifecycle[0].quitCompleted, true);
+  assert.ok(trainingLifecycle[0].quitCompletedAt <= trainingLifecycle[1].createdAt);
+  assert.equal(trainingLifecycle[1].quitStarted, false);
   await page.goto(`${base}/?engine=snapshot`); await page.getByRole('button', { name: 'Training', exact: true }).click(); await page.getByRole('heading', { name: 'Position reference', exact: true }).waitFor(); assert.equal(await page.locator('.unity-stage').count(), 0);
   checks.push('Release default enables supported Training animations; unsupported lessons dispose the player; explicit snapshot rollback works.');
   await desktop.close();
@@ -268,11 +311,11 @@ try {
   checks.push('Missing-build fallback changes to snapshots in-place, preserves saved progression/document state, and retains other URL settings.');
   assert.deepEqual(errors, []);
   assert.deepEqual(assetFailures, []);
-  report = { checkedAtUtc: new Date().toISOString(), scope: 'Actual Unity WebGL in desktop Chromium with mobile viewport/network emulation, not a physical-device performance benchmark. Only the final negative test mocks a 404 manifest.', manifest, checks, moves, images, dimensions, pauses, speedMeasurement, networkMeasurement, pageErrors: errors, assetFailures };
+  report = { checkedAtUtc: new Date().toISOString(), scope: 'Actual Unity WebGL in desktop Chromium with mobile viewport/network emulation, not a physical-device performance benchmark. Only the final negative test mocks a 404 manifest.', manifest, checks, moves, images, dimensions, pauses, trainingLifecycle, speedMeasurement, networkMeasurement, pageErrors: errors, assetFailures };
   console.log(JSON.stringify({ checks, moveCount: moves.length, dimensions, speedMeasurement, networkMeasurement, artifacts }, null, 2));
 } catch (error) {
   await page?.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true }).catch(() => {});
-  const diagnostics = await page?.evaluate(() => ({ url: location.href, stage: document.querySelector('.unity-stage')?.dataset.unityStatus, stageText: document.querySelector('.unity-stage')?.innerText, visibleTransport: [...document.querySelectorAll('button[aria-label="Play animation"],button[aria-label="Pause animation"]')].map((button) => ({ label: button.getAttribute('aria-label'), disabled: button.disabled })), recentUnityEvents: window.__unityEvents?.slice(-20) })).catch(() => null);
+  const diagnostics = await page?.evaluate(() => ({ url: location.href, stage: document.querySelector('.unity-stage')?.dataset.unityStatus, stageText: document.querySelector('.unity-stage')?.innerText, visibleTransport: [...document.querySelectorAll('button[aria-label="Play animation"],button[aria-label="Pause animation"]')].map((button) => ({ label: button.getAttribute('aria-label'), disabled: button.disabled })), recentUnityEvents: window.__unityEvents?.slice(-20), unityLifecycle: window.__unityLifecycle })).catch(() => null);
   report = { checkedAtUtc: new Date().toISOString(), checks, moves, images, dimensions, pauses, speedMeasurement, networkMeasurement, pageErrors: errors, assetFailures, failure: error.stack, diagnostics };
   console.error(error); process.exitCode = 1;
 } finally {

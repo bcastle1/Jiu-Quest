@@ -24,6 +24,14 @@ Controls include play/pause, replay, timeline seeking, quarter/half speed, camer
 
 If Unity cannot initialize, the view reports the error and offers the existing snapshot view without resetting the active match or saved progress.
 
+## Character art and appearance
+
+The candidate uses realistic sports-game humans derived from the MakeHuman/MPFB core CC0 assets, fitted to the existing 65-bone paired rig. Gi panels, trousers and a flat belt are skinned with the athlete; covered body geometry is removed. The character size remains constant while crouching and moving to the ground. The generated style-comparison image is reference art only and is not used in the game.
+
+Skin stays at 2K resolution; smaller shared eye/hair/fabric maps keep each complete paired GLB around 7.1–7.2 MB. Both athletes share embedded images, and clips load when selected. Hair/eyebrows use alpha cutouts; skin and clothes remain opaque. Unity and the existing Three renderer preserve maps and apply appearance colors relative to declared texture references in linear light. Bald removes scalp hair without removing eyebrows. Eyes keep their authored appearance. Neutral character lights avoid tinting faces with the dojo's colored accents.
+
+The self-contained [character source and license records](../tools/assets/jiuquest-realistic/README.md) support offline Blender regeneration without the MPFB add-on. The distributed character/texture assets are CC0; the add-on itself is not bundled. No paid character asset was purchased.
+
 ## Build the player after source or animation changes
 
 Required: Node 24, pnpm 11, Unity `6000.3.28f1` with Web Build Support and an activated eligible editor license. Never commit a license file, account credential, cache or raw editor log.

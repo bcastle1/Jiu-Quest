@@ -9,7 +9,8 @@ import {
   bjjAnimationCatalog,
   getBjjAnimationKeyForMove,
   normalizeBjjAnimationKey,
-} from "./bjjAnimationMap";
+} from "./bjjAnimationMap.js";
+import { pairedMaterialSlot, tintPairedMaterial } from "./pairedMaterials.js";
 
 const defaultFighter = {
   name: "JiuQuest Fighter",
@@ -975,7 +976,7 @@ export class MoveAnimationManager {
     const scene = asset?.gltf?.scene;
     if (!scene || !asset?.clips?.length) return false;
     const roles = ["Attacker", "Defender"];
-    const cosmeticSlots = ["GiTop", "GiPants", "Skin", "Hair", "Belt", "BeltStripe", "Patch"];
+    const cosmeticSlots = ["gitop", "gipants", "skin", "hair", "belt", "beltstripe"];
     const materialNames = new Set();
     scene.traverse((node) => {
       if (!node.isMesh) return;
@@ -984,7 +985,7 @@ export class MoveAnimationManager {
     });
     return roles.every((role) => (
       scene.getObjectByName("JQ_" + role)
-      && cosmeticSlots.every((slot) => materialNames.has("JQ_" + role + "_" + slot))
+      && cosmeticSlots.every((slot) => [...materialNames].some((name) => pairedMaterialSlot(name, role)?.slot === slot))
     ));
   }
 
@@ -1073,24 +1074,26 @@ export class MoveAnimationManager {
   _applyMocapFighterPalette(role, fighter, auraIndex) {
     const prefix = "JQ_" + role + "_";
     const colors = {
-      [prefix + "GiTop"]: safeColor(fighter.giTop, "#f8fbff"),
-      [prefix + "GiPants"]: safeColor(fighter.giPants, "#f8fbff"),
-      [prefix + "Skin"]: safeColor(fighter.skinTone, "#d99b71"),
-      [prefix + "Hair"]: safeColor(fighter.hairColor, "#11131c"),
-      [prefix + "Belt"]: safeColor(beltColors[fighter.belt] || beltColors.white, "#f8fbff"),
-      [prefix + "BeltStripe"]: safeColor(fighter.belt === "white" ? "#182030" : "#f8fbff", "#f8fbff"),
+      gitop: safeColor(fighter.giTop, "#f8fbff"),
+      gipants: safeColor(fighter.giPants, "#f8fbff"),
+      skin: safeColor(fighter.skinTone, "#d99b71"),
+      hair: safeColor(fighter.hairColor, "#11131c"),
+      brows: safeColor(fighter.hairColor, "#11131c"),
+      belt: safeColor(beltColors[fighter.belt] || beltColors.white, "#f8fbff"),
+      beltstripe: safeColor(fighter.belt === "white" ? "#182030" : "#f8fbff", "#f8fbff"),
     };
     const texture = this._getEmblemTexture(fighter.emblem);
     this.mocap.root.traverse((node) => {
       if (!node.isMesh) return;
       const materials = Array.isArray(node.material) ? node.material : [node.material];
       const isHairNode = node.name.startsWith(prefix)
-        && node.name.toLowerCase().includes("hair")
-        && materials.some((material) => material?.name === prefix + "Hair");
+        && /^Hair(?:Spikes|Crew|Mohawk|Long|Slick)(?:_|$)/i.test(node.name.slice(prefix.length))
+        && materials.some((material) => pairedMaterialSlot(material?.name, role)?.slot === "hair");
       materials.forEach((material) => {
-        const color = colors[material.name];
-        if (color && material.color) material.color.copy(color);
-        if (material.name === prefix + "Patch") {
+        const semantic = pairedMaterialSlot(material?.name, role);
+        const color = colors[semantic?.slot];
+        if (color) tintPairedMaterial(material, color, semantic.reference);
+        if (semantic?.slot === "patch") {
           material.map = texture;
           material.needsUpdate = true;
         }
