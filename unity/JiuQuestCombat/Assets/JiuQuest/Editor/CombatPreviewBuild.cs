@@ -39,7 +39,7 @@ namespace JiuQuest.Combat.Editor
             pipeline.msaaSampleCount = 2;
             pipeline.renderScale = 1;
             pipeline.supportsHDR = false;
-            pipeline.mainLightShadowmapResolution = 1024;
+            pipeline.mainLightShadowmapResolution = 2048;
             pipeline.shadowDistance = 12;
             pipeline.shadowCascadeCount = 1;
             var pipelineSettings = new SerializedObject(pipeline);
@@ -193,6 +193,7 @@ namespace JiuQuest.Combat.Editor
             var shaders = new[] {
                 Shader.Find("Universal Render Pipeline/Lit"),
                 AssetDatabase.LoadAssetAtPath<Shader>("Assets/JiuQuest/Shaders/AnimeFighter.shader"),
+                AssetDatabase.LoadAssetAtPath<Shader>("Assets/JiuQuest/Shaders/SummitSky.shader"),
                 AssetDatabase.LoadAssetAtPath<Shader>("Packages/com.unity.cloud.gltfast/Runtime/Shader/glTF-pbrMetallicRoughness.shadergraph"),
                 AssetDatabase.LoadAssetAtPath<Shader>("Packages/com.unity.cloud.gltfast/Runtime/Shader/URP/glTF-pbrMetallicRoughness-Clearcoat.shadergraph")
             };

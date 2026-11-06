@@ -67,7 +67,7 @@ namespace JiuQuest.Combat
         static readonly HashSet<string> Commands = new HashSet<string>(new[] {
             "configure", "play", "pause", "resume", "seek", "setSpeed", "setCamera", "setViewport", "reset", "requestState"
         }, StringComparer.Ordinal);
-        static readonly HashSet<string> Cameras = new HashSet<string>(new[] { "front", "side", "overhead", "orbit" }, StringComparer.Ordinal);
+        static readonly HashSet<string> Cameras = new HashSet<string>(new[] { "front", "side", "overhead", "orbit", "focus" }, StringComparer.Ordinal);
 
         public static bool Validate(CombatCommand command, out string error)
         {

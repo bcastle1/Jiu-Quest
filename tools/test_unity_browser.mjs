@@ -144,7 +144,7 @@ async function select(name, value) {
 }
 
 async function camera(value) {
-  const label = value === 'orbit' ? 'Free rotate' : value[0].toUpperCase() + value.slice(1);
+  const label = value === 'orbit' ? 'Free rotate' : value === 'focus' ? 'Close-up' : value[0].toUpperCase() + value.slice(1);
   const button = page.getByRole('group', { name: 'Camera view' }).getByRole('button', { name: label, exact: true });
   const since = await count(); await button.click(); await state(since);
   assert.equal(await button.getAttribute('aria-pressed'), 'true');
@@ -239,7 +239,11 @@ try {
   checks.push('All 16 actual clips render and seek to their shared paired midpoint.');
   await checkpoint('desktop:visual-controls');
   await select('Technique', 'rear_naked_choke'); await pause(); await camera('front'); await seek(0.5); await capture('review-rnc-front');
-  await select('Technique', 'double_leg'); await pause(); await camera('front'); await seek(1); await capture('review-doubleleg-finish');
+  await select('Technique', 'double_leg'); await pause(); await camera('front'); await seek(1); const wideFinish = await capture('review-doubleleg-finish');
+  await camera('focus'); const closeFinish = await capture('review-doubleleg-close-up');
+  assert.notEqual(closeFinish.sha256, wideFinish.sha256, 'Close-up must change the actual ground-pose framing.');
+  assert.equal(await page.getByRole('group', { name: 'Camera view' }).getByRole('button').count(), 5);
+  checks.push('Close-up uses the real camera control and changes the rendered ground-pose framing.');
   await select('Technique', 'trap_roll_escape'); await pause(); await camera('front');
   await seek(1); const finish = await capture('escape-finish'); await seek(0); const start = await capture('escape-start'); await seek(0.5); const middle = await capture('escape-middle');
   assert.equal(new Set([start.sha256, middle.sha256, finish.sha256]).size, 3);
@@ -304,7 +308,7 @@ try {
     if (viewport.width === 390) {
       for (const moveId of ['double_leg', 'trap_roll_escape']) {
         await select('Technique', moveId);
-        for (const view of ['front', 'side', 'overhead']) {
+        for (const view of ['front', 'focus', 'side', 'overhead']) {
           await camera(view);
           for (const progress of [0, 0.5, 1]) { await seek(progress); await capture(`phone-framing-${moveId}-${view}-${progress}`); }
         }
