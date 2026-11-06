@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFile, mkdir, stat, writeFile, rename } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
+import { arch, cpus, platform, release, totalmem } from 'node:os';
 import { chromium } from 'playwright';
 import { installUnityStartupTelemetry } from './unity_startup_telemetry.mjs';
 
@@ -13,6 +14,26 @@ const startedAtUtc = new Date().toISOString(), startedAt = Date.now(), checkpoin
 let browser, server, page, manifest, networkMeasurement, speedMeasurement, trainingLifecycle;
 let expectedMissingManifest = false;
 const browserOptions = { headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) };
+const environment = { platform: platform(), osRelease: release(), architecture: arch(), node: process.version,
+  cpuModel: cpus()[0]?.model ?? null, logicalCpuCount: cpus().length, totalMemoryBytes: totalmem(),
+  browserChannel: process.env.JIUQUEST_BROWSER_CHANNEL || 'playwright-chromium', browserVersions: [], renderers: [] };
+
+async function recordRenderer(phase) {
+  // Observe the existing Unity context only after its rendered-ready milestone.
+  // Driver access may be unavailable; never substitute a presumed GPU/renderer.
+  const renderer = await bounded(page.evaluate(() => {
+    const canvas = document.querySelector('.unity-canvas');
+    const gl = canvas?.getContext('webgl2');
+    if (!gl) return { available: false, reason: 'Existing WebGL2 context unavailable' };
+    const debug = gl.getExtension('WEBGL_debug_renderer_info');
+    return { available: true, vendor: gl.getParameter(gl.VENDOR), renderer: gl.getParameter(gl.RENDERER),
+      version: gl.getParameter(gl.VERSION), shadingLanguage: gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+      unmaskedVendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : null,
+      unmaskedRenderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
+      drawingBuffer: { width: gl.drawingBufferWidth, height: gl.drawingBufferHeight }, userAgent: navigator.userAgent };
+  }), 10000, 'Renderer diagnostics');
+  environment.renderers.push({ phase, atUtc: new Date().toISOString(), ...renderer });
+}
 
 async function bounded(promise, timeoutMs, label) {
   let timer;
@@ -26,7 +47,7 @@ async function bounded(promise, timeoutMs, label) {
 function evidence(extra = {}) {
   return { startedAtUtc, checkedAtUtc: new Date().toISOString(), elapsedMs: Date.now() - startedAt, manifest, checkpoints,
     checks, moves, images, dimensions, pauses, trainingLifecycle, speedMeasurement, networkMeasurement,
-    pageErrors: errors, consoleErrors, expectedConsoleErrors, assetFailures, ...extra };
+    pageErrors: errors, consoleErrors, expectedConsoleErrors, assetFailures, environment, ...extra };
 }
 
 async function checkpoint(stage, detail = {}) {
@@ -236,6 +257,7 @@ try {
   await checkpoint('starting');
   const base = process.env.JIUQUEST_PREVIEW_URL?.replace(/\/$/, '') || await staticSite();
   browser = await chromium.launch(browserOptions);
+  environment.browserVersions.push({ phase: 'inventory', version: browser.version() });
   // Inventory is deliberately paused, including on slow CI software rendering.
   // Separate transport checks below start and stop the actual playing runtime.
   const desktop = await context({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
@@ -244,6 +266,7 @@ try {
   manifest = await manifestResponse.json();
   assert.equal(manifest.protocolVersion, 1); assert.equal(manifest.supportedMoves.length, 16);
   await page.goto(`${base}/?preview=unity`); await ready(); await pause();
+  await recordRenderer('inventory');
   await checkpoint('desktop:ready');
   const firstSession = await page.evaluate(() => window.__unityEvents.find((event) => event.type === 'ready').instanceId);
   // Reduced-motion startup must freeze the whole scene, including ambient wind.
@@ -405,6 +428,7 @@ try {
   await checkpoint('cold-network:browser-closed');
   await checkpoint('cold-network:browser-launching');
   browser = await chromium.launch(browserOptions);
+  environment.browserVersions.push({ phase: 'cold-network', version: browser.version() });
   await checkpoint('cold-network:browser-launched');
   await checkpoint('cold-network:starting');
   const cold = await context({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1, reducedMotion: 'reduce' });
@@ -431,6 +455,7 @@ try {
     controllerElapsedMs, navigationCommandDelayMs: telemetry.startup.navigationTimeOrigin - began,
     automationDelayMs: controllerElapsedMs - (telemetry.startup.renderedReadyMs ?? 0) - (telemetry.startup.navigationTimeOrigin - began),
     ...telemetry, physicalPhone: false };
+  await recordRenderer('cold-network-after-measurement');
   await checkpoint('cold-network:measured');
   assert.equal(telemetry.stage, 'ready');
   assert.equal(telemetry.startup.error, null);

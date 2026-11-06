@@ -16,9 +16,10 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    # Software-rendered inventory can take 43 minutes. Leave time for the
-    # unchanged 90-second startup gate, negative check and evidence uploads.
+    # Keep the complete Chromium suite and unchanged 90-second startup gate.
+    # Two Linux hosted runs missed that gate; retain those results while
+    # evaluating this explicit Windows test environment, with renderer metadata.
+    runs-on: windows-2025
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -72,12 +73,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Upload artifact
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: ./dist
-
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     permissions:
@@ -91,6 +86,20 @@ jobs:
     timeout-minutes: 10
     needs: build
     steps:
+      - name: Download the verified candidate from this run
+        uses: actions/download-artifact@v4
+        with:
+          name: jiuquest-release-candidate-${{ github.sha }}
+          path: dist
+
+      - name: Verify candidate identity before Pages packaging
+        run: node -e "const a=require('node:assert/strict');const r=require('./dist/release.json');a.equal(r.commit,process.env.GITHUB_SHA);a.equal(String(r.runId),process.env.GITHUB_RUN_ID);a.equal(r.combatEngine,'unity')"
+
+      - name: Package the verified candidate for Pages
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./dist
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
