@@ -59,12 +59,37 @@ namespace JiuQuest.Combat.Tests
         [TestCase("GiTop", .72f)]
         [TestCase("GiPants", .76f)]
         [TestCase("Belt", .64f)]
-        public void AuthoredSurfaceRoughnessAndMetallicRemainDistinct(string slot, float roughness)
+        public void CelMaterialsRetainAuthoredSurfaceMetadata(string slot, float roughness)
         {
             var material = Generate("JQ_Attacker_" + slot, roughness);
+            Assert.That(material.shader.name, Is.EqualTo(CombatMaterialGenerator.FighterShaderName));
             Assert.That(material.GetFloat(MaterialProperty.RoughnessFactor), Is.EqualTo(roughness).Within(.0001f));
             Assert.That(material.GetFloat(MaterialProperty.Metallic), Is.EqualTo(.12f).Within(.0001f));
             AssertColor(CombatMaterialAppearance.BaseColor(material), new Color(.23f, .37f, .51f, .8f).gamma);
+        }
+
+        [TestCase("DojoFloor", "OPAQUE")]
+        [TestCase("JQ_Attacker_TransparentDetail", "BLEND")]
+        public void DojoAndTransparentMaterialsRetainOfficialImporterShader(string slot, string alphaMode)
+        {
+            var material = Generate(slot, alphaMode: alphaMode);
+            Assert.That(material.shader.name, Is.Not.EqualTo(CombatMaterialGenerator.FighterShaderName));
+        }
+
+        [TestCase("Skin_Ref_AA7755", .35f)]
+        [TestCase("Skin", 1f)]
+        [TestCase("Skin_Eyes_Ref_AA7755", 1f)]
+        [TestCase("Iris_Ref_557799", 1f)]
+        [TestCase("Brows_Ref_0D0605", 1f)]
+        [TestCase("GiTop_Ref_E0E4E8", 1f)]
+        public void SkinSimplificationPreservesFacialInkAndUnreferencedMaps(string slot, float detail)
+        {
+            var material = Generate("JQ_Attacker_" + slot);
+            Assert.That(material.GetFloat(CombatMaterialGenerator.DetailStrength), Is.EqualTo(detail));
+            AssertColor((Color)material.GetVector(CombatMaterialGenerator.DetailBaseColor), CombatMaterialAppearance.ReferenceColor(slot));
+            Assert.That(material.FindPass("AnimeForward"), Is.GreaterThanOrEqualTo(0));
+            Assert.That(material.FindPass("ShadowCaster"), Is.GreaterThanOrEqualTo(0));
+            Assert.That(material.passCount, Is.EqualTo(2), "Fighters use one color pass and their normal shadow pass, without extra outline geometry.");
         }
 
         [Test]
@@ -76,6 +101,8 @@ namespace JiuQuest.Combat.Tests
             var mapProperties = new[] { MaterialProperty.BaseColorTexture, MaterialProperty.NormalTexture, MaterialProperty.MetallicRoughnessMap, MaterialProperty.OcclusionTexture };
             foreach (int property in mapProperties) source.SetTexture(property, texture);
             source.SetVector(MaterialProperty.BaseColorTextureScaleTransform, new Vector4(2, 3, .1f, .2f));
+            source.SetVector(MaterialProperty.BaseColorTextureRotation, new Vector4(.25f, -.5f, 0, 0));
+            source.SetFloat(MaterialProperty.BaseColorTextureTexCoord, 1);
             source.SetFloat(MaterialProperty.NormalTextureScale, .6f);
             var clone = CombatMaterialAppearance.ClonePreservingSurface(source);
             owned.Add(clone);
@@ -85,6 +112,8 @@ namespace JiuQuest.Combat.Tests
             Assert.That(clone.shader, Is.SameAs(source.shader));
             foreach (int property in mapProperties) Assert.That(clone.GetTexture(property), Is.SameAs(texture));
             Assert.That(clone.GetVector(MaterialProperty.BaseColorTextureScaleTransform), Is.EqualTo(new Vector4(2, 3, .1f, .2f)));
+            Assert.That(clone.GetVector(MaterialProperty.BaseColorTextureRotation), Is.EqualTo(new Vector4(.25f, -.5f, 0, 0)));
+            Assert.That(clone.GetFloat(MaterialProperty.BaseColorTextureTexCoord), Is.EqualTo(1));
             Assert.That(clone.GetFloat(MaterialProperty.NormalTextureScale), Is.EqualTo(.6f));
             Assert.That(clone.GetFloat(MaterialProperty.RoughnessFactor), Is.EqualTo(.68f));
             Assert.That(clone.renderQueue, Is.EqualTo((int)RenderQueue.AlphaTest));

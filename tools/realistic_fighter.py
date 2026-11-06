@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'tools/assets/jiuquest-realistic'
 from realistic_gi import build_realistic_gi
+from anime_fighter import stylize_anime
 optimized_images={}
 
 def limit_weights(obj,limit=4):
@@ -128,8 +129,7 @@ def make_realistic_fighter(role,colors,g):
     materials={key:g.make_material(prefix+'_'+name,colors[key],roughness=.75) for key,name in [('gi_top','GiTop'),('gi_pants','GiPants'),('belt','Belt'),('stripe','BeltStripe')]}
     build_realistic_gi(body,rig,root,materials,prefix)
     hide_covered_body(body)
-    derive_hair(loaded['Realistic_HairCrew'],prefix+'_HairMohawk',True)
-    derive_hair(loaded['Realistic_HairCrew'],prefix+'_HairSpikes')
+    stylize_anime(loaded,rig,prefix,g.make_material)
     for material in materials.values():
         for node in material.node_tree.nodes:
             if node.type=='TEX_IMAGE' and node.image:
