@@ -17,7 +17,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Software-rendered inventory can take 43 minutes. Leave time for the
+    # unchanged 90-second startup gate, negative check and evidence uploads.
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v5
