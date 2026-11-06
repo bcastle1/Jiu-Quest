@@ -24,6 +24,8 @@ namespace JiuQuest.Combat
         GameObject pair;
         Animation legacyAnimation;
         AnimationState animationState;
+        Transform[] poseBones;
+        Vector3[] posePoints;
         DojoStage stage;
         FighterAppearance fighter;
         FighterAppearance opponent;
@@ -84,7 +86,7 @@ namespace JiuQuest.Combat
                         Emit("state"); break;
                     case "seek": desiredProgress = command.progress; desiredPlaying = false; clock.Playing = false; clock.Seek(command.progress); Sample(); Emit("state"); break;
                     case "setSpeed": clock.Speed = command.speed; Emit("state"); break;
-                    case "setCamera": Emit("state"); break;
+                    case "setCamera": Sample(); Emit("state"); break;
                     case "setViewport": Emit("state"); break;
                     case "reset": desiredProgress = 0; desiredPlaying = false; clock.Seek(0); clock.Playing = false; Sample(); Emit("state"); break;
                     case "requestState": Emit("state"); break;
@@ -157,6 +159,9 @@ namespace JiuQuest.Combat
                 legacyAnimation = animation;
                 legacyAnimation.playAutomatically = false;
                 pair.SetActive(true);
+                poseBones = pair.GetComponentsInChildren<SkinnedMeshRenderer>(true)
+                    .SelectMany(renderer => renderer.bones).Where(bone => bone != null).Distinct().ToArray();
+                posePoints = new Vector3[poseBones.Length];
                 legacyAnimation.Stop();
                 if (!legacyAnimation.Play(legacyAnimation.clip.name)) throw new InvalidOperationException("The paired legacy animation could not be started: " + requestedMove);
                 animationState = legacyAnimation[legacyAnimation.clip.name];
@@ -227,6 +232,7 @@ namespace JiuQuest.Combat
                 if (renderer is SkinnedMeshRenderer skinned) skinned.updateWhenOffscreen = true;
             }
             RefreshFraming();
+            RefreshPoseBounds();
         }
 
         string SemanticNodeName(Transform node, string marker)
@@ -253,6 +259,15 @@ namespace JiuQuest.Combat
             animationState.weight = 1;
             animationState.time = clock.Time;
             legacyAnimation.Sample();
+            RefreshPoseBounds();
+        }
+
+        void RefreshPoseBounds()
+        {
+            // The optional close-up tracks cached joints; no per-frame mesh baking or allocations.
+            if (!stage.UsesPoseBounds || poseBones == null) return;
+            for (int index = 0; index < poseBones.Length; index++) posePoints[index] = poseBones[index].position;
+            if (CombatFraming.TryPoseBounds(posePoints, out var bounds)) stage.SetPoseBounds(bounds);
         }
 
         void RefreshFraming()
@@ -340,6 +355,8 @@ namespace JiuQuest.Combat
             pair = null;
             animationState = null;
             legacyAnimation = null;
+            poseBones = null;
+            posePoints = null;
         }
 
         void OnDestroy()

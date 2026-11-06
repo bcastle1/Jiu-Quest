@@ -6,15 +6,76 @@ using UnityEngine.Rendering.Universal;
 
 namespace JiuQuest.Combat
 {
-    // glTF metallic/roughness channels, texture transforms, normals and cutouts are
-    // interpreted by the package's URP implementation, not remapped onto URP/Lit.
+    // Let glTFast import the complete surface first, then render tagged fighters
+    // with our stylized surface shader. The dojo and non-fighter materials keep their shader.
     public sealed class CombatMaterialGenerator : UniversalRPMaterialGenerator
     {
+        public const string FighterShaderName = "JiuQuest/Anime Fighter";
+        public static readonly int DetailStrength = Shader.PropertyToID("_DetailStrength");
+        public static readonly int DetailBaseColor = Shader.PropertyToID("_DetailBaseColor");
+        public static readonly int InkStrength = Shader.PropertyToID("_InkStrength");
+        public static readonly int SpecularStrength = Shader.PropertyToID("_SpecularStrength");
+        public static readonly int RimStrength = Shader.PropertyToID("_RimStrength");
+        public static readonly int NormalDetailStrength = Shader.PropertyToID("_NormalDetailStrength");
+        public static readonly int SurfaceMaps = Shader.PropertyToID("_SurfaceMaps");
+
         public CombatMaterialGenerator()
             : this(GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset) { }
 
         public CombatMaterialGenerator(UniversalRenderPipelineAsset pipeline)
             : base(pipeline ?? throw new ArgumentNullException(nameof(pipeline), "Combat materials require the configured URP pipeline.")) { }
+
+        public override Material GenerateMaterial(GLTFast.Schema.MaterialBase gltfMaterial, GLTFast.IGltfReadable gltf, bool pointsSupport = false)
+        {
+            var material = base.GenerateMaterial(gltfMaterial, gltf, pointsSupport);
+            string slot = gltfMaterial.name ?? "";
+            if (material == null || !slot.StartsWith("JQ_", StringComparison.Ordinal)
+                || gltfMaterial.GetAlphaMode() == GLTFast.Schema.MaterialBase.AlphaMode.Blend)
+                return material;
+
+            var shader = Shader.Find(FighterShaderName);
+            if (shader == null) throw new InvalidOperationException("The anime fighter shader must be included in the Unity build.");
+            int queue = material.renderQueue;
+            bool cutout = gltfMaterial.GetAlphaMode() == GLTFast.Schema.MaterialBase.AlphaMode.Mask;
+            // Matching glTF property names preserve imported texture objects, UV
+            // transforms, factors and source metadata across the shader change.
+            material.shader = shader;
+            material.renderQueue = queue;
+            material.SetFloat(MaterialProperty.Cull, (float)(gltfMaterial.doubleSided ? CullMode.Off : CullMode.Back));
+            material.SetFloat(MaterialProperty.AlphaCutoff, cutout ? gltfMaterial.alphaCutoff : 0);
+            if (cutout) material.EnableKeyword("_ALPHATEST_ON");
+            else material.DisableKeyword("_ALPHATEST_ON");
+
+            bool brows = slot.IndexOf("Brow", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool eye = !brows && (slot.IndexOf("Eye", StringComparison.OrdinalIgnoreCase) >= 0
+                || slot.IndexOf("Iris", StringComparison.OrdinalIgnoreCase) >= 0
+                || slot.IndexOf("Sclera", StringComparison.OrdinalIgnoreCase) >= 0);
+            bool facialDetail = eye || brows
+                || slot.IndexOf("Lip", StringComparison.OrdinalIgnoreCase) >= 0
+                || slot.IndexOf("Teeth", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool skin = !facialDetail && slot.IndexOf("Skin", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool hair = !facialDetail && slot.IndexOf("Hair", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool hasReference = slot.IndexOf("_Ref_", StringComparison.OrdinalIgnoreCase) >= 0;
+            // Keep the illustrated face while restoring enough texture to read its
+            // cheek planes. Cloth, eyes and hair each retain a distinct light response.
+            material.SetFloat(DetailStrength, skin && hasReference ? .48f : 1f);
+            material.SetVector(DetailBaseColor, CombatMaterialAppearance.ReferenceColor(slot));
+            material.SetFloat(InkStrength, facialDetail ? .06f : skin ? .13f : hair ? .20f : .22f);
+            material.SetFloat(SpecularStrength, eye ? .40f : brows ? .012f : skin ? .06f : hair ? .10f : .025f);
+            material.SetFloat(RimStrength, eye ? .02f : skin ? .05f : hair ? .10f : .08f);
+            material.SetFloat(NormalDetailStrength, skin ? .18f : hair ? .30f : .42f);
+            var normal = gltfMaterial.NormalTexture;
+            var roughness = gltfMaterial.PbrMetallicRoughness?.MetallicRoughnessTexture;
+            var occlusion = gltfMaterial.OcclusionTexture;
+            // Uniform flags avoid shader-variant growth and only sample maps that
+            // the asset actually supplied, never a shader's default bump texture.
+            material.SetVector(SurfaceMaps, new Vector4(
+                normal != null && normal.index >= 0 ? 1 : 0,
+                roughness != null && roughness.index >= 0 ? 1 : 0,
+                occlusion != null && occlusion.index >= 0 ? 1 : 0,
+                0));
+            return material;
+        }
     }
 
     public static class CombatMaterialAppearance

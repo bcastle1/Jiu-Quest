@@ -27,3 +27,52 @@
   .unity-preview-page{padding:6px 12px 22px}.unity-preview-top{margin-bottom:2px}.unity-preview-intro{display:none}.unity-preview-technique{grid-template-columns:auto minmax(200px,1fr);gap:12px;margin-bottom:8px}.unity-preview-technique>span{display:none}.unity-preview-grid{grid-template-columns:minmax(0,1fr);gap:10px}.unity-preview-options{padding:12px}.unity-preview-options p{display:none}.unity-stage-heading{padding:8px 12px}.unity-viewport{aspect-ratio:auto;height:clamp(210px,65svh,360px)}.unity-controls{padding:8px 12px}.unity-stage:fullscreen .unity-stage-heading{padding:5px 12px}.unity-stage:fullscreen .unity-controls{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}.unity-stage:fullscreen .unity-scrubber{margin-top:0}.unity-stage:fullscreen .unity-camera-controls{grid-column:1/-1;display:flex;margin-top:0}.unity-stage:fullscreen .unity-camera-controls>span{margin-bottom:0}
 }
 @media(prefers-reduced-motion:reduce){.unity-stage .snapshot-spinner{animation:none}}
+
+/* The arena keeps the visual weight; its surrounding controls use the same
+   slate, jade and warm brass palette without painting over the fighters. */
+.unity-stage{border-color:#6e8c8e55;border-radius:16px;box-shadow:0 18px 50px #0005}
+.unity-stage-heading{background:linear-gradient(115deg,#1a3036,#112028 70%);border-bottom:1px solid #c5ab6830}
+.unity-eyebrow{color:#c8af77;font-size:10px;letter-spacing:.18em}
+.unity-stage-heading h3{font-weight:750;letter-spacing:.015em}
+.unity-stage button.unity-play{background:#d6af66;color:#182324;border-color:#f0d192;font-weight:750;box-shadow:0 3px 0 #876939}
+.unity-stage button.unity-play:hover:not(:disabled){background:#ecc785}
+.unity-stage button:disabled{opacity:.45;cursor:wait}
+.unity-controls{background:linear-gradient(135deg,#12252c,#0f1c25)}
+.unity-camera-controls button[aria-pressed=true]{background:#284d4a;border-color:#80baa7;color:#edf8ed;box-shadow:inset 0 0 0 1px #80baa730}
+.unity-scrubber input{accent-color:#d6b777}
+.unity-athletes span{background:#0b2029e8;border-color:#9cb6bd55;border-radius:4px;box-shadow:0 3px 12px #0003}
+.unity-athletes span:first-child{border-left:3px solid #e0be7a}
+.unity-athletes span:last-child{border-right:3px solid #82b5bc}
+.unity-preview-page{max-width:1440px;padding:22px 32px 48px;background:radial-gradient(ellipse at 38% 34%,#26505122,transparent 65%)}
+.unity-preview-top{margin-bottom:26px;padding-bottom:15px;border-bottom:1px solid #b4c7c51a}
+.unity-preview-brand{display:flex;align-items:center;gap:12px;font-size:19px;font-weight:900;letter-spacing:.16em;color:#f2e6c9}
+.unity-dojo-mark{display:grid;place-items:center;width:38px;height:38px;font-size:13px;letter-spacing:-.06em;color:#e6c685;border:1px solid #ac8e52;border-radius:9px 2px;background:linear-gradient(145deg,#385350,#182b31);box-shadow:inset 0 0 0 3px #142c31}
+.unity-preview-top a{gap:12px;color:#b8d1ca;font-size:12px}
+.unity-preview-top a:hover{color:#f0d192}
+.unity-preview-intro{max-width:none;display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:26px}
+.unity-preview-intro h1{font-family:'Trebuchet MS',ui-sans-serif,system-ui,sans-serif;font-size:clamp(28px,3.4vw,46px);font-weight:900;letter-spacing:-.045em;line-height:1.1;margin:9px 0;color:#f5f1e8}
+.unity-preview-intro p{color:#a4bebf;font-size:13px;margin-top:10px}
+.unity-preview-mode{display:block;text-align:right;font-size:11px;font-weight:800;letter-spacing:.13em;color:#d7bb80;white-space:nowrap}
+.unity-preview-mode>span{display:block;font-size:11px;font-weight:400;letter-spacing:.02em;color:#839da4;margin-top:8px}
+.unity-preview-technique{grid-template-columns:auto minmax(240px,390px) 1fr;margin-bottom:18px;padding:12px 16px;border:1px solid #78999c30;border-radius:10px;background:#13262c80}
+.unity-preview-technique>span{text-align:right;color:#86a6aa;letter-spacing:.03em}
+.unity-preview-page select{background:#0c1c25;border-color:#688d8e50;color:#e2eeeb}
+.unity-preview-page select:focus-visible{outline:2px solid #e0be7a;outline-offset:3px}
+.unity-preview-grid{grid-template-columns:minmax(0,1fr) 250px;gap:20px}
+.unity-preview-options{padding:19px;background:linear-gradient(155deg,#182f35,#101e28);border-color:#75999945;border-radius:12px}
+.unity-dojo-location{display:flex;flex-direction:column;gap:9px;padding:2px 0 20px;margin-bottom:17px;border-bottom:1px solid #8caaa82c}
+.unity-dojo-location strong{font-family:'Trebuchet MS',ui-sans-serif,system-ui,sans-serif;font-size:25px;letter-spacing:-.03em;color:#f1e5cc}
+.unity-dojo-location>span:last-child{font-size:11px;color:#a0b7b8}
+.unity-preview-options summary{font-weight:650;font-size:13px;color:#deebe6}
+.unity-preview-options label{margin-top:15px;color:#a9c3c3}
+.unity-preview-options .unity-preview-safe{color:#94c1ab}
+.unity-camera-controls button{white-space:nowrap}
+@media(max-width:520px){.unity-camera-controls>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.unity-camera-controls button{min-height:44px}}
+@media(max-width:1000px) and (min-width:761px){.unity-preview-page{padding:20px}.unity-preview-grid{grid-template-columns:minmax(0,1fr) 210px;gap:14px}.unity-preview-options{padding:14px}}
+@media(max-width:760px){
+  .unity-preview-page{padding:12px 12px 30px}.unity-preview-top{padding-bottom:10px;margin-bottom:16px}.unity-preview-brand{font-size:16px;gap:9px}.unity-dojo-mark{width:31px;height:31px;font-size:11px}
+  .unity-preview-intro{margin-bottom:17px}.unity-preview-intro .unity-eyebrow{font-size:9px}.unity-preview-intro h1{font-size:29px;margin:7px 0}.unity-preview-intro p{font-size:12px;max-width:285px;line-height:1.5;margin:8px 0 0}.unity-preview-mode{display:none}
+  .unity-preview-technique{grid-template-columns:1fr;padding:10px 12px;gap:6px;margin-bottom:12px}.unity-preview-technique select{min-width:0;width:100%}.unity-preview-grid{gap:14px}.unity-dojo-location{display:none}.unity-preview-options{padding:16px}
+}
+@media(max-width:360px){.unity-preview-page{padding-left:8px;padding-right:8px}.unity-preview-intro h1{font-size:27px}.unity-preview-top a{gap:6px;font-size:11px}}
+@media(max-height:500px) and (orientation:landscape){.unity-preview-page{padding:6px 12px 22px}.unity-preview-top{margin-bottom:4px;padding-bottom:4px}.unity-preview-intro,.unity-dojo-location{display:none}.unity-preview-technique{grid-template-columns:auto minmax(200px,1fr);padding:7px 12px;margin-bottom:8px}.unity-preview-grid{grid-template-columns:minmax(0,1fr)}}

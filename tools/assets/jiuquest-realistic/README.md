@@ -42,16 +42,30 @@ JPEG and roughness256 JPEG. Original source files were not overwritten.
 
 The generator adds independent uniforms and accessories, removes covered skin
 only after garments have sampled the full body, and normalizes the strongest
-four skin influences. Mohawk and restrained spiky variants are authored
-derivatives of the CC0 Crew scalp. Long uses the long ponytail, Slick uses
-short04, and Bald hides hair while retaining separate eyebrows.
+four skin influences. Source geometry, maps and original reference values in
+`material-reference.json` remain unchanged.
 
-Skin/Hair/Brows material names encode their measured source sRGB color using
-`_Ref_RRGGBB`. Runtime tint is applied as a ratio in linear light; eyes keep
-their authored texture. Hair and brows use MASK with cutoff0.5, not alpha
-blending. Skin references use median cheek UV samples; hair references use
-median opaque texture pixels. Reference values are recorded in
-`material-reference.json`.
+## Action-anime derivative
+
+`../../anime_fighter.py` applies a deterministic rest-space warp to the fitted
+adult face and eyes: wider eye sockets, a modestly larger cranium and a narrower
+chin. The same warp keeps the face, eyeballs, eyebrows and hair fitted together.
+The body proportions below the neck, 65-bone rig, four-influence skinning and
+paired choreography are retained.
+
+Hair and eyebrows in the runtime assets are new JiuQuest-authored solid meshes.
+Crew and Spikes have swept clumps and a three-lock fringe; Slick sweeps back;
+Mohawk has a narrow crest; Long uses a tied ponytail and face-framing locks.
+Bald hides hair while retaining the brows. These meshes use opaque cosmetic
+colors without additional textures or alpha overdraw. They are created during
+export; the original source scalp/hair/brow meshes in the blend are not edited.
+
+The final pair now shares **four embedded images**: skin 2K JPEG, eyes 256 JPEG,
+cotton normal 512 JPEG and roughness 256 JPEG. Skin keeps its measured
+`_Ref_RRGGBB` suffix for linear-light tinting. The runtime cel shader suppresses
+skin texture variation while retaining the eye texture and cloth detail.
+All runtime materials are opaque. No third-party requests or paid assets are
+introduced by this derivative.
 
 ## Regenerate
 

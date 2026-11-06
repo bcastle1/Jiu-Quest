@@ -7,6 +7,49 @@ namespace JiuQuest.Combat.Tests
     public class CombatFramingTests
     {
         [Test]
+        public void CloseUpBoundsFollowTranslatedPoseWithSurfaceAllowance()
+        {
+            var points = new[] { new Vector3(12, .1f, -6), new Vector3(13, 1.2f, -5) };
+            Assert.That(CombatFraming.TryPoseBounds(points, out var bounds), Is.True);
+            Assert.That(Vector3.Distance(bounds.center, new Vector3(12.5f, .65f, -5.5f)), Is.LessThan(.0001f));
+            Assert.That(bounds.size.x, Is.EqualTo(1.45f).Within(.0001f));
+            foreach (var point in points) Assert.That(bounds.Contains(point + Vector3.up * .2f), Is.True);
+            Assert.That(bounds.Contains(Vector3.zero), Is.False);
+        }
+
+        [Test]
+        public void InvalidOrMissingJointsCannotCreateCloseUpCameraBounds()
+        {
+            Assert.That(CombatFraming.TryPoseBounds(null, out _), Is.False);
+            Assert.That(CombatFraming.TryPoseBounds(Array.Empty<Vector3>(), out _), Is.False);
+            Assert.That(CombatFraming.TryPoseBounds(new[] { Vector3.zero, new Vector3(float.NaN, 1, 1) }, out _), Is.False);
+            Assert.That(CombatFraming.TryPoseBounds(new[] { new Vector3(0, float.PositiveInfinity, 0) }, out _), Is.False);
+        }
+
+        [Test]
+        public void CloseUpCommandIsAcceptedAndPreservesAuthoredViewBasis()
+        {
+            var command = CombatProtocol.ParseJson("{\"protocolVersion\":1,\"instanceId\":\"phone\",\"requestId\":\"phone:7\",\"type\":\"setCamera\",\"camera\":\"focus\"}");
+            Assert.That(CombatProtocol.Validate(command, out _), Is.True);
+            Assert.That(CombatFraming.CameraYaw("rear_naked_choke", "focus"), Is.EqualTo(207));
+            Assert.That(CombatFraming.CameraYaw("double_leg", "focus"), Is.EqualTo(27));
+        }
+
+        [Test]
+        public void HiddenRigHelpersCannotMakeCloseUpWiderThanMeasuredMotion()
+        {
+            var motion = new Bounds(new Vector3(7, .8f, -4), new Vector3(2, 1.6f, 2));
+            var pose = new Bounds(new Vector3(6, .4f, -3), new Vector3(7, 3, 4));
+            var bounded = CombatFraming.LimitPoseToMotion(pose, motion);
+            var orientation = Quaternion.Euler(18, 207, 0);
+            Assert.That(CombatFraming.Distance(bounded, orientation, 44, .75f), Is.LessThanOrEqualTo(CombatFraming.Distance(motion, orientation, 44, .75f)));
+            Assert.That(bounded.min.x, Is.GreaterThanOrEqualTo(motion.min.x));
+            Assert.That(bounded.max.z, Is.LessThanOrEqualTo(motion.max.z));
+            var disjoint = new Bounds(new Vector3(30, 0, 0), Vector3.one);
+            Assert.That(CombatFraming.LimitPoseToMotion(disjoint, motion), Is.EqualTo(motion));
+        }
+
+        [Test]
         public void RearNakedChokeFrontViewsFacesAndHoldInsteadOfPerformersBack()
         {
             float front = CombatFraming.CameraYaw("rear_naked_choke", "front");

@@ -39,7 +39,7 @@ namespace JiuQuest.Combat.Editor
             pipeline.msaaSampleCount = 2;
             pipeline.renderScale = 1;
             pipeline.supportsHDR = false;
-            pipeline.mainLightShadowmapResolution = 1024;
+            pipeline.mainLightShadowmapResolution = 2048;
             pipeline.shadowDistance = 12;
             pipeline.shadowCascadeCount = 1;
             var pipelineSettings = new SerializedObject(pipeline);
@@ -188,15 +188,17 @@ namespace JiuQuest.Combat.Editor
 
         static void IncludeRuntimeShaders()
         {
-            // Keep the dojo's URP/Lit and only the official glTF PBR shader graphs
-            // used by actor materials. Runtime-only imports are invisible to scene stripping.
+            // Runtime-only fighter imports are invisible to scene stripping. Keep
+            // their cel shader, the official import/fallback shaders and the dojo shader.
             var shaders = new[] {
                 Shader.Find("Universal Render Pipeline/Lit"),
+                AssetDatabase.LoadAssetAtPath<Shader>("Assets/JiuQuest/Shaders/AnimeFighter.shader"),
+                AssetDatabase.LoadAssetAtPath<Shader>("Assets/JiuQuest/Shaders/SummitSky.shader"),
                 AssetDatabase.LoadAssetAtPath<Shader>("Packages/com.unity.cloud.gltfast/Runtime/Shader/glTF-pbrMetallicRoughness.shadergraph"),
                 AssetDatabase.LoadAssetAtPath<Shader>("Packages/com.unity.cloud.gltfast/Runtime/Shader/URP/glTF-pbrMetallicRoughness-Clearcoat.shadergraph")
             };
             if (shaders.Any(shader => shader == null))
-                throw new BuildFailedException("A required dojo or glTF PBR shader is missing; actor surfaces cannot be preserved.");
+                throw new BuildFailedException("A required dojo, anime fighter or glTF import shader is missing.");
             var graphics = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset")[0]);
             var included = graphics.FindProperty("m_AlwaysIncludedShaders");
             foreach (var shader in shaders.Distinct())

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace JiuQuest.Combat
@@ -6,6 +7,34 @@ namespace JiuQuest.Combat
     // Fits the complete choreography envelope, including depth, instead of chasing limbs.
     public static class CombatFraming
     {
+        public static bool TryPoseBounds(IReadOnlyList<Vector3> points, out Bounds bounds)
+        {
+            bounds = default;
+            if (points == null || points.Count == 0) return false;
+            for (int index = 0; index < points.Count; index++)
+            {
+                var point = points[index];
+                if (!CombatProtocol.Finite(point.x) || !CombatProtocol.Finite(point.y) || !CombatProtocol.Finite(point.z)) return false;
+                if (index == 0) bounds = new Bounds(point, Vector3.zero);
+                else bounds.Encapsulate(point);
+            }
+            // Bones omit the outer cloth, face and hair. Keep a conservative allowance.
+            bounds.Expand(.45f);
+            return true;
+        }
+
+        public static Bounds LimitPoseToMotion(Bounds pose, Bounds motion)
+        {
+            // The measured mesh envelope already contains every pose. Hidden rig
+            // helpers and surface padding must not make Close-up wider than Front.
+            var min = Vector3.Max(pose.min, motion.min);
+            var max = Vector3.Min(pose.max, motion.max);
+            if (min.x >= max.x || min.y >= max.y || min.z >= max.z) return motion;
+            var bounded = new Bounds();
+            bounded.SetMinMax(min, max);
+            return bounded;
+        }
+
         public static float CameraYaw(string moveId, string preset, float orbitYaw = 27)
         {
             // This authored seated pair faces +Z. Its previous global front viewed the

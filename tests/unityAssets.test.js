@@ -17,7 +17,7 @@ for (const [move, path] of Object.entries(manifest.animations)) {
     assert.equal(bytes.readUInt32LE(16), 0x4e4f534a, 'first chunk is JSON');
     const gltf = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString());
     assert.ok(gltf.skins?.length > 0, 'characters must be skinned, not still meshes');
-    assert.equal(gltf.images?.length, 8, 'the pair shares eight optimized skin/eyes/hair/cotton images');
+    assert.equal(gltf.images?.length, 4, 'the pair shares four optimized skin/eyes/cotton images; anime hair and brows need no texture');
     assert.ok(bytes.length < 7 * 1024 * 1024, 'paired clip stays below the reviewed browser asset budget');
     for (const image of gltf.images) {
       assert.equal(image.uri, undefined, 'textures must be embedded, with no third-party fetches');
@@ -25,17 +25,16 @@ for (const [move, path] of Object.entries(manifest.animations)) {
       assert.ok(['image/jpeg', 'image/png'].includes(image.mimeType));
     }
     for (const material of gltf.materials) {
-      const hairOrBrows = /_(Hair|Brows)_Ref_[0-9A-F]{6}(?:\.\d+)?$/.test(material.name);
-      assert.equal(material.alphaMode ?? 'OPAQUE', hairOrBrows ? 'MASK' : 'OPAQUE', 'only hair and eyebrows use alpha cutout');
-      if (hairOrBrows) {
-        assert.ok(Number.isInteger(material.pbrMetallicRoughness?.baseColorTexture?.index), 'cutout needs its authored texture');
-        assert.equal(material.alphaCutoff ?? .5, .5, 'stable cutout threshold, no blended sorting');
+      assert.equal(material.alphaMode ?? 'OPAQUE', 'OPAQUE', 'solid anime geometry avoids alpha overdraw and transparent sorting');
+      if (/_(Hair|Brows)$/.test(material.name)) {
+        assert.equal(material.pbrMetallicRoughness?.baseColorTexture, undefined, 'authored solid hair and brow shapes use direct cosmetic color');
       }
     }
     for (const mesh of gltf.meshes) for (const primitive of mesh.primitives) {
       assert.equal(primitive.attributes.JOINTS_1, undefined, 'at most four influences per vertex');
       assert.equal(primitive.attributes.WEIGHTS_1, undefined, 'reviewed Blender and runtime skinning agree');
     }
+    for (const skin of gltf.skins) assert.equal(skin.joints.length, 65, 'anime styling preserves the existing 65-bone rig');
     assert.equal(gltf.animations.length, 1, 'both actors must share one timeline');
     const animation = gltf.animations[0];
     const animatedNodes = new Set(animation.channels.map((channel) => channel.target.node));
