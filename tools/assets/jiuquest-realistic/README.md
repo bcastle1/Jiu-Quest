@@ -60,6 +60,12 @@ Bald hides hair while retaining the brows. These meshes use opaque cosmetic
 colors without additional textures or alpha overdraw. They are created during
 export; the original source scalp/hair/brow meshes in the blend are not edited.
 
+The next character-detail authoring pass gives those hair locks flattened
+cross-sections oriented along each curve, asymmetric crest heights and short
+temple locks. Existing style names, shared opaque hair materials and Head-bone
+weights are preserved. No new hair textures or third-party assets are introduced.
+The fitted source face, eye geometry and covered-body mask remain unchanged.
+
 The final pair now shares **four embedded images**: skin 2K JPEG, eyes 256 JPEG,
 cotton normal 512 JPEG and roughness 256 JPEG. Skin keeps its measured
 `_Ref_RRGGBB` suffix for linear-light tinting. The runtime cel shader suppresses

@@ -35,14 +35,21 @@ namespace JiuQuest.Combat.Tests
             Assert.That(CombatFraming.CameraYaw("double_leg", "focus"), Is.EqualTo(27));
         }
 
-        [Test]
-        public void HiddenRigHelpersCannotMakeCloseUpWiderThanMeasuredMotion()
+        [TestCase("double_leg", .46f)]
+        [TestCase("double_leg", .75f)]
+        [TestCase("double_leg", 1.5f)]
+        [TestCase("rear_naked_choke", .46f)]
+        [TestCase("rear_naked_choke", .75f)]
+        [TestCase("rear_naked_choke", 1.5f)]
+        public void HiddenRigHelpersCannotMakeCloseUpWiderThanMeasuredMotion(string moveId, float aspect)
         {
             var motion = new Bounds(new Vector3(7, .8f, -4), new Vector3(2, 1.6f, 2));
             var pose = new Bounds(new Vector3(6, .4f, -3), new Vector3(7, 3, 4));
             var bounded = CombatFraming.LimitPoseToMotion(pose, motion);
-            var orientation = Quaternion.Euler(18, 207, 0);
-            Assert.That(CombatFraming.Distance(bounded, orientation, 44, .75f), Is.LessThanOrEqualTo(CombatFraming.Distance(motion, orientation, 44, .75f)));
+            var frontOrientation = Quaternion.Euler(CombatFraming.CameraElevation("front"), CombatFraming.CameraYaw(moveId, "front"), 0);
+            var focusOrientation = Quaternion.Euler(CombatFraming.CameraElevation("focus"), CombatFraming.CameraYaw(moveId, "focus"), 0);
+            Assert.That(Quaternion.Angle(frontOrientation, focusOrientation), Is.LessThan(.001f));
+            Assert.That(CombatFraming.Distance(bounded, focusOrientation, 44, aspect), Is.LessThanOrEqualTo(CombatFraming.Distance(motion, frontOrientation, 44, aspect)));
             Assert.That(bounded.min.x, Is.GreaterThanOrEqualTo(motion.min.x));
             Assert.That(bounded.max.z, Is.LessThanOrEqualTo(motion.max.z));
             var disjoint = new Bounds(new Vector3(30, 0, 0), Vector3.one);

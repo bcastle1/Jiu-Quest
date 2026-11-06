@@ -160,9 +160,23 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         theta = mix(edge_angle, TAU - edge_angle, u)
         folds = (.0025 * math.sin(theta * 11 + t * 8)
                  + .003 * math.sin(theta * 19 - t * 14)) * (1. - .45 * t)
+        # A few broad tension folds read at combat distance; fine textile relief
+        # remains in the existing cotton map. The belt compresses the waist.
+        waist_t = (waist_z - hem_z) / (neck_z - hem_z)
+        tension = math.exp(-((t - waist_t - .055) / .11) ** 2)
+        folds += .0055 * math.sin(theta * 6 + .35) * tension
+        folds += .0030 * math.sin(theta * 5 - t * 5) * (1. - smooth(t / .32))
         point = Vector(((rx + folds) * math.sin(theta), center_y - (ry + folds) * math.cos(theta), z))
         return point, (u * 5.5, t * 3.8), torso_weights(z)
     jacket.grid(42, 72, torso)
+
+    # Raised hems are part of the skinned jacket, not rigid attachment bars.
+    def hem(t, u):
+        point, uv, weights = torso(mix(.008, .045, t), u)
+        outward = Vector((point.x, point.y - center_y, 0)).normalized()
+        point += outward * (.0017 + .0023 * math.sin(t * math.pi))
+        return point, uv, weights
+    jacket.grid(3, 72, hem)
 
     # Skinned overlapping collar panels bend with all spine sections.
     for side in (-1., 1.):
@@ -171,11 +185,22 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             x = side * (.066 * (z - v_bottom) / (neck_z - v_bottom))
             rx, ry = torso_radius(z)
             y = center_y - ry * math.sqrt(max(.05, 1. - (x / rx) ** 2)) - .011
-            width = .039
+            width = .046
             across = (u - .5) * width
-            point = Vector((x + across, y - .004 * math.sin(u * math.pi), z + across * side * .31))
+            # A broad rolled face and two shallow edge channels reveal cotton
+            # construction without adding a contrasting material or hard trim.
+            roll = .007 * math.sin(u * math.pi) ** .75
+            channel = .0012 * (math.exp(-((u - .16) / .045) ** 2)
+                              + math.exp(-((u - .84) / .045) ** 2))
+            point = Vector((x + across, y - roll + channel, z + across * side * .31))
             return point, (u * .45, t * 3.6), torso_weights(z)
-        jacket.grid(24, 5, lapel, reverse=True)
+        jacket.grid(24, 9, lapel, reverse=True)
+        for seam_u in (.10, .90):
+            def lapel_seam(t, u, seam_u=seam_u, sample=lapel):
+                point, uv, weights = sample(t, seam_u + (u - .5) * .045)
+                point.y -= .0013 + .0008 * math.sin(u * math.pi)
+                return point, uv, weights
+            jacket.grid(24, 2, lapel_seam, reverse=True)
 
     # Sleeves follow the actual upper/lower-arm rest axis, with roomy cuffs.
     for suffix in ('l', 'r'):
@@ -191,15 +216,38 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             radius = mix(.093, .056, t) + .003 * math.sin(t * math.pi)
             radius *= mix(.40, 1., smooth(t / .21))
             fold = (.0017 * math.sin(t * 37 + angle * 2) + .001 * math.sin(angle * 9 + t * 12))
-            point = center + (basis_a * math.cos(angle) + basis_b * math.sin(angle) * 1.18) * (radius + fold)
             elbow_t = (elbow - start).length / (wrist - start).length
+            fold += .0045 * math.sin(t * 24 + angle * 2) * math.exp(-((t - elbow_t) / .17) ** 2)
+            fold += .0030 * math.exp(-((t - .965) / .024) ** 2)
+            point = center + (basis_a * math.cos(angle) + basis_b * math.sin(angle) * 1.18) * (radius + fold)
             low = smooth((t - elbow_t + .11) / .22)
             weights = {'upperarm_' + suffix: 1. - low, 'lowerarm_' + suffix: low}
             if t < .31:
                 upper = smooth(t / .31)
                 weights = {'spine_03': (1. - upper) * .80, 'clavicle_' + suffix: .20 * (1. - upper), 'upperarm_' + suffix: upper}
             return point, (u * 2., t * 4.2), weights
-        jacket.grid(28, 28, sleeve)
+        jacket.grid(32, 28, sleeve)
+        def cuff(t, u, sample=sleeve, shoulder=shoulder, wrist=wrist):
+            sleeve_t = mix(.944, .989, t)
+            point, uv, weights = sample(sleeve_t, u)
+            start = shoulder - (wrist - shoulder).normalized() * .155
+            center = start.lerp(wrist, sleeve_t * .97)
+            point += (point - center).normalized() * (.0015 + .0018 * math.sin(t * math.pi))
+            return point, uv, weights
+        jacket.grid(3, 28, cuff)
+
+        # Reinforcement follows the shoulder surface and shares its body-derived
+        # weights. It is joined before the jacket's single armature modifier.
+        def shoulder_panel(t, u, sample=sleeve, shoulder=shoulder, wrist=wrist):
+            sleeve_t = mix(.25, .43, t)
+            angle_u = mix(-.17, .17, u)
+            point, uv, weights = sample(sleeve_t, angle_u)
+            start = shoulder - (wrist - shoulder).normalized() * .155
+            center = start.lerp(wrist, sleeve_t * .97)
+            rounded = math.sin(t * math.pi) * math.sin(u * math.pi)
+            point += (point - center).normalized() * (.0016 + .0018 * rounded)
+            return point, uv, weights
+        jacket.grid(8, 10, shoulder_panel)
 
     belt = ClothMesh()
     def belt_wrap(t, u):
@@ -294,6 +342,16 @@ def fitted_trousers(body, armature, material, prefix, waist_z):
         if length > .0001:
             angle = math.atan2(delta.y,delta.x)
             desired = mix(.107,.070,t) + .0017*math.sin(t*39+angle*3)
+            knee_z = armature.data.bones['calf_' + side].head_local.z
+            knee_t = (hip.z - knee_z) / (hip.z - ankle.z)
+            # Broad compression folds and a softly raised front knee panel are
+            # sculpted into the existing trouser vertices, not floating pads.
+            desired += .0040 * math.sin(t * 24 + angle * 2) * math.exp(-((t - knee_t) / .12) ** 2)
+            front = max(0., -math.sin(angle)) ** 5
+            panel = 1. - smooth((abs(p.z - knee_z) - .055) / .035)
+            desired += .0035 * panel * front
+            cuff_t = (hip.z - .155) / (hip.z - ankle.z)
+            desired += .0030 * math.exp(-((t - cuff_t) / .018) ** 2)
             inflated = center + delta.normalized()*max(length+.009,desired)
             p.x = mix(p.x,inflated.x,lower_blend)
             p.y = mix(p.y,inflated.y,lower_blend)

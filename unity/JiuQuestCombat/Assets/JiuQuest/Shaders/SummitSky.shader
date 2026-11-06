@@ -23,13 +23,15 @@ Shader "JiuQuest/Summit Sky"
             {
                 float3 ray = normalize(input.positionWS - GetCameraPositionWS());
                 float elevation = saturate(ray.y);
-                half3 sky = lerp(half3(.26,.40,.48), half3(.035,.115,.225), pow(elevation, .50));
+                // Share the renderer's actual fog color, including its color-space
+                // conversion, so distant terrain merges into the horizon cleanly.
+                half3 sky = lerp(unity_FogColor.rgb, half3(.035,.115,.225), pow(elevation, .52));
                 float azimuth = atan2(ray.z, ray.x);
-                float streak = sin(elevation * 95 + sin(azimuth * 2.3) * 2.5) * .5 + .5;
-                float breakup = sin(azimuth * 5 + sin(azimuth * 2)) * .5 + .5;
-                float cloudBand = smoothstep(.025,.08,elevation) * (1-smoothstep(.20,.36,elevation));
-                float cloud = smoothstep(.48,.94,streak) * smoothstep(.20,.65,breakup) * cloudBand * .32;
-                sky = lerp(sky, half3(.64,.69,.67), cloud);
+                float streak = sin(elevation * 72 + sin(azimuth * 2) * 2.1) * .5 + .5;
+                float breakup = sin(azimuth * 5 + sin(azimuth * 3)) * .5 + .5;
+                float cloudBand = smoothstep(.015,.05,elevation) * (1-smoothstep(.21,.38,elevation));
+                float cloud = smoothstep(.40,.91,streak) * smoothstep(.14,.68,breakup) * cloudBand * .38;
+                sky = lerp(sky, half3(.64,.68,.66), cloud);
                 float sun = saturate(dot(ray, normalize(float3(-.40,.28,-.86))));
                 sky += half3(.26,.14,.05) * pow(sun, 32);
                 sky = lerp(sky, half3(1,.86,.60), smoothstep(.99935,.9998,sun));

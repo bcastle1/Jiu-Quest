@@ -37,10 +37,23 @@ def hair_mesh(name, rig, style):
 
     def tube(points, widths, depths, segments=8):
         start = len(vertices)
-        for p, width, depth in zip(points, widths, depths):
+        for row, (p, width, depth) in enumerate(zip(points, widths, depths)):
+            previous = Vector(points[max(0, row - 1)])
+            following = Vector(points[min(len(points) - 1, row + 1)])
+            axis = (following - previous).normalized()
+            side = Vector((1, 0, 0))
+            if abs(axis.dot(side)) > .92:
+                side = Vector((0, 1, 0))
+            side = (side - axis * side.dot(axis)).normalized()
+            relief = axis.cross(side).normalized()
             for j in range(segments):
                 angle = math.tau*j/segments
-                vertices.append((p[0]+width*math.cos(angle), p[1]+depth*math.sin(angle), p[2]))
+                # A flattened swept lock, oriented along its curve. The old
+                # horizontal round rings produced bulbous repeated spikes.
+                ridge = math.sin(angle)
+                ridge *= .64 if ridge >= 0 else .48
+                co = Vector(p) + side * width * math.cos(angle) + relief * depth * ridge
+                vertices.append(tuple(co))
         for row in range(len(points)-1):
             for j in range(segments):
                 a=start+row*segments+j; b=start+row*segments+(j+1)%segments
@@ -64,25 +77,43 @@ def hair_mesh(name, rig, style):
             faces.append((a,a+around,b+around,b))
 
     if style in ('Crew', 'Spikes'):
-        height=.026 if style=='Crew' else .070
+        height=.022 if style=='Crew' else .064
+        lifts=(.69, .91, 1., .82, .58)
         for i in range(5):
             x=(i-2)*.030
             edge=abs(i-2)/2
-            tube([(x,-.005,1.729-edge*.009),(x+.008,-.010,1.755),(x+.024,.004,1.775),(x+.038,.023,1.768+height*(1-.35*edge))], [.026,.027,.017,.001], [.037,.031,.022,.001])
+            lean=.024 + .004*i
+            sweep=.018 + .006*(i%3)
+            tube([(x,-.006,1.729-edge*.009),
+                  (x+lean*.25,-.010,1.750+height*.22*lifts[i]),
+                  (x+lean*.70,sweep*.35,1.766+height*.62*lifts[i]),
+                  (x+lean,sweep,1.767+height*lifts[i])],
+                 [.026,.027,.019,.001], [.035,.028,.019,.001])
         # Three swept fringe locks frame the brow, with distinct curved planes.
-        for x, fall in [(-.047,.018),(-.012,.030),(.030,.014)]:
-            tube([(x,-.048,1.731),(x+.013,-.073,1.710),(x+.019,-.089,1.682-fall)], [.024,.017,.001], [.021,.014,.001])
+        for x, fall, sweep in [(-.047,.012,.021),(-.012,.026,.026),(.030,.009,.015)]:
+            tube([(x,-.048,1.731),(x+sweep*.55,-.074,1.710),
+                  (x+sweep,-.089,1.682-fall)], [.025,.018,.001], [.021,.015,.001])
     elif style=='Slick':
-        for x in [-.055,-.028,0,.028,.055]:
-            tube([(x,-.045,1.721),(x,.000,1.775),(x,.069,1.756),(x,.102,1.711)], [.021,.020,.013,.001], [.024,.021,.014,.001])
+        for i,x in enumerate([-.055,-.028,0,.028,.055]):
+            lift=(.012,.023,.026,.019,.009)[i]
+            tube([(x,-.045,1.721),(x+.009,.000,1.750+lift),
+                  (x+.016,.069,1.736+lift),(x+.010,.102,1.706)],
+                 [.023,.023,.015,.001], [.024,.021,.014,.001])
     elif style=='Mohawk':
-        for y in [-.050,-.020,.015,.050,.079]:
-            tube([(0,y,1.735),(.002,y+.008,1.777),(0,y+.013,1.820)], [.024,.019,.001], [.023,.018,.001])
+        for y,tip in [(-.050,1.795),(-.020,1.814),(.015,1.821),(.050,1.802),(.079,1.778)]:
+            tube([(0,y,1.735),(.006,y+.008,(1.735+tip)*.5),
+                  (.014,y+.022,tip)], [.024,.020,.001], [.027,.020,.001])
     else:
         # Solid tied ponytail plus two face-framing locks.
         tube([(0,.094,1.699),(0,.145,1.668),(.008,.167,1.610),(.016,.149,1.556)], [.031,.035,.024,.003], [.023,.025,.023,.003])
         for side in [-1,1]:
             tube([(side*.062,-.032,1.717),(side*.077,-.048,1.663),(side*.072,-.057,1.597)], [.018,.013,.001], [.024,.018,.001])
+
+    # Short temple locks finish the hairline without covering ears or changing
+    # the existing opaque material, head binding or hairstyle visibility names.
+    for side in (-1, 1):
+        tube([(side*.074,-.041,1.697),(side*.083,-.035,1.665),
+              (side*.079,-.029,1.639)], [.014,.010,.001], [.017,.013,.001])
 
     mesh=bpy.data.meshes.new(name+'Mesh');mesh.from_pydata(vertices,[],faces);mesh.update()
     obj=bpy.data.objects.new(name,mesh);bpy.context.scene.collection.objects.link(obj)

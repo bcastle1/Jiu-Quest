@@ -44,6 +44,13 @@ namespace JiuQuest.Combat
             return basis + angle;
         }
 
+        public static float CameraElevation(string preset, float orbitElevation = 25)
+        {
+            // Front and Close-up share their view basis. A contained pose envelope
+            // can only guarantee a tighter fit when the projection is unchanged.
+            return preset == "overhead" ? 76 : preset == "orbit" ? orbitElevation : 14;
+        }
+
         public static float Distance(Bounds bounds, Quaternion orientation, float verticalFov, float aspect, float occupancy = .86f)
         {
             if (!CombatProtocol.Finite(aspect) || aspect <= 0) throw new ArgumentOutOfRangeException(nameof(aspect));
