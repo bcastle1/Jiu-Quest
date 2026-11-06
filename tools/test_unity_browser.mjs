@@ -12,6 +12,7 @@ const checks = [], images = [], moves = [], errors = [], assetFailures = [], dim
 const startedAtUtc = new Date().toISOString(), startedAt = Date.now(), checkpoints = [];
 let browser, server, page, manifest, networkMeasurement, speedMeasurement, trainingLifecycle;
 let expectedMissingManifest = false;
+const browserOptions = { headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) };
 
 async function bounded(promise, timeoutMs, label) {
   let timer;
@@ -216,7 +217,7 @@ let report;
 try {
   await checkpoint('starting');
   const base = process.env.JIUQUEST_PREVIEW_URL?.replace(/\/$/, '') || await staticSite();
-  browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) });
+  browser = await chromium.launch(browserOptions);
   // Inventory is deliberately paused, including on slow CI software rendering.
   // Separate transport checks below start and stop the actual playing runtime.
   const desktop = await context({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
@@ -347,6 +348,16 @@ try {
   }
   checks.push('Portrait, small-width and landscape mobile viewports have large readable stages, 44px camera controls, touch-drag orbit, no overflow, reduced-motion pause and explicit playback.');
 
+  // A fresh context alone still shares the preceding inventory's long-lived
+  // software GPU process. Start this cold benchmark in a fresh browser too.
+  assert.equal(browser.contexts().length, 0, 'Earlier test contexts must be closed before the cold benchmark');
+  await checkpoint('cold-network:browser-closing');
+  await bounded(browser.close(), 30000, 'Pre-benchmark browser shutdown');
+  browser = undefined; page = undefined;
+  await checkpoint('cold-network:browser-closed');
+  await checkpoint('cold-network:browser-launching');
+  browser = await chromium.launch(browserOptions);
+  await checkpoint('cold-network:browser-launched');
   await checkpoint('cold-network:starting');
   const cold = await context({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1, reducedMotion: 'reduce' });
   const cdp = await cold.newCDPSession(page); await cdp.send('Network.enable'); await cdp.send('Network.setCacheDisabled', { cacheDisabled: true }); await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 150, downloadThroughput: 500000, uploadThroughput: 150000 });
@@ -367,7 +378,7 @@ try {
     factoryCreatedMs: window.__unityLifecycle[0]?.createdAt ?? null,
   })), 10000, 'Cold startup telemetry');
   const controllerElapsedMs = Date.now() - began;
-  networkMeasurement = { downloadMbps: 4, latencyMs: 150, cacheDisabled: true,
+  networkMeasurement = { downloadMbps: 4, latencyMs: 150, cacheDisabled: true, freshBrowserProcess: true,
     readyMs: telemetry.startup?.renderedReadyMs, readyClock: 'page performance.now, navigation-relative, after matching paused initial move and two rendered frames',
     controllerElapsedMs, navigationCommandDelayMs: telemetry.startup.navigationTimeOrigin - began,
     automationDelayMs: controllerElapsedMs - (telemetry.startup.renderedReadyMs ?? 0) - (telemetry.startup.navigationTimeOrigin - began),
@@ -405,7 +416,24 @@ try {
   if (page && !page.isClosed()) {
     const diagnostics = await Promise.allSettled([
       bounded(page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }), 12000, 'Failure screenshot'),
-      bounded(page.evaluate(() => ({ url: location.href, stage: document.querySelector('.unity-stage')?.dataset.unityStatus, stageText: document.querySelector('.unity-stage')?.innerText, visibleTransport: [...document.querySelectorAll('button[aria-label="Play animation"],button[aria-label="Pause animation"]')].map((button) => ({ label: button.getAttribute('aria-label'), disabled: button.disabled })), recentUnityEvents: window.__unityEvents?.slice(-20), unityLifecycle: window.__unityLifecycle })), 5000, 'Failure diagnostics'),
+      bounded(page.evaluate(() => ({
+        url: location.href, observedAtMs: performance.now(), navigationTimeOrigin: performance.timeOrigin,
+        documentVisibility: document.visibilityState,
+        stage: document.querySelector('.unity-stage')?.dataset.unityStatus,
+        stageText: document.querySelector('.unity-stage')?.innerText,
+        visibleTransport: [...document.querySelectorAll('button[aria-label="Play animation"],button[aria-label="Pause animation"]')].map((button) => ({ label: button.getAttribute('aria-label'), disabled: button.disabled })),
+        recentUnityEvents: window.__unityEvents?.slice(-20), unityLifecycle: window.__unityLifecycle,
+        startup: window.__unityStartupTelemetry,
+        resources: performance.getEntriesByType('resource').map((entry) => ({ ...entry.toJSON(), name: new URL(entry.name).pathname })),
+        navigation: performance.getEntriesByType('navigation').map((entry) => ({ ...entry.toJSON(), name: new URL(entry.name).pathname })),
+        paints: performance.getEntriesByType('paint').map((entry) => entry.toJSON()),
+        canvas: [...document.querySelectorAll('.unity-canvas')].map((canvas) => ({
+          width: canvas.width, height: canvas.height, bounds: canvas.getBoundingClientRect().toJSON(),
+          visibility: getComputedStyle(canvas).visibility, display: getComputedStyle(canvas).display,
+          opacity: getComputedStyle(canvas).opacity,
+          checkVisibility: canvas.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true }),
+        })),
+      })), 5000, 'Failure diagnostics'),
     ]);
     report.diagnostics = diagnostics[1].status === 'fulfilled' ? diagnostics[1].value : { unavailable: String(diagnostics[1].reason) };
     report.diagnosticErrors = diagnostics.filter((result) => result.status === 'rejected').map((result) => String(result.reason));
