@@ -456,12 +456,46 @@ namespace JiuQuest.Combat
             var material = new Material(shader) { name = "Summit atmosphere" };
             skyMaterial = material;
             materials.Add(material); distantMaterials.Add(material);
-            var dome = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            dome.name = "Summit sky dome";
-            dome.transform.SetParent(environment, false);
-            dome.transform.localScale = Vector3.one * 160;
-            dome.GetComponent<Renderer>().sharedMaterial = material;
-            Destroy(dome.GetComponent<Collider>());
+            MeshObject("Summit sky dome", SkySphereMesh(), Vector3.zero, material);
+        }
+
+        Mesh SkySphereMesh()
+        {
+            // CreatePrimitive also requests a SphereCollider before we could
+            // remove it. A sky has no physics, so own only the mesh and renderer.
+            // Outward winding is intentional: SummitSky uses Cull Front inside.
+            const int segments = 32, latitudes = 16;
+            const float radius = 80;
+            var vertices = new List<Vector3> { Vector3.up * radius };
+            var uv = new List<Vector2> { new Vector2(.5f, 0) };
+            var triangles = new List<int>();
+            for (int latitude = 1; latitude < latitudes; latitude++)
+            {
+                float polar = latitude * Mathf.PI / latitudes;
+                for (int longitude = 0; longitude < segments; longitude++)
+                {
+                    float azimuth = longitude * Mathf.PI * 2 / segments;
+                    vertices.Add(new Vector3(Mathf.Sin(polar) * Mathf.Sin(azimuth), Mathf.Cos(polar),
+                        Mathf.Sin(polar) * Mathf.Cos(azimuth)) * radius);
+                    uv.Add(new Vector2(longitude / (float)segments, latitude / (float)latitudes));
+                }
+            }
+            int south = vertices.Count;
+            vertices.Add(Vector3.down * radius); uv.Add(new Vector2(.5f, 1));
+            for (int longitude = 0; longitude < segments; longitude++)
+            {
+                int next = (longitude + 1) % segments;
+                triangles.AddRange(new[] { 0, 1 + longitude, 1 + next });
+                for (int latitude = 0; latitude < latitudes - 2; latitude++)
+                {
+                    int a = 1 + latitude * segments + longitude, b = a + segments;
+                    int d = 1 + latitude * segments + next, c = d + segments;
+                    triangles.AddRange(new[] { a, b, c, a, c, d });
+                }
+                int lastRing = 1 + (latitudes - 2) * segments;
+                triangles.AddRange(new[] { south, lastRing + next, lastRing + longitude });
+            }
+            return Mesh("Collision-free summit sky sphere", vertices, triangles, uv);
         }
 
         void Lantern(Vector3 origin, Material stone, Material timber, Material bronze, Material paper)

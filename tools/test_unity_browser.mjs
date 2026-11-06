@@ -8,7 +8,7 @@ import { installUnityStartupTelemetry } from './unity_startup_telemetry.mjs';
 
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser');
 await mkdir(artifacts, { recursive: true });
-const checks = [], images = [], moves = [], errors = [], assetFailures = [], dimensions = [], pauses = [];
+const checks = [], images = [], moves = [], errors = [], consoleErrors = [], expectedConsoleErrors = [], assetFailures = [], dimensions = [], pauses = [];
 const startedAtUtc = new Date().toISOString(), startedAt = Date.now(), checkpoints = [];
 let browser, server, page, manifest, networkMeasurement, speedMeasurement, trainingLifecycle;
 let expectedMissingManifest = false;
@@ -26,7 +26,7 @@ async function bounded(promise, timeoutMs, label) {
 function evidence(extra = {}) {
   return { startedAtUtc, checkedAtUtc: new Date().toISOString(), elapsedMs: Date.now() - startedAt, manifest, checkpoints,
     checks, moves, images, dimensions, pauses, trainingLifecycle, speedMeasurement, networkMeasurement,
-    pageErrors: errors, assetFailures, ...extra };
+    pageErrors: errors, consoleErrors, expectedConsoleErrors, assetFailures, ...extra };
 }
 
 async function checkpoint(stage, detail = {}) {
@@ -114,6 +114,15 @@ async function context(options = {}) {
   });
   page = await next.newPage();
   page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', message => {
+    if (message.type() !== 'error') return;
+    const entry = { text: message.text(), location: message.location(), atUtc: new Date().toISOString() };
+    // Only the explicit unavailable-build test may log its manifest's 404.
+    // Unity runtime errors can be console messages rather than pageerror events.
+    if (expectedMissingManifest && entry.location.url.endsWith('/unity/build-manifest.json')
+        && /Failed to load resource.*404/.test(entry.text)) expectedConsoleErrors.push(entry);
+    else consoleErrors.push(entry);
+  });
   page.on('response', (response) => {
     if (expectedMissingManifest && response.status() === 404 && response.url().endsWith('/unity/build-manifest.json')) return;
     if (response.status() >= 400 && /\/unity\//.test(response.url())) assetFailures.push({ url: response.url(), status: response.status() });
@@ -444,6 +453,7 @@ try {
   await closeContext(failed, 'missing-build-fallback');
   checks.push('Missing-build fallback changes to snapshots in-place, preserves saved progression/document state, and retains other URL settings.');
   assert.deepEqual(errors, []);
+  assert.deepEqual(consoleErrors, [], 'Unexpected browser or Unity console errors');
   assert.deepEqual(assetFailures, []);
   await checkpoint('verification:passed');
   report = evidence({ status: 'passed', scope: 'Actual Unity WebGL in desktop Chromium with mobile viewport/network emulation, not a physical-device performance benchmark. Only the final negative test mocks a 404 manifest.' });
