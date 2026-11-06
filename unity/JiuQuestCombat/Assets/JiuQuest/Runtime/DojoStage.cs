@@ -12,6 +12,8 @@ namespace JiuQuest.Combat
         readonly List<Texture2D> stageTextures = new List<Texture2D>();
         readonly HashSet<Material> distantMaterials = new HashSet<Material>();
         Camera sceneCamera;
+        UnityEngine.Light keyLight;
+        CombatRenderQuality renderQuality;
         Transform environment;
         Material pennantMaterial;
         Material skyMaterial;
@@ -131,7 +133,7 @@ namespace JiuQuest.Combat
 
             // Keep colored dojo accents out of facial lighting so the authored
             // skin texture and selected tone remain natural from every camera.
-            Light("Late afternoon key", new Vector3(48, -32, 0), new Color(1, .96f, .90f), 1.15f, true);
+            keyLight = Light("Late afternoon key", new Vector3(48, -32, 0), new Color(1, .96f, .90f), 1.15f, true);
             Light("Sky fill", new Vector3(32, 132, 0), new Color(.69f, .77f, 1), .32f, false);
             Light("Summit rim", new Vector3(35, 210, 0), new Color(.78f, .83f, 1), .48f, false);
             sceneCamera = new GameObject("Combat Camera").AddComponent<Camera>();
@@ -147,6 +149,9 @@ namespace JiuQuest.Combat
             var cameraData = sceneCamera.GetUniversalAdditionalCameraData();
             cameraData.renderPostProcessing = false;
             cameraData.antialiasing = AntialiasingMode.FastApproximateAntialiasing;
+            renderQuality = new CombatRenderQuality(SystemInfo.graphicsDeviceName,
+                GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset, sceneCamera, keyLight);
+            ApplyRenderQuality(false);
             PlaceCamera(true);
         }
 
@@ -190,14 +195,14 @@ namespace JiuQuest.Combat
         {
             compactViewport = compact;
             Application.targetFrameRate = compact ? 30 : 60;
-            sceneCamera.allowMSAA = !compact;
-            // The player has one active combat viewport. Resize changes its
-            // single sun atlas only when the quality tier actually changes.
-            var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
-            int shadowResolution = compact ? 1024 : 2048;
-            if (pipeline != null && pipeline.mainLightShadowmapResolution != shadowResolution)
-                pipeline.mainLightShadowmapResolution = shadowResolution;
+            ApplyRenderQuality(compact);
             PlaceCamera(true);
+        }
+
+        void ApplyRenderQuality(bool compact)
+        {
+            if (renderQuality != null && renderQuality.ApplyViewport(compact))
+                Debug.Log("JiuQuest render quality: " + JsonUtility.ToJson(renderQuality.Describe(SystemInfo.graphicsDeviceType.ToString())));
         }
 
         public void SetCamera(string cameraPreset)
@@ -981,7 +986,7 @@ namespace JiuQuest.Combat
             Destroy(cube.GetComponent<Collider>());
         }
 
-        void Light(string label, Vector3 angles, Color color, float intensity, bool shadow)
+        UnityEngine.Light Light(string label, Vector3 angles, Color color, float intensity, bool shadow)
         {
             var light = new GameObject(label).AddComponent<Light>();
             light.transform.SetParent(environment, false);
@@ -992,10 +997,12 @@ namespace JiuQuest.Combat
             light.shadows = shadow ? LightShadows.Soft : LightShadows.None;
             light.shadowBias = .04f;
             light.shadowNormalBias = .2f;
+            return light;
         }
 
         void OnDestroy()
         {
+            renderQuality?.Dispose();
             foreach (var material in materials) if (material != null) Destroy(material);
             foreach (var mesh in stageMeshes) if (mesh != null) Destroy(mesh);
             foreach (var texture in stageTextures) if (texture != null) Destroy(texture);

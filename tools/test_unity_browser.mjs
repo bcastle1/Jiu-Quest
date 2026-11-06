@@ -9,8 +9,10 @@ import { installUnityStartupTelemetry } from './unity_startup_telemetry.mjs';
 
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser');
 await mkdir(artifacts, { recursive: true });
-const checks = [], images = [], moves = [], errors = [], consoleErrors = [], expectedConsoleErrors = [], assetFailures = [], dimensions = [], pauses = [];
+const checks = [], images = [], moves = [], errors = [], consoleErrors = [], expectedConsoleErrors = [], renderQualityLogs = [], assetFailures = [], dimensions = [], pauses = [];
 const startedAtUtc = new Date().toISOString(), startedAt = Date.now(), checkpoints = [];
+const pageContexts = new WeakMap();
+let contextSequence = 0;
 let browser, server, page, manifest, networkMeasurement, speedMeasurement, trainingLifecycle;
 let expectedMissingManifest = false;
 const browserOptions = { headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) };
@@ -18,10 +20,14 @@ const environment = { platform: platform(), osRelease: release(), architecture: 
   cpuModel: cpus()[0]?.model ?? null, logicalCpuCount: cpus().length, totalMemoryBytes: totalmem(),
   browserChannel: process.env.JIUQUEST_BROWSER_CHANNEL || 'playwright-chromium', browserVersions: [], renderers: [] };
 
-async function recordRenderer(phase) {
-  // Observe the existing Unity context only after its rendered-ready milestone.
-  // Driver access may be unavailable; never substitute a presumed GPU/renderer.
-  const renderer = await bounded(page.evaluate(() => {
+async function recordRenderer(phase, requireObservedRuntime = false) {
+  // Normal probes run after rendered readiness. Failure probes additionally
+  // require an observed live runtime; never create or presume a GPU/renderer.
+  const renderer = await bounded(page.evaluate((requireObservedRuntime) => {
+    // On failure the player may not have created its graphics context yet.
+    // Do not create one merely to collect diagnostics.
+    if (requireObservedRuntime && !window.__unityLifecycle?.some(runtime => Number.isFinite(runtime.createdAt) && !runtime.quitStarted))
+      return { available: false, reason: 'No observed live Unity runtime; existing context was not queried' };
     const canvas = document.querySelector('.unity-canvas');
     const gl = canvas?.getContext('webgl2');
     if (!gl) return { available: false, reason: 'Existing WebGL2 context unavailable' };
@@ -31,8 +37,10 @@ async function recordRenderer(phase) {
       unmaskedVendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : null,
       unmaskedRenderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
       drawingBuffer: { width: gl.drawingBufferWidth, height: gl.drawingBufferHeight }, userAgent: navigator.userAgent };
-  }), 10000, 'Renderer diagnostics');
-  environment.renderers.push({ phase, atUtc: new Date().toISOString(), ...renderer });
+  }, requireObservedRuntime), 10000, 'Renderer diagnostics');
+  const entry = { phase, context: pageContexts.get(page), atUtc: new Date().toISOString(), ...renderer };
+  environment.renderers.push(entry);
+  return entry;
 }
 
 async function bounded(promise, timeoutMs, label) {
@@ -47,7 +55,7 @@ async function bounded(promise, timeoutMs, label) {
 function evidence(extra = {}) {
   return { startedAtUtc, checkedAtUtc: new Date().toISOString(), elapsedMs: Date.now() - startedAt, manifest, checkpoints,
     checks, moves, images, dimensions, pauses, trainingLifecycle, speedMeasurement, networkMeasurement,
-    pageErrors: errors, consoleErrors, expectedConsoleErrors, assetFailures, environment, ...extra };
+    pageErrors: errors, consoleErrors, expectedConsoleErrors, renderQualityLogs, assetFailures, environment, ...extra };
 }
 
 async function checkpoint(stage, detail = {}) {
@@ -94,6 +102,7 @@ async function staticSite() {
 
 async function context(options = {}) {
   const next = await browser.newContext(options);
+  const contextIdentity = { id: ++contextSequence, createdPhase: checkpoints.at(-1)?.stage ?? 'starting' };
   await next.addInitScript(installUnityStartupTelemetry, { moveId: 'double_leg' });
   await next.addInitScript(() => {
     window.__unityEvents = [];
@@ -134,10 +143,17 @@ async function context(options = {}) {
     Storage.prototype.setItem = function (key, value) { if (key.startsWith('jiuquest:')) window.__progressWrites.push(key); return original.call(this, key, value); };
   });
   page = await next.newPage();
+  pageContexts.set(page, contextIdentity);
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', message => {
+    const text = message.text(), qualityDiagnostic = text.startsWith('JiuQuest render quality: ');
+    if (message.type() !== 'error' && !qualityDiagnostic) return;
+    const entry = { text, type: message.type(), location: message.location(), atUtc: new Date().toISOString(),
+      phase: checkpoints.at(-1)?.stage ?? 'starting', context: contextIdentity };
+    // Keep the actual C# diagnostic independent of JavaScript renderer identity.
+    // Recording a profile does not select it or alter the rendered-ready gate.
+    if (qualityDiagnostic) renderQualityLogs.push(entry);
     if (message.type() !== 'error') return;
-    const entry = { text: message.text(), location: message.location(), atUtc: new Date().toISOString() };
     // Only the explicit unavailable-build test may log its manifest's 404.
     // Unity runtime errors can be console messages rather than pageerror events.
     if (expectedMissingManifest && entry.location.url.endsWith('/unity/build-manifest.json')
@@ -484,12 +500,12 @@ try {
   report = evidence({ status: 'passed', scope: 'Actual Unity WebGL in desktop Chromium with mobile viewport/network emulation, not a physical-device performance benchmark. Only the final negative test mocks a 404 manifest.' });
   console.log(JSON.stringify({ checks, moveCount: moves.length, dimensions, speedMeasurement, networkMeasurement, artifacts }, null, 2));
 } catch (error) {
-  report = evidence({ status: 'failed', failure: error.stack || String(error) });
+  const failurePhase = checkpoints.at(-1)?.stage ?? 'starting';
+  report = evidence({ status: 'failed', failure: error.stack || String(error), failurePhase, failureContext: pageContexts.get(page) });
   // Persist the original failure before querying a possibly unresponsive page.
   await writeFile(resolve(artifacts, 'report.json'), JSON.stringify(report, null, 2));
   if (page && !page.isClosed()) {
     const diagnostics = await Promise.allSettled([
-      bounded(page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }), 12000, 'Failure screenshot'),
       bounded(page.evaluate(() => ({
         url: location.href, observedAtMs: performance.now(), navigationTimeOrigin: performance.timeOrigin,
         documentVisibility: document.visibilityState,
@@ -497,6 +513,8 @@ try {
         stageText: document.querySelector('.unity-stage')?.innerText,
         visibleTransport: [...document.querySelectorAll('button[aria-label="Play animation"],button[aria-label="Pause animation"]')].map((button) => ({ label: button.getAttribute('aria-label'), disabled: button.disabled })),
         recentUnityEvents: window.__unityEvents?.slice(-20), unityLifecycle: window.__unityLifecycle,
+        latestReady: window.__unityEvents?.findLast(event => event.type === 'ready') ?? null,
+        latestState: window.__unityEvents?.findLast(event => event.type === 'state' || event.type === 'completed') ?? null,
         startup: window.__unityStartupTelemetry,
         resources: performance.getEntriesByType('resource').map((entry) => ({ ...entry.toJSON(), name: new URL(entry.name).pathname })),
         navigation: performance.getEntriesByType('navigation').map((entry) => ({ ...entry.toJSON(), name: new URL(entry.name).pathname })),
@@ -507,10 +525,23 @@ try {
           opacity: getComputedStyle(canvas).opacity,
           checkVisibility: canvas.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true }),
         })),
-      })), 5000, 'Failure diagnostics'),
+      })), 10000, 'Failure diagnostics'),
+      recordRenderer(`failure:${failurePhase}`, true),
     ]);
-    report.diagnostics = diagnostics[1].status === 'fulfilled' ? diagnostics[1].value : { unavailable: String(diagnostics[1].reason) };
+    report.diagnostics = diagnostics[0].status === 'fulfilled' ? diagnostics[0].value : { unavailable: String(diagnostics[0].reason) };
+    report.failureRenderer = diagnostics[1].status === 'fulfilled' ? diagnostics[1].value : { unavailable: String(diagnostics[1].reason) };
     report.diagnosticErrors = diagnostics.filter((result) => result.status === 'rejected').map((result) => String(result.reason));
+    if (failurePhase.startsWith('cold-network:')) {
+      report.failedColdStartup = { observedAfterFailure: true, renderedStartupGateMs: 90000, controllerWaitMs: 95000,
+        startup: report.diagnostics.startup ?? null, stage: report.diagnostics.stage ?? null,
+        latestReady: report.diagnostics.latestReady ?? null, latestState: report.diagnostics.latestState ?? null,
+        observedAtMs: report.diagnostics.observedAtMs ?? null };
+    }
+    // Save lightweight telemetry before a screenshot can occupy a slow renderer.
+    // Diagnostic failures must never replace the original test failure.
+    await writeFile(resolve(artifacts, 'report.json'), JSON.stringify(report, null, 2)).catch(failure => report.diagnosticErrors.push(`Diagnostic evidence save: ${failure}`));
+    await bounded(page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }), 12000, 'Failure screenshot')
+      .catch(failure => report.diagnosticErrors.push(String(failure)));
   }
   console.error(error); process.exitCode = 1;
 } finally {
