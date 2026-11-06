@@ -61,6 +61,51 @@ def hide_covered_body(body):
     bmesh.ops.delete(mesh,geom=[v for v in mesh.verts if not v.link_faces],context='VERTS')
     mesh.to_mesh(body.data);mesh.free();body.data.update()
 
+def refine_hand_surfaces(body, rig):
+    """Sculpt restrained dorsal knuckles/tendons into the existing rest mesh.
+
+    The source athlete has palms facing down in its T pose. All changes stay on
+    the back of the hand, away from palm contact surfaces and wrist/cuff seams.
+    No new geometry, skin weights, UVs, bone lengths or animation keys are added.
+    """
+    groups = {group.index: group.name for group in body.vertex_groups}
+    details = {}
+    for side in ('l', 'r'):
+        wrist = rig.data.bones['hand_' + side].head_local.copy()
+        fingers = []
+        for finger in ('index', 'middle', 'ring', 'pinky'):
+            joints = [rig.data.bones[f'{finger}_{segment:02d}_{side}'].head_local.copy()
+                      for segment in (1, 2, 3)]
+            # The metacarpal ridge converges toward the wrist without making
+            # four parallel raised rails over its full length.
+            start = wrist.lerp(joints[0], .38)
+            fingers.append((start, joints))
+        details[side] = (wrist, fingers)
+    for vertex in body.data.vertices:
+        dorsal = max(0., min(1., (vertex.normal.z - .25) / .65))
+        if dorsal == 0.: continue
+        for side, (wrist, fingers) in details.items():
+            influence = sum(group.weight for group in vertex.groups
+                            if groups[group.group].endswith('_' + side)
+                            and groups[group.group].startswith(('hand_', 'index_', 'middle_', 'ring_', 'pinky_')))
+            if influence < .1: continue
+            p = vertex.co
+            distance_from_wrist = abs(p.x - wrist.x)
+            cuff_fade = min(1., max(0., (distance_from_wrist - .025) / .025))
+            relief = 0.
+            for start, joints in fingers:
+                end = joints[0]
+                dx, dy = end.x - start.x, end.y - start.y
+                t = ((p.x - start.x) * dx + (p.y - start.y) * dy) / (dx*dx + dy*dy)
+                if 0. < t < 1.:
+                    lateral = (p.x - start.x - t*dx)**2 + (p.y - start.y - t*dy)**2
+                    relief += .00115 * math.exp(-lateral / .0045**2) * math.sin(math.pi*t)**2
+                for joint, amplitude, width in zip(joints, (.0023, .0016, .0009), (.011, .0075, .006)):
+                    d = ((p.x-joint.x)/width)**2 + ((p.y-joint.y)/(.8*width))**2
+                    relief += amplitude * math.exp(-d)
+            p.z += min(.0032, relief) * dorsal * cuff_fade * min(1., influence)
+    body.data.update()
+
 def derive_hair(crew, name, mohawk=False):
     obj=crew.copy();obj.data=crew.data.copy();obj.name=name
     bpy.context.scene.collection.objects.link(obj)
@@ -129,6 +174,7 @@ def make_realistic_fighter(role,colors,g):
     materials={key:g.make_material(prefix+'_'+name,colors[key],roughness=.75) for key,name in [('gi_top','GiTop'),('gi_pants','GiPants'),('belt','Belt'),('stripe','BeltStripe')]}
     build_realistic_gi(body,rig,root,materials,prefix)
     hide_covered_body(body)
+    refine_hand_surfaces(body,rig)
     stylize_anime(loaded,rig,prefix,g.make_material)
     for material in materials.values():
         for node in material.node_tree.nodes:

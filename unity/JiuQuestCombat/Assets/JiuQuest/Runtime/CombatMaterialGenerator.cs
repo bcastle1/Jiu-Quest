@@ -61,7 +61,8 @@ namespace JiuQuest.Combat
             material.SetFloat(DetailStrength, skin && hasReference ? .48f : 1f);
             material.SetVector(DetailBaseColor, CombatMaterialAppearance.ReferenceColor(slot));
             material.SetFloat(InkStrength, facialDetail ? .06f : skin ? .16f : hair ? .28f : .27f);
-            material.SetFloat(SpecularStrength, eye ? .40f : brows ? .012f : skin ? .06f : hair ? .14f : .025f);
+            // Keep the painted locks readable without sparkling plastic highlights.
+            material.SetFloat(SpecularStrength, eye ? .40f : brows ? .012f : skin ? .06f : hair ? .075f : .025f);
             material.SetFloat(RimStrength, eye ? .02f : skin ? .05f : hair ? .12f : .085f);
             material.SetFloat(NormalDetailStrength, skin ? .18f : hair ? .30f : .82f);
             var normal = gltfMaterial.NormalTexture;

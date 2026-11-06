@@ -7,10 +7,12 @@ The cotton normal/roughness maps are CC0 ambientCG Fabric042; see assets README.
 from __future__ import annotations
 
 import math
+import json
 from pathlib import Path
 import bpy
 import bmesh
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 from original_surface_maps import panel_uv, ensure_surface_map
 
@@ -96,7 +98,7 @@ class ClothMesh:
         return obj
 
 
-def cotton_material(material, *, normal_strength=0.22):
+def cotton_material(material, *, normal_strength=0.15):
     """UV1 construction paint and UV0 fine cotton relief, both neutral for tinting."""
     material.use_nodes = True
     nodes, links = material.node_tree.nodes, material.node_tree.links
@@ -105,9 +107,9 @@ def cotton_material(material, *, normal_strength=0.22):
     # Retaining the old colored factor would tint the selected gi/belt twice.
     shader.inputs['Base Color'].default_value = (1., 1., 1., 1.)
     shader.inputs['Metallic'].default_value = 0.
-    shader.inputs['Roughness'].default_value = 0.86
+    shader.inputs['Roughness'].default_value = 0.90
     shader.inputs['Coat Weight'].default_value = 0.
-    shader.inputs['Sheen Weight'].default_value = 0.16
+    shader.inputs['Sheen Weight'].default_value = 0.06
     panel_image = bpy.data.images.load(str(ensure_surface_map('cloth', ROOT / 'assets/jiuquest-realistic/textures')), check_existing=True)
     panel_image.colorspace_settings.name = 'sRGB'
     panel_texture = nodes.new('ShaderNodeTexImage'); panel_texture.name = 'Original stitched panels'; panel_texture.image = panel_image
@@ -146,6 +148,39 @@ def build_realistic_gi(body, armature, root, materials, prefix):
     waist_z = pelvis.z + 0.105
     hem_z = pelvis.z - 0.115
     center_y = 0.018
+    # The full body is still present here. Fit the narrowed sleeves to their
+    # rest surface before covered skin is removed by realistic_fighter. Keep
+    # the established torso envelope and buried armhole overlap unchanged.
+    body_points = [vertex.co.copy() for vertex in body.data.vertices]
+    body_faces = [tuple(face.vertices) for face in body.data.polygons]
+    body_surface = BVHTree.FromPolygons(body_points, body_faces)
+    clearance_report = {'fighter': prefix, 'sampleQueries': 0,
+                        'correctedSamples': 0, 'maxCorrectionMeters': 0.,
+                        'maxCorrectionRegion': None, 'limitMeters': .025}
+
+    def clear_body(point, coverage, region):
+        clearance_report['sampleQueries'] += 1
+        nearest, normal, _, _ = body_surface.find_nearest(point)
+        if nearest is not None and normal.length_squared > 1e-8:
+            normal = normal.normalized()
+            distance = (point - nearest).dot(normal)
+            if distance < .006:
+                correction = (.006 - distance) * max(0., min(1., coverage))
+                if correction > clearance_report['maxCorrectionMeters']:
+                    clearance_report['maxCorrectionMeters'] = correction
+                    clearance_report['maxCorrectionRegion'] = region
+                    clearance_report['maxCorrectionPoint'] = list(point)
+                    clearance_report['nearestBodyPoint'] = list(nearest)
+                    clearance_report['nearestBodyNormal'] = list(normal)
+                # A large projection is a construction defect, not a safe fit.
+                # Stop before it can snap the sleeve to a different body region.
+                if correction > clearance_report['limitMeters']:
+                    print('JiuQuest gi rest-clearance: ' + json.dumps(clearance_report))
+                    raise ValueError('Gi rest-clearance exceeds 25 mm in ' + region)
+                if correction > 0.:
+                    clearance_report['correctedSamples'] += 1
+                    point += normal * correction
+        return point
 
     def torso_weights(z):
         stations = [('pelvis', pelvis.z), ('spine_01', bone_head('spine_01').z),
@@ -168,7 +203,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         return mix(.246, .073, t), mix(.151, .072, t)
 
     for name in ('gi_top', 'gi_pants', 'belt'):
-        cotton_material(materials[name], normal_strength=.18 if name == 'belt' else .22)
+        cotton_material(materials[name], normal_strength=.15 if name == 'belt' else .16)
 
     jacket = ClothMesh()
     v_bottom = 1.205
@@ -180,14 +215,20 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         # Parameterize the actual opening boundary. Removing grid faces leaves
         # staircase edges that remain visible beside the lapel in close views.
         theta = mix(edge_angle, TAU - edge_angle, u)
-        folds = (.0025 * math.sin(theta * 11 + t * 8)
-                 + .003 * math.sin(theta * 19 - t * 14)) * (1. - .45 * t)
+        folds = (.0014 * math.sin(theta * 11 + t * 8)
+                 + .0016 * math.sin(theta * 19 - t * 14)) * (1. - .55 * t)
         # A few broad tension folds read at combat distance; fine textile relief
         # remains in the existing cotton map. The belt compresses the waist.
         waist_t = (waist_z - hem_z) / (neck_z - hem_z)
         tension = math.exp(-((t - waist_t - .055) / .11) ** 2)
         folds += .0055 * math.sin(theta * 6 + .35) * tension
         folds += .0030 * math.sin(theta * 5 - t * 5) * (1. - smooth(t / .32))
+        # Diagonal drag folds run from the armholes toward the belt. Their
+        # shallow valleys interrupt the inflated horizontal shoulder band.
+        side = abs(math.sin(theta)) ** 4
+        diagonal = .76 - .18 * abs(math.cos(theta))
+        folds -= .0032 * math.exp(-((t - diagonal) / .042) ** 2) * side
+        folds += .0016 * math.exp(-((t - diagonal + .045) / .055) ** 2) * side
         point = Vector(((rx + folds) * math.sin(theta), center_y - (ry + folds) * math.cos(theta), z))
         return point, (u * 5.5, t * 3.8), torso_weights(z)
     jacket.grid(42, 72, torso, detail=lambda t, u: panel_uv('torso', u, t))
@@ -211,7 +252,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             across = (u - .5) * width
             # A broad rolled face and two shallow edge channels reveal cotton
             # construction without adding a contrasting material or hard trim.
-            roll = .007 * math.sin(u * math.pi) ** .75
+            roll = .005 * math.sin(u * math.pi) ** .85
             channel = .0012 * (math.exp(-((u - .16) / .045) ** 2)
                               + math.exp(-((u - .84) / .045) ** 2))
             point = Vector((x + across, y - roll + channel, z + across * side * .31))
@@ -236,13 +277,25 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             start = shoulder - (wrist - shoulder).normalized() * .155
             center = start.lerp(wrist, t * .97)
             angle = u * TAU
-            radius = mix(.093, .056, t) + .003 * math.sin(t * math.pi)
+            radius = mix(.085, .056, t) + .002 * math.sin(t * math.pi)
             radius *= mix(.40, 1., smooth(t / .21))
-            fold = (.0017 * math.sin(t * 37 + angle * 2) + .001 * math.sin(angle * 9 + t * 12))
+            fold = .0008 * math.sin(angle * 7 + t * 10)
             elbow_t = (elbow - start).length / (wrist - start).length
-            fold += .0045 * math.sin(t * 24 + angle * 2) * math.exp(-((t - elbow_t) / .17) ** 2)
-            fold += .0030 * math.exp(-((t - .965) / .024) ** 2)
-            point = center + (basis_a * math.cos(angle) + basis_b * math.sin(angle) * 1.18) * (radius + fold)
+            front = max(0., math.sin(angle) * (1. if suffix == 'l' else -1.)) ** 2
+            underarm = max(0., -math.cos(angle)) ** 3
+            # Offset compression creases, rather than complete rippled rings,
+            # make the elbow read as folded cotton instead of a padded tube.
+            crease = elbow_t - .045 + .028 * math.cos(angle)
+            fold -= .0038 * math.exp(-((t - crease) / .038) ** 2) * (.25 + .75 * front)
+            fold += .0022 * math.exp(-((t - crease - .045) / .043) ** 2) * (.25 + .75 * front)
+            fold -= .0023 * math.exp(-((t - .32 - .035 * math.sin(angle)) / .052) ** 2) * underarm
+            # A narrow underarm seam and the existing turned cuff provide
+            # construction detail using the same sleeve grid and UV islands.
+            fold -= .0012 * math.exp(-((math.cos(angle) + 1.) / .10) ** 2) * smooth(t / .3)
+            fold += .0020 * math.exp(-((t - .965) / .028) ** 2)
+            oval = mix(1.075, 1.025, smooth(t))
+            point = center + (basis_a * math.cos(angle) + basis_b * math.sin(angle) * oval) * (radius + fold)
+            point = clear_body(point, smooth((t - .20) / .14), 'sleeve_' + suffix)
             low = smooth((t - elbow_t + .11) / .22)
             weights = {'upperarm_' + suffix: 1. - low, 'lowerarm_' + suffix: low}
             if t < .31:
@@ -262,13 +315,15 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         # Reinforcement follows the shoulder surface and shares its body-derived
         # weights. It is joined before the jacket's single armature modifier.
         def shoulder_panel(t, u, sample=sleeve, shoulder=shoulder, wrist=wrist):
-            sleeve_t = mix(.25, .43, t)
-            angle_u = mix(-.17, .17, u)
+            sleeve_t = mix(.25, .44, t)
+            angle_u = mix(-.145, .145, u)
             point, uv, weights = sample(sleeve_t, angle_u)
             start = shoulder - (wrist - shoulder).normalized() * .155
             center = start.lerp(wrist, sleeve_t * .97)
-            rounded = math.sin(t * math.pi) * math.sin(u * math.pi)
-            point += (point - center).normalized() * (.0016 + .0018 * rounded)
+            # A flat stitched reinforcement tapers into the sleeve. Raising its
+            # center previously created a separate rounded shoulder pad.
+            edge = math.sin(t * math.pi) * math.sin(u * math.pi)
+            point += (point - center).normalized() * (.0007 + .0005 * edge)
             return point, uv, weights
         jacket.grid(8, 10, shoulder_panel, detail=lambda t, u: panel_uv('trim', u, t))
 
@@ -291,6 +346,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         return point, (t * .9, u * .6), torso_weights(waist_z)
     belt.grid(20, 3, knot, detail=lambda t, u: panel_uv('trim', u, t))
 
+    print('JiuQuest gi rest-clearance: ' + json.dumps(clearance_report))
     jacket_obj = jacket.create(prefix + '_GiJacket', armature, materials['gi_top'], .0035)
     transfer_cloth_weights(jacket_obj, body)
     pants_obj = fitted_trousers(body, armature, materials['gi_pants'], prefix, waist_z)

@@ -49,12 +49,13 @@ four skin influences. Source geometry, maps and original reference values in
 
 `../../anime_fighter.py` applies a deterministic rest-space warp to the fitted
 adult face and eyes: wider eye sockets, a modestly larger cranium and a narrower
-chin. The same warp keeps the face, eyeballs, eyebrows and hair fitted together.
+chin. The face, eyeballs and hair share that warp; brow/lid strips are fitted
+to the resulting face surface afterward.
 The body proportions below the neck, 65-bone rig, four-influence skinning and
 paired choreography are retained.
 
 Hair and eyebrows in the runtime assets are new JiuQuest-authored solid meshes.
-Crew and Spikes have swept clumps and a three-lock fringe; Slick sweeps back;
+Crew and Spikes have swept clumps and a four-lock fringe; Slick sweeps back;
 Mohawk has a narrow crest; Long uses a tied ponytail and face-framing locks.
 Bald hides hair while retaining the brows. These meshes use opaque cosmetic
 materials without alpha overdraw. They are created during
@@ -92,17 +93,46 @@ colors and earned stripe visibility retain their existing semantics.
 
 The face warp retains an adult athlete, with a more tapered jaw, restrained
 cheek planes, narrower eye height and slightly raised outer corners. Thin
-upper-lid accents are projected onto the source face surface and joined to the
-existing brow mesh. The identical warp is applied to the face, eyes, brows and
-hair. These are geometry changes only; no facial photograph is modified.
+upper-lid accents join the brow mesh after projection onto the finished face.
+These are geometry changes only; no facial photograph is modified.
 
-The exported pass uses six shared embedded images and adds 1,946 vertices per
-athlete. The largest paired clip is 6,614,380 bytes, below the 7 MiB cap. After
+The original illustrated-surface pass used six shared embedded images and added
+1,946 vertices per athlete. Its largest paired clip was 6,614,380 bytes, below
+the 7 MiB cap. After
 desktop and phone pilot review, the measured maximum increase of 885,824 bytes
 was accepted in place of the initial 0.6 MB target to retain the useful surface
 detail without bespoke binary packing. Full-library motion, cosmetic and
 browser checks remain required before release; these sizes alone do not prove
 physical-phone performance or the quality of every contact pose.
+
+## Hero silhouette and garment refinement
+
+The subsequent head pass uses tapered six-sided locks with deliberate normal
+breaks, a slimmer scalp shell fitted to the source head, and three separated
+ponytail strands. The adult face has less eye-height expansion and restrained
+cheek, nose-bridge and chin planes. Densely sampled brow/lid ribbons are projected
+onto the finished face, with a small normal clearance; unfitted strips are
+omitted as a whole instead of leaving disconnected dark segments. All five hair
+slots and bald behavior remain available.
+
+The gi has slimmer upper sleeves, flatter shoulder reinforcement and directional
+compression folds instead of complete padded rings. Sleeve rest-body clearance is
+checked during export, but does not establish collision-free animated contact.
+The existing cloth UV islands, shared maps, color and stripe controls remain.
+The exported cloth normal scale is reduced to keep the weave from reading as
+padding. Its linked roughness map remains authoritative. Hair uses a restrained
+runtime specular response so its painted planes do not sparkle like plastic.
+
+Small dorsal knuckle and tendon relief is sculpted into existing hand vertices.
+It adds no geometry or maps and leaves palm contact surfaces, wrist seams,
+topology, UVs and weights unchanged. The rest-mesh safety check measured a
+maximum 2.283 mm displacement; skinned poses still require visual review.
+
+Original skin/eye photographs, the source blend, the 65-bone rest skeleton,
+inverse binds and motion channels remain unchanged. Exported geometry and
+normals change, so every release requires fresh clip-contract and actual Unity
+rendering checks. Current sizes and visual evidence belong to the dated release
+records, not the historical size figures above.
 
 ## Regenerate
 
