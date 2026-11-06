@@ -118,6 +118,7 @@ Shader "JiuQuest/Anime Fighter"
             #pragma shader_feature_local_fragment _ALPHATEST_ON
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -220,12 +221,27 @@ Shader "JiuQuest/Anime Fighter"
                 // keeping folds shaped instead of the previous flat white bands.
                 half middle = smoothstep(.10h, .43h, diffuse);
                 half bright = smoothstep(.48h, .90h, diffuse);
-                half tone = lerp(.32h + .38h * middle + .30h * bright, .27h + .73h * diffuse, .45h);
+                half tone = lerp(.32h + .38h * middle + .30h * bright, .27h + .73h * diffuse, .30h);
                 half visibility = lerp(.42h, 1.0h, key.shadowAttenuation);
                 half3 sky = max(SampleSH(geometricNormal), 0.0h);
                 half3 environment = lerp(half3(.13h,.17h,.23h), min(sky, .65h), .42h);
                 half3 color = albedo * (environment * occlusion
                     + tone * visibility * key.color * .68h);
+
+                // The existing cool fill and edge light shape cloth and facial
+                // planes too. Two unshadowed lights keep the phone cost bounded;
+                // ambient alone had flattened every surface away from the key.
+                #if defined(_ADDITIONAL_LIGHTS)
+                    uint fillCount = (uint)min(GetAdditionalLightsCount(), 2);
+                    for (uint lightIndex = 0u; lightIndex < fillCount; lightIndex++)
+                    {
+                        Light fill = GetAdditionalLight(lightIndex, input.positionWS);
+                        half facingFill = saturate(dot(normalWS, fill.direction));
+                        half fillPlane = smoothstep(.05h, .75h, facingFill);
+                        color += albedo * fill.color * fill.distanceAttenuation
+                            * lerp(facingFill, fillPlane, .35h) * .28h * occlusion;
+                    }
+                #endif
 
                 // Separate material responses make cotton matte, hair satin and
                 // eyes glossy. A restrained highlight never washes out kit colors.
@@ -238,7 +254,7 @@ Shader "JiuQuest/Anime Fighter"
                 half viewDot = saturate(dot(geometricNormal, viewWS));
                 half edgeLight = pow(1.0h - viewDot, 3.5h) * _RimStrength;
                 edgeLight *= .35h + .65h * saturate(dot(geometricNormal, -key.direction));
-                color += half3(.43h,.64h,.83h) * edgeLight * occlusion;
+                color += half3(.45h,.52h,.86h) * edgeLight * occlusion;
                 half ink = (1.0h-smoothstep(.025h,.14h,viewDot)) * _InkStrength;
                 color *= 1.0h-ink;
                 return half4(MixFog(color, input.fog), 1);

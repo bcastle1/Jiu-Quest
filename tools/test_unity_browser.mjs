@@ -133,7 +133,7 @@ async function ready() {
 }
 
 async function select(name, value) {
-  if (['Performing athlete', 'Gi colors'].includes(name)) {
+  if (['Performing athlete', 'Gi colors', 'Your hairstyle'].includes(name)) {
     const detail = page.locator('.unity-preview-options details');
     if (await detail.getAttribute('open') === null) await detail.locator('summary').click();
   }
@@ -182,10 +182,19 @@ async function seek(progress) {
     assert.ok(Math.abs(observed.progress - progress) < 0.005);
     return;
   }
+  const previousValue = await slider.inputValue();
   const since = await count();
   if (progress === 0) await slider.press('Home');
   else if (progress === 1) await slider.press('End');
   else { const box = await slider.boundingBox(); await slider.click({ position: { x: box.width * progress, y: box.height / 2 } }); }
+  // At quarter positions the native thumb inset can exceed five range units.
+  // Clicking that same track position again emits no change event. Verify the
+  // already-rendered paused state against the existing pointer seek tolerance.
+  if (await slider.inputValue() === previousValue) {
+    const current = await pause();
+    assert.ok(Math.abs(current.progress - progress) < 0.05, `Unchanged seek ${progress} is at ${current.progress}`);
+    return;
+  }
   const observed = await state(since, { playing: false });
   assert.ok(Math.abs(observed.progress - progress) < 0.05, `Seek ${progress} returned ${observed.progress}`);
 }
@@ -240,6 +249,24 @@ try {
   const shiftedStance = await capture('stance-weight-shift');
   assert.notEqual(shiftedStance.sha256, stillStance.sha256, 'Seeking the standing loop must change the actual rendered pose.');
   checks.push('Standing weight shift renders while paused fighters and ambient scenery remain visually still.');
+  await camera('focus');
+  const hairstyles = [];
+  for (const style of ['shadow spikes', 'short fade', 'slicked back', 'long hair', 'mohawk', 'bald']) {
+    await select('Your hairstyle', style); await pause(); await seek(0.25);
+    hairstyles.push(await capture(`hair-${style.replaceAll(' ', '-')}`));
+  }
+  assert.equal(new Set(hairstyles.map(image => image.sha256)).size, hairstyles.length,
+    'Each hairstyle must visibly change the paused rendered athlete.');
+  await select('Your hairstyle', 'shadow spikes');
+  const colorways = [];
+  for (const kit of ['classic', 'night', 'summit']) {
+    await select('Gi colors', kit); await pause(); await seek(0.25);
+    colorways.push(await capture(`textured-gi-${kit}`));
+  }
+  assert.equal(new Set(colorways.map(image => image.sha256)).size, colorways.length,
+    'Textured clothing must retain all three distinct selectable colorways.');
+  await select('Gi colors', 'classic'); await camera('front');
+  checks.push('All six hairstyles and three textured clothing colorways produce distinct paused renders.');
   for (const moveId of manifest.supportedMoves) {
     await checkpoint('clip:starting', { moveId });
     await select('Technique', moveId); await pause(); await seek(0.5);

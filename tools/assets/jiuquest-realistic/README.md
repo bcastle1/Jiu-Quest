@@ -57,21 +57,52 @@ Hair and eyebrows in the runtime assets are new JiuQuest-authored solid meshes.
 Crew and Spikes have swept clumps and a three-lock fringe; Slick sweeps back;
 Mohawk has a narrow crest; Long uses a tied ponytail and face-framing locks.
 Bald hides hair while retaining the brows. These meshes use opaque cosmetic
-colors without additional textures or alpha overdraw. They are created during
+materials without alpha overdraw. They are created during
 export; the original source scalp/hair/brow meshes in the blend are not edited.
 
 The next character-detail authoring pass gives those hair locks flattened
 cross-sections oriented along each curve, asymmetric crest heights and short
 temple locks. Existing style names, shared opaque hair materials and Head-bone
-weights are preserved. No new hair textures or third-party assets are introduced.
-The fitted source face, eye geometry and covered-body mask remain unchanged.
+weights are preserved. The covered-body mask and source blend remain unchanged.
 
-The final pair now shares **four embedded images**: skin 2K JPEG, eyes 256 JPEG,
-cotton normal 512 JPEG and roughness 256 JPEG. Skin keeps its measured
+The prior reviewed pair shared four embedded images: skin 2K JPEG, eyes 256 JPEG,
+cotton normal 512 JPEG and roughness 256 export. Skin keeps its measured
 `_Ref_RRGGBB` suffix for linear-light tinting. The runtime cel shader suppresses
 skin texture variation while retaining the eye texture and cloth detail.
 All runtime materials are opaque. No third-party requests or paid assets are
 introduced by this derivative.
+
+## Original illustrated surface pass
+
+`../../original_surface_maps.py` authors two additional neutral RGB PNG maps:
+a 512px cloth construction atlas and a 256px root-to-tip hair paint map. They
+are original mathematical game-asset artwork, not edits of the source skin
+photograph or copies of a franchise costume. The original face and eye rasters
+remain unchanged. The texture filenames contain the recipe source SHA-256
+prefix; changed recipes cannot silently reuse an older derivative.
+
+The cloth map places panel seams, reinforcement, piping, sparse stitching and
+an original split-summit embroidered mark. Its UV1 coordinates are independent
+of the existing repeating cotton UV0 normal/roughness maps. Hair gains UV0
+coordinates following each solid lock, painted tonal planes and strand grooves,
+and additional short layered blades around the sides/back. No alpha cards,
+extra material slots, renderers or physics are added. Neutral atlas materials
+use white source factors so the existing cosmetic tint is applied once; belt
+colors and earned stripe visibility retain their existing semantics.
+
+The face warp retains an adult athlete, with a more tapered jaw, restrained
+cheek planes, narrower eye height and slightly raised outer corners. Thin
+upper-lid accents are projected onto the source face surface and joined to the
+existing brow mesh. The identical warp is applied to the face, eyes, brows and
+hair. These are geometry changes only; no facial photograph is modified.
+
+The exported pass uses six shared embedded images and adds 1,946 vertices per
+athlete. The largest paired clip is 6,614,380 bytes, below the 7 MiB cap. After
+desktop and phone pilot review, the measured maximum increase of 885,824 bytes
+was accepted in place of the initial 0.6 MB target to retain the useful surface
+detail without bespoke binary packing. Full-library motion, cosmetic and
+browser checks remain required before release; these sizes alone do not prove
+physical-phone performance or the quality of every contact pose.
 
 ## Regenerate
 

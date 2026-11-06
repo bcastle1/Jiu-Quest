@@ -15,6 +15,7 @@ namespace JiuQuest.Combat
         Transform environment;
         Material pennantMaterial;
         Material skyMaterial;
+        Material cedarMaterial;
         Mesh pennantMesh;
         Vector3[] pennantRestVertices;
         Vector3[] pennantAnimatedVertices;
@@ -43,46 +44,49 @@ namespace JiuQuest.Combat
             environment = new GameObject("Summit Dojo").transform;
             environment.SetParent(transform, false);
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(.43f, .55f, .68f);
-            RenderSettings.ambientEquatorColor = new Color(.29f, .36f, .40f);
-            RenderSettings.ambientGroundColor = new Color(.13f, .18f, .17f);
+            RenderSettings.ambientSkyColor = new Color(.39f, .45f, .64f);
+            RenderSettings.ambientEquatorColor = new Color(.30f, .33f, .43f);
+            RenderSettings.ambientGroundColor = new Color(.17f, .19f, .22f);
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogColor = new Color(.36f, .49f, .60f);
-            RenderSettings.fogDensity = .016f;
-            var dark = Material("Dark basalt", new Color(.095f, .14f, .18f), .16f);
-            var stone = Material("Hand-cut slate", new Color(.31f, .38f, .40f), .24f);
-            var stoneLight = Material("Slate bevels", new Color(.41f, .47f, .46f), .21f);
-            var timber = Material("Oiled cedar", new Color(.23f, .14f, .085f), .32f);
-            var matA = Material("Woven jade tatami", new Color(.17f, .30f, .31f), .12f);
-            var matB = Material("Woven blue tatami", new Color(.19f, .32f, .34f), .12f);
+            RenderSettings.fogColor = new Color(.31f, .36f, .48f);
+            RenderSettings.fogDensity = .013f;
+            var dark = Material("Weathered basalt", new Color(.15f, .19f, .24f), .12f);
+            var stone = Material("Hand-cut slate", new Color(.39f, .43f, .47f), .18f);
+            var stoneLight = Material("Slate bevels", new Color(.51f, .54f, .55f), .22f);
+            var timber = Material("Oiled cedar", new Color(.43f, .29f, .18f), .24f);
+            cedarMaterial = timber;
+            var matA = Material("Woven jade tatami", new Color(.23f, .33f, .35f), .09f);
+            var matB = Material("Woven blue tatami", new Color(.25f, .35f, .39f), .09f);
             var accent = Material("Jade inlay", new Color(.15f, .64f, .55f), .42f, true);
-            var gold = Material("Aged bronze", new Color(.70f, .47f, .20f), .45f);
+            var gold = Material("Aged bronze", new Color(.94f, .85f, .70f), .80f);
             var lantern = Material("Lantern paper", new Color(1f, .70f, .34f), .12f, true);
-            var cloth = Material("Jade pennants", new Color(.06f, .30f, .32f), .05f);
+            var cloth = Material("Twilight pennants", Color.white, .05f);
             pennantMaterial = cloth;
-            var farRock = Material("Far mountains", new Color(.39f, .48f, .57f), .02f);
-            var nearRock = Material("Near mountains", new Color(.22f, .29f, .28f), .02f);
-            var snow = Material("Summit snow", new Color(.73f, .82f, .84f), .10f);
-            var pine = Material("Alpine pines", new Color(.09f, .22f, .17f), .02f);
-            var moss = Material("Alpine moss verge", new Color(.20f, .30f, .18f), .025f);
+            var farRock = Material("Far mountains", new Color(.37f, .40f, .53f), .02f);
+            var nearRock = Material("Near mountains", new Color(.25f, .29f, .34f), .02f);
+            var snow = Material("Summit snow", new Color(.76f, .80f, .89f), .10f);
+            var pine = Material("Alpine pines", new Color(.10f, .22f, .21f), .02f);
+            var moss = Material("Alpine moss verge", new Color(.21f, .30f, .22f), .025f);
             distantMaterials.UnionWith(new[] { farRock, nearRock, snow, pine, moss });
-            var weave = WeaveTexture();
-            matA.SetTexture("_BaseMap", weave);
-            matB.SetTexture("_BaseMap", weave);
-            matA.SetTextureScale("_BaseMap", new Vector2(3, 3));
-            matB.SetTextureScale("_BaseMap", new Vector2(3, 3));
-            timber.SetTexture("_BaseMap", SurfaceTexture(true));
-            var slateTexture = SurfaceTexture(false);
-            stone.SetTexture("_BaseMap", slateTexture);
-            stoneLight.SetTexture("_BaseMap", slateTexture);
-            dark.SetTexture("_BaseMap", slateTexture);
-            moss.SetTexture("_BaseMap", slateTexture);
+            // Shared maps keep surface detail independent of material/draw count.
+            // With full mip chains these nine RGBA maps occupy about 1.84 MB.
+            var slate = SurfaceMaps(SummitSurface.Slate, 256);
+            var cedar = SurfaceMaps(SummitSurface.Cedar, 256);
+            var weave = SurfaceMaps(SummitSurface.Tatami, 128);
+            var bronze = SurfaceMaps(SummitSurface.Bronze, 128);
+            ApplySurface(stone, slate); ApplySurface(stoneLight, slate); ApplySurface(dark, slate);
+            ApplySurface(timber, cedar); ApplySurface(matA, weave); ApplySurface(matB, weave);
+            ApplySurface(gold, bronze);
+            matA.SetTextureOffset("_BaseMap", new Vector2(.5f, .5f));
+            matB.SetTextureOffset("_BaseMap", new Vector2(.5f, .5f));
+            moss.SetTexture("_BaseMap", slate.Color);
+            moss.SetTextureScale("_BaseMap", new Vector2(.071f, .083f));
+            cloth.SetTexture("_BaseMap", SurfaceMaps(SummitSurface.Banner, 128).Color);
             CreateSky();
 
             // The center stays uncluttered for grappling. Detail belongs to the
             // chamfered edge, quiet tatami weave, and silhouettes behind the pair.
-            Prism("Summit plateau", 12, 26, .60f, -2.3f, nearRock);
             Prism("Terrace footing", 8, 6.65f, 1.60f, -1.69f, dark);
             Prism("Terrace upper ledge", 8, 6.45f, .20f, -.32f, stoneLight);
             Prism("Terrace face", 8, 6.28f, .19f, -.18f, stone);
@@ -122,14 +126,14 @@ namespace JiuQuest.Combat
                 Gate(new Vector3(0, 0, side * 8.8f), side < 0 ? 180 : 0, stone, timber, gold, cloth);
             }
             AlpineBackdrop(farRock, nearRock, snow, pine, timber);
-            NaturalVerge(moss, stone, dark);
+            NaturalVerge(moss, stone, dark, nearRock);
             CombineArchitecture();
 
             // Keep colored dojo accents out of facial lighting so the authored
             // skin texture and selected tone remain natural from every camera.
-            Light("Late afternoon key", new Vector3(48, -32, 0), new Color(1, .95f, .86f), 1.15f, true);
-            Light("Sky fill", new Vector3(32, 132, 0), new Color(.76f, .86f, 1), .36f, false);
-            Light("Summit rim", new Vector3(35, 210, 0), new Color(.90f, .97f, 1), .48f, false);
+            Light("Late afternoon key", new Vector3(48, -32, 0), new Color(1, .96f, .90f), 1.15f, true);
+            Light("Sky fill", new Vector3(32, 132, 0), new Color(.69f, .77f, 1), .32f, false);
+            Light("Summit rim", new Vector3(35, 210, 0), new Color(.78f, .83f, 1), .48f, false);
             sceneCamera = new GameObject("Combat Camera").AddComponent<Camera>();
             sceneCamera.transform.SetParent(environment, false);
             sceneCamera.tag = "MainCamera";
@@ -266,6 +270,7 @@ namespace JiuQuest.Combat
                 if (instances.Count == 0) continue;
                 var mesh = new Mesh { name = "Dojo architecture - " + material.name };
                 mesh.CombineMeshes(instances.ToArray(), true, true);
+                if (material.IsKeywordEnabled("_NORMALMAP")) mesh.RecalculateTangents();
                 if (material == pennantMaterial)
                 {
                     // Retain independent rest and output arrays. Only this tiny
@@ -305,47 +310,143 @@ namespace JiuQuest.Combat
             return material;
         }
 
-        Texture2D WeaveTexture()
+        enum SummitSurface { Slate, Cedar, Tatami, Bronze, Banner }
+
+        struct StageSurfaceMaps
         {
-            // Tiny, repeatable woven surface; no file request or image dependency.
-            const int size = 128;
-            var pixels = new Color32[size * size];
+            public Texture2D Color, Normal, Metallic;
+        }
+
+        void ApplySurface(Material material, StageSurfaceMaps surface)
+        {
+            material.SetTexture("_BaseMap", surface.Color);
+            if (surface.Normal != null)
+            {
+                material.SetTexture("_BumpMap", surface.Normal);
+                material.SetFloat("_BumpScale", 1);
+                material.EnableKeyword("_NORMALMAP");
+            }
+            if (surface.Metallic != null)
+            {
+                material.SetTexture("_MetallicGlossMap", surface.Metallic);
+                material.SetFloat("_Metallic", 1);
+                material.EnableKeyword("_METALLICSPECGLOSSMAP");
+            }
+        }
+
+        StageSurfaceMaps SurfaceMaps(SummitSurface surface, int size)
+        {
+            bool relief = surface == SummitSurface.Slate || surface == SummitSurface.Cedar || surface == SummitSurface.Tatami;
+            var colors = new Color32[size * size];
+            var heights = relief ? new float[size * size] : null;
+            var metal = surface == SummitSurface.Bronze ? new Color32[size * size] : null;
             for (int y = 0; y < size; y++)
                 for (int x = 0; x < size; x++)
                 {
-                    int thread = ((x / 2 + y / 2) & 1) == 0 ? 5 : -5;
-                    int fiber = ((x * 13 + y * 37) ^ (x * y)) & 7;
-                    byte value = (byte)Mathf.Clamp(235 + thread + fiber - (x % 8 == 0 || y % 8 == 0 ? 9 : 0), 0, 255);
-                    pixels[y * size + x] = new Color32(value, value, value, 255);
+                    float u = x / (float)size, v = y / (float)size;
+                    float broad = TileNoise(u, v, 4, 17), medium = TileNoise(u, v, 13, 43), grain = TileNoise(u, v, 53, 71);
+                    float height = .5f;
+                    Color color;
+                    if (surface == SummitSurface.Slate)
+                    {
+                        float vein = Mathf.Abs(Mathf.Sin(Mathf.PI * 2 * (u * 2 + v) + broad * 1.8f + medium * .55f));
+                        float crack = 1 - SmoothBand(.025f, .085f, vein);
+                        float pores = Mathf.Pow(Mathf.Clamp01((grain - .62f) / .38f), 3);
+                        float value = .61f + broad * .23f + medium * .08f - crack * .27f - pores * .13f;
+                        float mineral = SmoothBand(.66f, .88f, medium) * .075f;
+                        color = new Color(value + mineral, value + mineral * .67f, value + .025f);
+                        height = .48f + broad * .11f + medium * .035f - crack * .11f - pores * .10f;
+                    }
+                    else if (surface == SummitSurface.Cedar)
+                    {
+                        float rings = Mathf.Sin(Mathf.PI * 2 * (u * 13 + Mathf.Sin(v * Mathf.PI * 2) * .16f + broad * .75f)) * .5f + .5f;
+                        float groove = Mathf.Pow(rings, 7);
+                        float weather = SmoothBand(.52f, .81f, medium);
+                        float value = .78f + broad * .15f - groove * .23f - weather * .10f + (grain - .5f) * .035f;
+                        color = new Color(value, value * .86f + weather * .045f, value * .69f + weather * .08f);
+                        height = .52f + broad * .06f - groove * .075f - weather * .025f;
+                    }
+                    else if (surface == SummitSurface.Tatami)
+                    {
+                        float weave = Mathf.Sin(u * Mathf.PI * 64) * Mathf.Sin(v * Mathf.PI * 64);
+                        float edge = Mathf.Min(Mathf.Min(u, 1 - u), Mathf.Min(v, 1 - v));
+                        float edgeWear = 1 - SmoothBand(.012f, .060f, edge);
+                        float value = .80f + broad * .14f + weave * .045f - edgeWear * .10f;
+                        color = new Color(value, value + .015f, value + .020f);
+                        height = .5f + weave * .032f - edgeWear * .020f;
+                    }
+                    else if (surface == SummitSurface.Bronze)
+                    {
+                        float patina = SmoothBand(.47f, .72f, broad * .72f + medium * .28f);
+                        color = Color.Lerp(new Color(.92f, .70f, .39f), new Color(.24f, .43f, .39f), patina * .78f);
+                        color *= .87f + grain * .13f;
+                        metal[y * size + x] = new Color(Mathf.Lerp(.85f, .12f, patina), 0, 0, Mathf.Lerp(.78f, .28f, patina));
+                    }
+                    else
+                    {
+                        float border = 1 - SmoothBand(.030f, .055f, Mathf.Min(u, 1 - u));
+                        float stitch = Mathf.Pow(Mathf.Sin(v * Mathf.PI * 48) * .5f + .5f, 5) * border;
+                        float innerBorder = 1 - SmoothBand(.006f, .012f, Mathf.Abs(Mathf.Min(u, 1 - u) - .085f));
+                        color = Color.Lerp(new Color(.13f, .18f, .31f), new Color(.44f, .59f, .63f), innerBorder * .50f);
+                        color = Color.Lerp(color, new Color(.66f, .50f, .28f), border * (.62f + stitch * .24f));
+                        color *= .86f + broad * .12f + (grain - .5f) * .035f;
+                    }
+                    color.a = 1;
+                    colors[y * size + x] = color;
+                    if (relief) heights[y * size + x] = height;
                 }
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
-                { name = "Summit tatami weave", wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear, anisoLevel = 2 };
-            texture.SetPixels32(pixels);
-            texture.Apply(true, true);
-            stageTextures.Add(texture);
+            var result = new StageSurfaceMaps { Color = StageTexture(surface + " color", colors, size, false) };
+            if (metal != null) result.Metallic = StageTexture("Bronze metal and polish", metal, size, true);
+            if (relief)
+            {
+                var normals = new Color32[size * size];
+                float strength = surface == SummitSurface.Slate ? 2.4f : surface == SummitSurface.Cedar ? 2.0f : 1.8f;
+                for (int y = 0; y < size; y++)
+                    for (int x = 0; x < size; x++)
+                    {
+                        float dx = heights[y * size + (x + size - 1) % size] - heights[y * size + (x + 1) % size];
+                        float dy = heights[((y + size - 1) % size) * size + x] - heights[((y + 1) % size) * size + x];
+                        var normal = new Vector3(dx * strength, dy * strength, 1).normalized;
+                        // Linear RGBA with alpha=1 supports URP's RGB and RG-or-AG unpack paths.
+                        normals[y * size + x] = new Color(normal.x * .5f + .5f, normal.y * .5f + .5f, normal.z * .5f + .5f, 1);
+                    }
+                result.Normal = StageTexture(surface + " relief", normals, size, true);
+            }
+            return result;
+        }
+
+        Texture2D StageTexture(string label, Color32[] pixels, int size, bool linear)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true, linear)
+                { name = "Summit " + label, wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear, anisoLevel = 2 };
+            texture.SetPixels32(pixels); texture.Apply(true, true); stageTextures.Add(texture);
             return texture;
         }
 
-        Texture2D SurfaceTexture(bool wood)
+        static float TileNoise(float u, float v, int cells, int seed)
         {
-            const int size = 128;
-            var pixels = new Color32[size * size];
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float u = x / 128f, v = y / 128f;
-                    float noise = Mathf.PerlinNoise(u * 12, v * 12);
-                    float grain = wood
-                        ? Mathf.Sin(u * 105 + Mathf.Sin(v * 13 + u * 11) * 2 + Mathf.Sin(u * 23) * 3) * .07f
-                        : Mathf.Sin(u * 18 + v * 9 + noise * 4) * .04f;
-                    float value = Mathf.Clamp01(.79f + noise * .17f + grain);
-                    byte c = (byte)Mathf.RoundToInt(value * 255);
-                    pixels[y * size + x] = new Color32(c, c, c, 255);
-                }
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
-                { name = wood ? "Cedar grain" : "Slate mineral grain", wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear, anisoLevel = 2 };
-            texture.SetPixels32(pixels); texture.Apply(true, true); stageTextures.Add(texture);
-            return texture;
+            int x = Mathf.FloorToInt(u * cells), y = Mathf.FloorToInt(v * cells);
+            float tx = Mathf.Repeat(u * cells, 1), ty = Mathf.Repeat(v * cells, 1);
+            tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+            return Mathf.Lerp(Mathf.Lerp(TileValue(x, y, cells, seed), TileValue(x + 1, y, cells, seed), tx),
+                Mathf.Lerp(TileValue(x, y + 1, cells, seed), TileValue(x + 1, y + 1, cells, seed), tx), ty);
+        }
+
+        static float SmoothBand(float lower, float upper, float value)
+        {
+            float t = Mathf.InverseLerp(lower, upper, value);
+            return t * t * (3 - 2 * t);
+        }
+
+        static float TileValue(int x, int y, int cells, int seed)
+        {
+            unchecked
+            {
+                uint value = (uint)((x % cells + cells) % cells) * 374761393u
+                    + (uint)((y % cells + cells) % cells) * 668265263u + (uint)seed * 2246822519u;
+                value = (value ^ (value >> 13)) * 1274126177u;
+                return (value & 0x00ffffff) / 16777215f;
+            }
         }
 
         void CreateSky()
@@ -421,6 +522,8 @@ namespace JiuQuest.Combat
                     Quad(vertices, triangles, uv, new Vector3(x1, upper, depth1), new Vector3(x1, lower1, depth1), new Vector3(x0, lower0, depth0), new Vector3(x0, upper, depth0));
                 }
             }
+            for (int index = 0; index < vertices.Count; index++)
+                uv[index] = new Vector2((vertices[index].x + .43f) / .86f, -vertices[index].y / 1.48f);
             MeshObject("Folded pennant", Mesh("Summit pennant", vertices, triangles, uv), top, cloth, rotation);
             Box("Pennant rod", top + rotation * new Vector3(0, .035f, 0), new Vector3(1.07f, .065f, .065f), bronze, rotation);
             for (int sign = -1; sign <= 1; sign += 2)
@@ -434,47 +537,58 @@ namespace JiuQuest.Combat
         {
             // The low foreground falls away into a valley. Higher, pale peaks
             // remain distant instead of enclosing every camera in a rock wall.
-            Ridge(33, 69, 11, -4.3f, 0, farRock, snow);
+            Ridge(37, 72, 12.5f, -4.8f, 0, farRock, snow);
+            Ridge(29, 48, 5.2f, -4.1f, 1.7f, farRock, null);
             Ridge(23, 38, 2.2f, -3.4f, 2.4f, nearRock, null);
-            var treeMesh = PineBoughMesh();
+            var trees = new[] { PineBoughMesh(0), PineBoughMesh(1), PineBoughMesh(2) };
             var trunkMesh = TaperedPrismMesh(7, .10f, .035f, 3.4f);
-            for (int cluster = 0; cluster < 7; cluster++)
+            for (int cluster = 0; cluster < 8; cluster++)
             {
-                float center = cluster * Mathf.PI * 2 / 7 + Mathf.Sin(cluster * 3) * .19f;
-                for (int member = 0; member < 5; member++)
+                float center = cluster * Mathf.PI * 2 / 8 + Mathf.Sin(cluster * 3) * .19f;
+                for (int member = 0; member < 6; member++)
                 {
                     int seed = cluster * 11 + member;
-                    float angle = center + (member - 2) * .07f + Mathf.Sin(seed * 7) * .035f;
-                    float radius = 14.5f + (seed * 13 % 8);
-                    var position = new Vector3(Mathf.Sin(angle) * radius, -1.8f, Mathf.Cos(angle) * radius);
-                    float scale = .60f + (seed * 7 % 6) * .13f;
-                    var rotation = Quaternion.Euler(0, seed * 71, 0);
-                    MeshObject("Alpine pine trunk", trunkMesh, position, timber, rotation, new Vector3(scale, scale, scale));
-                    MeshObject("Alpine pine boughs", treeMesh, position, pine, rotation, new Vector3(scale, scale, scale));
+                    float angle = center + (member - 2.5f) * .055f + Mathf.Sin(seed * 7) * .045f;
+                    float radius = 14.5f + (seed * 13 % 9);
+                    var position = ShelfPoint(angle, radius) - Vector3.up * .03f;
+                    float scale = .56f + (seed * 7 % 7) * .11f;
+                    float width = scale * (.78f + (seed % 4) * .12f);
+                    var rotation = Quaternion.Euler(Mathf.Sin(seed) * 2, seed * 71, Mathf.Cos(seed * 3) * 2);
+                    var proportions = new Vector3(width, scale, width);
+                    MeshObject("Alpine pine trunk", trunkMesh, position, timber, rotation, proportions);
+                    MeshObject("Branched alpine conifer", trees[seed % trees.Length], position, pine, rotation, proportions);
                 }
             }
         }
 
         void Ridge(float inner, float outer, float height, float baseHeight, float phase, Material rock, Material snow)
         {
-            const int around = 128, rows = 9, stride = around + 1;
+            const int around = 160, rows = 11, stride = around + 1;
             var vertices = new List<Vector3>(rows * stride); var uv = new List<Vector2>(rows * stride);
-            var allTriangles = new List<int>(); var rockTriangles = new List<int>(); var snowTriangles = new List<int>();
+            var allTriangles = new List<int>(); var snowMask = new List<float>(rows * stride);
             for (int row = 0; row < rows; row++)
                 for (int column = 0; column <= around; column++)
                 {
                     float angle = column * Mathf.PI * 2 / around;
                     float t = row / (float)(rows - 1);
-                    float radius = Mathf.Lerp(inner, outer, t) + Mathf.Sin(angle * 11 + row * .45f) * 1.3f;
-                    float peak = .57f + Mathf.Sin(angle * 5 + phase) * .24f + Mathf.Sin(angle * 11 - phase) * .13f + Mathf.Sin(angle * 19 + .7f) * .06f;
-                    float valley = .64f + .36f * Mathf.Pow(Mathf.Sin(angle * 3 - 1.2f), 2);
-                    float crossSection = Mathf.Max(0, Mathf.Sin(t * Mathf.PI));
-                    float silhouette = Mathf.Pow(crossSection, .85f) * (height * peak * valley + 1.2f);
-                    // Broad slopes have mild secondary relief, not straight
-                    // rows of quads with separate flat normals.
-                    silhouette += crossSection * Mathf.Sin(angle * 13 + t * 9) * height * .04f;
+                    float radius = Mathf.Lerp(inner, outer, t) + Mathf.Sin(angle * 11 + row * .45f + phase) * 1.3f;
+                    float peak = .60f + Mathf.Sin(angle * 5 + phase) * .21f + Mathf.Sin(angle * 11 - phase) * .12f
+                        + Mathf.Sin(angle * 23 + .7f) * .065f + Mathf.Sin(angle * 37 + phase) * .025f;
+                    float valley = .66f + .34f * Mathf.Pow(Mathf.Sin(angle * 3 - 1.2f), 2);
+                    // Move each crest in depth. Unequal flanks and incised gullies
+                    // produce overlapping mountain shoulders rather than one smooth wall.
+                    float crest = .49f + Mathf.Sin(angle * 7 + phase) * .09f + Mathf.Sin(angle * 13) * .035f;
+                    float crossSection = t < crest ? t / crest : (1 - t) / (1 - crest);
+                    crossSection = Mathf.Pow(Mathf.Clamp01(crossSection), t < crest ? .72f : 1.2f);
+                    float gully = Mathf.Pow(Mathf.Abs(Mathf.Sin(angle * 17 + t * 5 + phase)), 5);
+                    float silhouette = crossSection * (height * peak * valley + 1.2f);
+                    silhouette -= Mathf.Sin(t * Mathf.PI) * gully * height * .10f;
+                    silhouette += crossSection * Mathf.Sin(angle * 31 - t * 7) * height * .028f;
                     var point = new Vector3(Mathf.Sin(angle) * radius, baseHeight + silhouette, Mathf.Cos(angle) * radius);
                     vertices.Add(point); uv.Add(new Vector2(point.x, point.z) * .1f);
+                    float snowLine = baseHeight + height * (.47f + Mathf.Sin(angle * 9 + phase) * .065f
+                        + Mathf.Sin(angle * 21 + t * 8) * .045f + gully * .07f);
+                    snowMask.Add(point.y - snowLine);
                 }
             for (int row = 0; row < rows - 1; row++)
                 for (int column = 0; column < around; column++)
@@ -482,8 +596,6 @@ namespace JiuQuest.Combat
                     int a = row * stride + column, b = (row + 1) * stride + column, c = b + 1, d = a + 1;
                     var indices = new[] { a, b, c, a, c, d };
                     allTriangles.AddRange(indices);
-                    bool snowFace = snow != null && (vertices[a].y + vertices[b].y + vertices[c].y + vertices[d].y) * .25f > baseHeight + height * .59f;
-                    (snowFace ? snowTriangles : rockTriangles).AddRange(indices);
                 }
             var terrain = Mesh("Continuous alpine terrain", vertices, allTriangles, uv);
             var normals = terrain.normals;
@@ -493,93 +605,215 @@ namespace JiuQuest.Combat
                 var seamNormal = (normals[first] + normals[last]).normalized;
                 normals[first] = seamNormal; normals[last] = seamNormal;
             }
-            terrain.SetTriangles(rockTriangles, 0); terrain.normals = normals;
+            terrain.normals = normals;
             MeshObject("Distant alpine slopes", terrain, Vector3.zero, rock);
-            if (snowTriangles.Count > 0)
+            if (snow != null)
             {
-                var snowMesh = Mesh("High altitude snow", vertices, snowTriangles, uv);
-                snowMesh.normals = normals;
-                MeshObject("High snow fields", snowMesh, Vector3.zero, snow);
+                // Cut snow at a varying height inside each triangle. The old
+                // whole-quad mask formed a straight, conspicuous white ribbon.
+                var caps = new List<Vector3>(); var capUv = new List<Vector2>(); var capNormals = new List<Vector3>();
+                var capTriangles = new List<int>(); var input = new TerrainPoint[3]; var clipped = new TerrainPoint[4];
+                for (int triangle = 0; triangle < allTriangles.Count; triangle += 3)
+                {
+                    for (int corner = 0; corner < 3; corner++)
+                    {
+                        int index = allTriangles[triangle + corner];
+                        input[corner] = new TerrainPoint { Position = vertices[index], Normal = normals[index], Uv = uv[index], Snow = snowMask[index] };
+                    }
+                    int count = ClipSnowTriangle(input, clipped);
+                    int first = caps.Count;
+                    for (int corner = 0; corner < count; corner++)
+                    {
+                        caps.Add(clipped[corner].Position + clipped[corner].Normal * .025f);
+                        capUv.Add(clipped[corner].Uv); capNormals.Add(clipped[corner].Normal);
+                    }
+                    for (int corner = 1; corner < count - 1; corner++)
+                        capTriangles.AddRange(new[] { first, first + corner, first + corner + 1 });
+                }
+                if (capTriangles.Count > 0)
+                {
+                    var snowMesh = Mesh("Broken alpine snow fields", caps, capTriangles, capUv);
+                    snowMesh.SetNormals(capNormals);
+                    MeshObject("High snow fields", snowMesh, Vector3.zero, snow);
+                }
             }
         }
 
-        void NaturalVerge(Material moss, Material stone, Material dark)
+        struct TerrainPoint { public Vector3 Position, Normal; public Vector2 Uv; public float Snow; }
+
+        static int ClipSnowTriangle(TerrainPoint[] input, TerrainPoint[] output)
+        {
+            int count = 0;
+            var previous = input[2];
+            foreach (var current in input)
+            {
+                if ((current.Snow >= 0) != (previous.Snow >= 0))
+                {
+                    float fraction = previous.Snow / (previous.Snow - current.Snow);
+                    output[count++] = new TerrainPoint {
+                        Position = Vector3.Lerp(previous.Position, current.Position, fraction),
+                        Normal = Vector3.Lerp(previous.Normal, current.Normal, fraction).normalized,
+                        Uv = Vector2.Lerp(previous.Uv, current.Uv, fraction), Snow = 0
+                    };
+                }
+                if (current.Snow >= 0) output[count++] = current;
+                previous = current;
+            }
+            return count;
+        }
+
+        void NaturalVerge(Material moss, Material stone, Material dark, Material ground)
         {
             // Irregular low patches break up the terrace surround while keeping
             // all vegetation and rocks below the sparring surface.
             var vertices = new List<Vector3>(); var triangles = new List<int>(); var uv = new List<Vector2>();
             const int sections = 96;
+            // A gently sloping shelf disappears into the foothills. There is no
+            // regular polygon rim or floating horizontal cliff behind the trees.
+            var shelf = new List<Vector3>(); var shelfUv = new List<Vector2>(); var shelfTriangles = new List<int>();
+            const int shelfRows = 5, stride = sections + 1;
+            for (int row = 0; row < shelfRows; row++)
+                for (int column = 0; column <= sections; column++)
+                {
+                    float angle = column * Mathf.PI * 2 / sections;
+                    float radius = row / (float)(shelfRows - 1) * (29 + Mathf.Sin(angle * 9) * .9f);
+                    var point = ShelfPoint(angle, radius);
+                    shelf.Add(point); shelfUv.Add(new Vector2(point.x, point.z) * .1f);
+                }
+            for (int row = 0; row < shelfRows - 1; row++)
+                for (int column = 0; column < sections; column++)
+                {
+                    int a = row * stride + column, b = a + stride;
+                    shelfTriangles.AddRange(new[] { a, b, b + 1, a, b + 1, a + 1 });
+                }
+            MeshObject("Natural mountain shelf", Mesh("Uneven basalt shelf", shelf, shelfTriangles, shelfUv), Vector3.zero, ground);
             for (int i = 0; i < sections; i++)
             {
                 float a = i * Mathf.PI * 2 / sections, b = (i + 1) * Mathf.PI * 2 / sections;
                 float innerA = 7.4f + Mathf.Sin(a * 5) * .9f, innerB = 7.4f + Mathf.Sin(b * 5) * .9f;
-                float outerA = 22.8f + Mathf.Sin(a * 9) * 1.3f, outerB = 22.8f + Mathf.Sin(b * 9) * 1.3f;
+                float outerA = 27.4f + Mathf.Sin(a * 9) * 1.3f, outerB = 27.4f + Mathf.Sin(b * 9) * 1.3f;
                 // Narrow gaps provide exposed rock paths through the greenery.
                 if (Mathf.Abs(Mathf.Sin(a * 4 + .4f)) < .13f) continue;
-                Quad(vertices, triangles, uv, new Vector3(Mathf.Sin(a) * innerA, -1.665f, Mathf.Cos(a) * innerA),
-                    new Vector3(Mathf.Sin(a) * outerA, -1.665f, Mathf.Cos(a) * outerA),
-                    new Vector3(Mathf.Sin(b) * outerB, -1.665f, Mathf.Cos(b) * outerB),
-                    new Vector3(Mathf.Sin(b) * innerB, -1.665f, Mathf.Cos(b) * innerB));
+                for (int band = 0; band < 4; band++)
+                {
+                    float from = band / 4f, to = (band + 1) / 4f;
+                    Quad(vertices, triangles, uv, ShelfPoint(a, Mathf.Lerp(innerA, outerA, from)) + Vector3.up * .035f,
+                        ShelfPoint(a, Mathf.Lerp(innerA, outerA, to)) + Vector3.up * .035f,
+                        ShelfPoint(b, Mathf.Lerp(innerB, outerB, to)) + Vector3.up * .035f,
+                        ShelfPoint(b, Mathf.Lerp(innerB, outerB, from)) + Vector3.up * .035f);
+                }
             }
             MeshObject("Alpine verge", Mesh("Moss and stone verge", vertices, triangles, uv), Vector3.zero, moss);
             var boulder = BoulderMesh();
+            var planting = AlpinePlantMesh();
             for (int cluster = 0; cluster < 9; cluster++)
             {
                 float center = cluster * Mathf.PI * 2 / 9 + .16f;
                 for (int member = 0; member < 3; member++)
                 {
                     float angle = center + member * .045f;
-                    float radius = 8.4f + (cluster * 7 % 4) + member * .55f;
-                    float size = .45f + ((cluster * 3 + member * 7) % 6) * .14f;
-                    var position = new Vector3(Mathf.Sin(angle) * radius, -1.67f, Mathf.Cos(angle) * radius);
+                    float radius = 7.5f + (cluster * 7 % 4) + member * .55f;
+                    float size = .68f + ((cluster * 3 + member * 7) % 6) * .18f;
+                    var position = ShelfPoint(angle, radius) - Vector3.up * .06f;
                     MeshObject("Slate outcrop", boulder, position, member == 1 ? stone : dark,
                         Quaternion.Euler(0, cluster * 67 + member * 33, 0), new Vector3(size * 1.2f, size * .72f, size));
+                    for (int tuft = 0; tuft < 2; tuft++)
+                    {
+                        float plantAngle = angle + (tuft == 0 ? -.055f : .065f);
+                        float plantRadius = radius + .55f + tuft * .43f;
+                        var place = ShelfPoint(plantAngle, plantRadius);
+                        float plantSize = .7f + ((cluster * 3 + tuft + member) % 5) * .12f;
+                        MeshObject("Alpine edge planting", planting, place, moss,
+                            Quaternion.Euler(0, cluster * 39 + member * 71 + tuft * 13, 0), Vector3.one * plantSize);
+                    }
                 }
             }
+        }
+
+        static Vector3 ShelfPoint(float angle, float radius)
+        {
+            float blend = Mathf.Clamp01(radius / 29);
+            float height = -1.78f - blend * blend * .42f
+                + Mathf.Sin(angle * 5 + blend * 4) * Mathf.Sin(blend * Mathf.PI) * .12f;
+            return new Vector3(Mathf.Sin(angle) * radius, height, Mathf.Cos(angle) * radius);
+        }
+
+        Mesh AlpinePlantMesh()
+        {
+            var vertices = new List<Vector3>(); var triangles = new List<int>(); var uv = new List<Vector2>();
+            for (int blade = 0; blade < 5; blade++)
+            {
+                float angle = blade * 2.39996f;
+                var outward = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle));
+                var width = new Vector3(-outward.z, 0, outward.x) * (.035f + blade * .003f);
+                var root = outward * .04f;
+                var middle = outward * (.10f + blade * .02f) + Vector3.up * (.20f + blade * .025f);
+                var tip = outward * (.24f + blade * .025f) + Vector3.up * (.37f + blade * .018f);
+                Quad(vertices, triangles, uv, root - width, root + width, middle + width * .65f, middle - width * .65f);
+                Quad(vertices, triangles, uv, middle - width * .65f, middle + width * .65f, root + width, root - width);
+                Triangle(vertices, triangles, uv, middle - width * .65f, middle + width * .65f, tip);
+                Triangle(vertices, triangles, uv, tip, middle + width * .65f, middle - width * .65f);
+            }
+            return Mesh("Bent alpine leaves", vertices, triangles, uv);
         }
 
         Mesh BoulderMesh()
         {
             const int sides = 9;
             var vertices = new List<Vector3>(); var triangles = new List<int>(); var uv = new List<Vector2>();
-            var lower = new Vector3[sides]; var shoulder = new Vector3[sides];
+            var lower = new Vector3[sides]; var shoulder = new Vector3[sides]; var crown = new Vector3[sides];
             for (int i = 0; i < sides; i++)
             {
                 float angle = -i * Mathf.PI * 2 / sides;
                 float radius = .67f + Mathf.Sin(i * 7) * .14f;
                 lower[i] = new Vector3(Mathf.Cos(angle) * radius, 0, Mathf.Sin(angle) * radius);
                 shoulder[i] = new Vector3(Mathf.Cos(angle) * radius * .78f + .06f, .49f + Mathf.Sin(i * 3) * .09f, Mathf.Sin(angle) * radius * .82f);
+                crown[i] = new Vector3(Mathf.Cos(angle) * radius * .43f + .14f, .72f + Mathf.Sin(i * 5) * .11f, Mathf.Sin(angle) * radius * .52f - .05f);
             }
             for (int i = 0; i < sides; i++)
             {
                 int next = (i + 1) % sides;
                 Quad(vertices, triangles, uv, lower[i], lower[next], shoulder[next], shoulder[i]);
-                Triangle(vertices, triangles, uv, shoulder[i], shoulder[next], new Vector3(.12f, .68f, -.07f));
+                Quad(vertices, triangles, uv, shoulder[i], shoulder[next], crown[next], crown[i]);
+                Triangle(vertices, triangles, uv, crown[i], crown[next], new Vector3(.12f, .78f, -.07f));
             }
             return Mesh("Weathered slate boulder", vertices, triangles, uv);
         }
 
-        Mesh PineBoughMesh()
+        Mesh PineBoughMesh(int variant)
         {
             var vertices = new List<Vector3>(); var triangles = new List<int>(); var uv = new List<Vector2>();
-            const int layers = 6, branches = 11;
+            const int layers = 7, branches = 7;
             for (int layer = 0; layer < layers; layer++)
                 for (int branch = 0; branch < branches; branch++)
                 {
-                    float angle = branch * Mathf.PI * 2 / branches + layer * 1.15f;
-                    float height = .70f + layer * .43f;
-                    float radius = (1 - layer / 7f) * (.67f + Mathf.Sin(branch * 7 + layer * 3) * .17f);
+                    int seed = layer * 11 + branch * 7 + variant * 23;
+                    if ((seed % 13 == 0 && layer < 5) || (layer == 6 && branch > 3)) continue;
+                    float angle = branch * Mathf.PI * 2 / branches + layer * 1.37f + variant * .71f + Mathf.Sin(seed) * .19f;
+                    float height = .46f + layer * .42f + Mathf.Sin(seed * 3) * .10f;
+                    float radius = (1 - layer / 7.6f) * (.83f + Mathf.Sin(seed * 7) * .21f);
                     var outward = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle));
-                    var side = new Vector3(-outward.z, 0, outward.x) * radius * .35f;
-                    var root = new Vector3(0, height + .56f, 0);
-                    var tip = outward * radius + Vector3.up * height;
-                    var left = tip * .72f + side; left.y = height + .12f;
-                    var right = tip * .72f - side; right.y = height + .12f;
-                    Triangle(vertices, triangles, uv, root, left, tip);
-                    Triangle(vertices, triangles, uv, root, tip, right);
-                    Triangle(vertices, triangles, uv, right, tip, left);
+                    var side = new Vector3(-outward.z, 0, outward.x) * radius * .45f;
+                    var root = new Vector3(Mathf.Sin(layer + variant) * .045f, height + .34f, Mathf.Cos(layer * 2) * .035f);
+                    var elbow = root + outward * radius * .46f + Vector3.up * .025f;
+                    var tip = root + outward * radius - Vector3.up * (.19f + layer * .007f);
+                    // A bent, asymmetric solid bough has a raised spine and a
+                    // broken edge, rather than another flat triangular cone tier.
+                    int start = vertices.Count;
+                    vertices.Add(root);
+                    vertices.Add(elbow - side * .70f);
+                    vertices.Add(Vector3.Lerp(elbow, tip, .48f) - side);
+                    vertices.Add(tip);
+                    vertices.Add(Vector3.Lerp(elbow, tip, .65f) + side * .83f);
+                    vertices.Add(elbow + side * .80f);
+                    vertices.Add(elbow + Vector3.up * (.17f - layer * .009f));
+                    for (int point = 0; point < 7; point++) uv.Add(new Vector2(vertices[start + point].x, vertices[start + point].z));
+                    for (int edge = 0; edge < 6; edge++)
+                        triangles.AddRange(new[] { start + 6, start + (edge + 1) % 6, start + edge });
+                    for (int edge = 1; edge < 5; edge++)
+                        triangles.AddRange(new[] { start, start + edge, start + edge + 1 });
                 }
-            return Mesh("Layered pine boughs", vertices, triangles, uv);
+            return Mesh("Branched conifer " + variant, vertices, triangles, uv);
         }
 
         void FloorRing(float inner, float outer, float y, int segments, Material material)
@@ -614,7 +848,27 @@ namespace JiuQuest.Combat
         }
 
         void BevelBox(string name, Vector3 position, Vector3 size, float bevel, Material material, Quaternion rotation = default)
-            => MeshObject(name, BeveledBoxMesh(size, bevel), position, material, rotation);
+        {
+            var mesh = BeveledBoxMesh(size, bevel);
+            if (material.IsKeywordEnabled("_NORMALMAP"))
+            {
+                // This mesh is newly owned, never the shared tatami tile. Scatter
+                // macro wear per stone/post without extra material instances.
+                int x = Mathf.RoundToInt(position.x * 31), y = Mathf.RoundToInt(position.z * 31);
+                float u = TileValue(x, y, 257, 113), v = TileValue(x, y, 257, 199);
+                int turn = material == cedarMaterial ? (size.x > size.y && size.x > size.z ? 1 : 0)
+                    : Mathf.FloorToInt(TileValue(x, y, 257, 397) * 4);
+                var coordinates = mesh.uv;
+                for (int index = 0; index < coordinates.Length; index++)
+                {
+                    var point = coordinates[index];
+                    for (int quarter = 0; quarter < turn; quarter++) point = new Vector2(-point.y, point.x);
+                    coordinates[index] = point + new Vector2(u, v);
+                }
+                mesh.uv = coordinates;
+            }
+            MeshObject(name, mesh, position, material, rotation);
+        }
 
         Mesh BeveledBoxMesh(Vector3 size, float bevel)
         {

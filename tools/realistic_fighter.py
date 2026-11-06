@@ -133,6 +133,10 @@ def make_realistic_fighter(role,colors,g):
     for material in materials.values():
         for node in material.node_tree.nodes:
             if node.type=='TEX_IMAGE' and node.image:
+                # The original panel atlas has its own bounded resolution and
+                # source-hashed PNG name. Do not route it through the legacy
+                # 256px roughness/JPEG derivative cache and erase the stitching.
+                if node.image.name.startswith('jq-original-'): continue
                 node.image=optimized_image(node.image,512 if 'Normal' in node.image.name else 256,True)
     for obj in bpy.context.scene.objects:
         if obj.type=='MESH' and obj.find_armature()==rig:limit_weights(obj)

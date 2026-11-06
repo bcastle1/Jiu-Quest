@@ -30,6 +30,10 @@ namespace JiuQuest.Combat.Editor
                 renderer = ScriptableObject.CreateInstance<UniversalRendererData>();
                 AssetDatabase.CreateAsset(renderer, "Assets/Generated/CombatRenderer.asset");
             }
+            // The mobile fighter shader uses the bounded Forward light loop.
+            // Reusing an editor asset must not silently switch it to Forward+.
+            renderer.renderingMode = RenderingMode.Forward;
+            EditorUtility.SetDirty(renderer);
             var pipeline = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>("Assets/Generated/CombatURP.asset");
             if (pipeline == null)
             {
@@ -42,10 +46,12 @@ namespace JiuQuest.Combat.Editor
             pipeline.mainLightShadowmapResolution = 2048;
             pipeline.shadowDistance = 12;
             pipeline.shadowCascadeCount = 1;
+            pipeline.maxAdditionalLightsCount = 2;
             var pipelineSettings = new SerializedObject(pipeline);
             pipelineSettings.FindProperty("m_MainLightShadowsSupported").boolValue = true;
             pipelineSettings.FindProperty("m_SoftShadowsSupported").boolValue = true;
             pipelineSettings.FindProperty("m_AdditionalLightShadowsSupported").boolValue = false;
+            pipelineSettings.FindProperty("m_AdditionalLightsRenderingMode").intValue = (int)LightRenderingMode.PerPixel;
             pipelineSettings.ApplyModifiedPropertiesWithoutUndo();
             GraphicsSettings.defaultRenderPipeline = pipeline;
             QualitySettings.renderPipeline = pipeline;
