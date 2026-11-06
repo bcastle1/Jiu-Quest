@@ -13,6 +13,15 @@ namespace JiuQuest.Combat
         readonly HashSet<Material> distantMaterials = new HashSet<Material>();
         Camera sceneCamera;
         Transform environment;
+        Material pennantMaterial;
+        Material skyMaterial;
+        Mesh pennantMesh;
+        Vector3[] pennantRestVertices;
+        Vector3[] pennantAnimatedVertices;
+        Vector4[] pennantWindWeights;
+        Bounds pennantMotionBounds;
+        float ambientPhase = float.NaN;
+        static readonly int CloudOffsetId = Shader.PropertyToID("_AmbientCloudOffset");
         Vector3 lookAt = new Vector3(0, .65f, 0);
         string preset = "front";
         string moveId = "standing_stance";
@@ -51,6 +60,7 @@ namespace JiuQuest.Combat
             var gold = Material("Aged bronze", new Color(.70f, .47f, .20f), .45f);
             var lantern = Material("Lantern paper", new Color(1f, .70f, .34f), .12f, true);
             var cloth = Material("Jade pennants", new Color(.06f, .30f, .32f), .05f);
+            pennantMaterial = cloth;
             var farRock = Material("Far mountains", new Color(.39f, .48f, .57f), .02f);
             var nearRock = Material("Near mountains", new Color(.22f, .29f, .28f), .02f);
             var snow = Material("Summit snow", new Color(.73f, .82f, .84f), .10f);
@@ -151,6 +161,24 @@ namespace JiuQuest.Combat
                 currentPoseBounds = CombatFraming.LimitPoseToMotion(bounds, motionBounds);
         }
 
+        public void SampleAmbient(float playbackTime, float duration)
+        {
+            // The combat clock owns this setting too: Pause and reduced-motion
+            // pose review never leave an independent wind animation running.
+            float phase = SummitAmbientMotion.Phase(playbackTime, duration);
+            if (phase == ambientPhase) return;
+            ambientPhase = phase;
+            var waves = SummitAmbientMotion.Waves(phase);
+            if (skyMaterial != null)
+                skyMaterial.SetVector(CloudOffsetId, new Vector4(waves.x * .025f, -waves.y * .075f, 0, 0));
+            if (pennantMesh == null) return;
+            for (int index = 0; index < pennantRestVertices.Length; index++)
+                pennantAnimatedVertices[index] = pennantRestVertices[index] + SummitAmbientMotion.BannerOffset(pennantWindWeights[index], waves);
+            pennantMesh.vertices = pennantAnimatedVertices;
+            pennantMesh.RecalculateNormals();
+            pennantMesh.bounds = pennantMotionBounds;
+        }
+
         static bool Finite(Vector3 value) => !float.IsNaN(value.x) && !float.IsInfinity(value.x)
             && !float.IsNaN(value.y) && !float.IsInfinity(value.y) && !float.IsNaN(value.z) && !float.IsInfinity(value.z);
 
@@ -238,6 +266,21 @@ namespace JiuQuest.Combat
                 if (instances.Count == 0) continue;
                 var mesh = new Mesh { name = "Dojo architecture - " + material.name };
                 mesh.CombineMeshes(instances.ToArray(), true, true);
+                if (material == pennantMaterial)
+                {
+                    // Retain independent rest and output arrays. Only this tiny
+                    // existing material group changes; architecture stays static.
+                    pennantMesh = mesh;
+                    pennantRestVertices = mesh.vertices;
+                    pennantAnimatedVertices = (Vector3[])pennantRestVertices.Clone();
+                    pennantWindWeights = new Vector4[pennantRestVertices.Length];
+                    for (int index = 0; index < pennantRestVertices.Length; index++)
+                        pennantWindWeights[index] = SummitAmbientMotion.BannerWeights(pennantRestVertices[index]);
+                    pennantMotionBounds = mesh.bounds;
+                    pennantMotionBounds.Expand(SummitAmbientMotion.MaxDisplacement * 2);
+                    mesh.bounds = pennantMotionBounds;
+                    mesh.MarkDynamic();
+                }
                 stageMeshes.Add(mesh);
                 var combined = new GameObject(mesh.name);
                 combined.transform.SetParent(environment, false);
@@ -310,6 +353,7 @@ namespace JiuQuest.Combat
             var shader = Shader.Find("JiuQuest/Summit Sky");
             if (shader == null) throw new System.InvalidOperationException("The Summit Sky shader is missing from the build.");
             var material = new Material(shader) { name = "Summit atmosphere" };
+            skyMaterial = material;
             materials.Add(material); distantMaterials.Add(material);
             var dome = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             dome.name = "Summit sky dome";
@@ -354,7 +398,8 @@ namespace JiuQuest.Combat
         void Banner(Vector3 top, Quaternion rotation, Material cloth, Material bronze)
         {
             // Authored folds, split tail and an original mountain-chevron crest.
-            // Cloth is deliberately static: pausing a study also freezes its setting.
+            // The upper panel and crest stay fixed; two low subdivisions let the
+            // split tails bend without moving their attachment or metalwork.
             var vertices = new List<Vector3>();
             var triangles = new List<int>();
             var uv = new List<Vector2>();
@@ -366,9 +411,15 @@ namespace JiuQuest.Combat
                 float depth1 = Mathf.Sin((i + 1) * 1.5f) * .045f;
                 float bottom0 = -1.48f + (.43f - Mathf.Abs(x0)) * .52f;
                 float bottom1 = -1.48f + (.43f - Mathf.Abs(x1)) * .52f;
-                Quad(vertices, triangles, uv, new Vector3(x0, 0, depth0), new Vector3(x0, bottom0, depth0), new Vector3(x1, bottom1, depth1), new Vector3(x1, 0, depth1));
-                // Back face is geometry, avoiding a separate two-sided material.
-                Quad(vertices, triangles, uv, new Vector3(x1, 0, depth1), new Vector3(x1, bottom1, depth1), new Vector3(x0, bottom0, depth0), new Vector3(x0, 0, depth0));
+                for (int row = 0; row < 3; row++)
+                {
+                    float upper = row == 0 ? 0 : row == 1 ? -.70f : -1.02f;
+                    float lower0 = row == 0 ? -.70f : row == 1 ? -1.02f : bottom0;
+                    float lower1 = row == 0 ? -.70f : row == 1 ? -1.02f : bottom1;
+                    Quad(vertices, triangles, uv, new Vector3(x0, upper, depth0), new Vector3(x0, lower0, depth0), new Vector3(x1, lower1, depth1), new Vector3(x1, upper, depth1));
+                    // Back face is geometry, avoiding a separate two-sided material.
+                    Quad(vertices, triangles, uv, new Vector3(x1, upper, depth1), new Vector3(x1, lower1, depth1), new Vector3(x0, lower0, depth0), new Vector3(x0, upper, depth0));
+                }
             }
             MeshObject("Folded pennant", Mesh("Summit pennant", vertices, triangles, uv), top, cloth, rotation);
             Box("Pennant rod", top + rotation * new Vector3(0, .035f, 0), new Vector3(1.07f, .065f, .065f), bronze, rotation);
@@ -661,5 +712,34 @@ namespace JiuQuest.Combat
             foreach (var mesh in stageMeshes) if (mesh != null) Destroy(mesh);
             foreach (var texture in stageTextures) if (texture != null) Destroy(texture);
         }
+    }
+
+    public static class SummitAmbientMotion
+    {
+        public const float MaxDisplacement = .10f;
+
+        public static float Phase(float playbackTime, float duration)
+        {
+            if (!CombatProtocol.Finite(playbackTime) || !CombatProtocol.Finite(duration)
+                || duration <= 0 || playbackTime <= 0 || playbackTime >= duration) return 0;
+            return playbackTime / duration * Mathf.PI * 2;
+        }
+
+        public static Vector4 Waves(float phase)
+            => new Vector4(Mathf.Sin(phase), Mathf.Cos(phase) - 1, Mathf.Sin(phase * 2), Mathf.Cos(phase * 2) - 1);
+
+        public static Vector4 BannerWeights(Vector3 rest)
+        {
+            // All four pennants attach at y=3.75. Preserve their upper 0.70m,
+            // including the crest, and strengthen movement toward the loose tips.
+            float weight = Mathf.Clamp01((3.05f - rest.y) / .78f);
+            weight *= weight;
+            float spatialPhase = rest.x * .78f + rest.z * .13f;
+            return new Vector4(Mathf.Cos(spatialPhase) * weight * .045f, Mathf.Sin(spatialPhase) * weight * .045f,
+                Mathf.Cos(spatialPhase * .6f) * weight * .008f, Mathf.Sin(spatialPhase * .6f) * weight * .008f);
+        }
+
+        public static Vector3 BannerOffset(Vector4 weights, Vector4 waves)
+            => new Vector3(weights.z * waves.z + weights.w * waves.w, 0, weights.x * waves.x + weights.y * waves.y);
     }
 }

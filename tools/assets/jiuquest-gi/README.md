@@ -18,5 +18,7 @@ jacket mesh before its body-weight transfer. Broader waist/elbow folds and
 knee/cuff relief are shaped into the garment surfaces. These are authored
 geometry changes using the existing cotton material slots and texture maps;
 they add no rigid chest attachments, extra texture downloads or cloth simulation.
-The paired rig and choreography remain unchanged. Generated assets still require
+Garment generation preserves the paired rig and authored choreography. The separate
+standing-idle movement pass changes only that clip, with planted-foot and loop
+regression checks; the other 15 clips retain their motion. Generated assets still require
 the normal pose, vertex-budget and browser checks before release.

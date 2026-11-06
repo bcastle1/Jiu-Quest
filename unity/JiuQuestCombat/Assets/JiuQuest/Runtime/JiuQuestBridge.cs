@@ -259,6 +259,9 @@ namespace JiuQuest.Combat
             animationState.weight = 1;
             animationState.time = clock.Time;
             legacyAnimation.Sample();
+            // Scene movement follows the same sampled clock as the athletes.
+            // Pause, seek and reduced-motion startup therefore stay still.
+            stage.SampleAmbient(clock.Time, legacyAnimation.clip.length);
             RefreshPoseBounds();
         }
 

@@ -228,6 +228,18 @@ try {
   await page.goto(`${base}/?preview=unity`); await ready(); await pause();
   await checkpoint('desktop:ready');
   const firstSession = await page.evaluate(() => window.__unityEvents.find((event) => event.type === 'ready').instanceId);
+  // Reduced-motion startup must freeze the whole scene, including ambient wind.
+  // Inspect the rendered canvas, not only the transport's playing flag.
+  await select('Technique', 'standing_stance'); await pause();
+  await seek(0);
+  const stillStance = await capture('stance-paused-start');
+  await page.waitForTimeout(650);
+  const heldStance = await capture('stance-paused-held');
+  assert.equal(heldStance.sha256, stillStance.sha256, 'Paused fighters and scenery must remain visually still.');
+  await seek(0.25);
+  const shiftedStance = await capture('stance-weight-shift');
+  assert.notEqual(shiftedStance.sha256, stillStance.sha256, 'Seeking the standing loop must change the actual rendered pose.');
+  checks.push('Standing weight shift renders while paused fighters and ambient scenery remain visually still.');
   for (const moveId of manifest.supportedMoves) {
     await checkpoint('clip:starting', { moveId });
     await select('Technique', moveId); await pause(); await seek(0.5);
