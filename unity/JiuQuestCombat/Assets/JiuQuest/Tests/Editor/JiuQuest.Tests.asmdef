@@ -1,0 +1,6 @@
+{
+  "name": "JiuQuest.Tests",
+  "references": ["JiuQuest.Runtime", "glTFast", "Unity.RenderPipelines.Universal.Runtime", "Unity.RenderPipelines.Core.Runtime"],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}

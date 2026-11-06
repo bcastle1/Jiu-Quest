@@ -1,0 +1,6 @@
+{
+  "name": "JiuQuest.Editor",
+  "rootNamespace": "JiuQuest.Combat.Editor",
+  "references": ["JiuQuest.Runtime", "Unity.RenderPipelines.Universal.Runtime", "Unity.RenderPipelines.Core.Runtime"],
+  "includePlatforms": ["Editor"]
+}

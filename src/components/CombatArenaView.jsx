@@ -3,6 +3,8 @@ import { ArrowDown, ArrowUp, BookOpen, Check, Play, RotateCcw, Shield, Swords, T
 import { allMoves, beltLabels } from "../data/curriculum.js";
 import { createArenaState, getArenaPositionLabel, getPositionForSide } from "../arena/outcome.js";
 import GrapplingSnapshotStage from "./GrapplingSnapshotStage.jsx";
+import UnityGrapplingStage from "./UnityGrapplingStage.jsx";
+import { isUnityEnabled, resolveArenaUnityPlayback } from "../unity/bridge.js";
 
 function startsFrom(move, position) {
   return move.id === "protect-position" || move.starts?.includes(position);
@@ -57,6 +59,7 @@ export default function CombatArenaView({
   const isFinished = combat.phase === "finished" || combat.result?.finished === true;
   const canStart = !combat.active || isFinished;
   const selectedOrder = combat.order ?? [];
+  const unityPlayback = resolveArenaUnityPlayback(combat.result);
 
   const announce = (message, tone = "info") => {
     setAnnouncement(message);
@@ -184,14 +187,24 @@ export default function CombatArenaView({
           </div>
 
           <div className={`mat-window cinematic-mode ${combat.result ? "result-mode" : ""}`}>
-            <GrapplingSnapshotStage
+            {isUnityEnabled(window.location.search) ? <UnityGrapplingStage
+              moveId={unityPlayback?.moveId}
+              performerSide={unityPlayback?.performerSide}
+              moveLabel={combat.result?.techniqueName}
+              signal={combat.result?.animationSignal}
+              fighter={fighter}
+              fighterBelt={beltStatus}
+              opponent={opponent}
+              unavailableReason={!combat.result ? 'The settled position is shown until a supported exchange succeeds.' : 'This exchange has no matching successful Unity animation yet.'}
+              fallback={<GrapplingSnapshotStage state={combat} fighter={fighter} fighterBelt={beltStatus} opponent={opponent} result={combat.result} onReplay={() => announce(`Reviewing the settled position: ${positionLabel.toLowerCase()}.`)} />}
+            /> : <GrapplingSnapshotStage
               state={combat}
               fighter={fighter}
               fighterBelt={beltStatus}
               opponent={opponent}
               result={combat.result}
               onReplay={() => announce(`Reviewing the settled position: ${positionLabel.toLowerCase()}.`)}
-            />
+            />}
           </div>
 
           {combat.result && (

@@ -9,7 +9,8 @@ import {
   bjjAnimationCatalog,
   getBjjAnimationKeyForMove,
   normalizeBjjAnimationKey,
-} from "./bjjAnimationMap";
+} from "./bjjAnimationMap.js";
+import { pairedMaterialSlot, tintPairedMaterial } from "./pairedMaterials.js";
 
 const defaultFighter = {
   name: "JiuQuest Fighter",
@@ -177,6 +178,42 @@ function disposeObject(object) {
   });
 }
 
+function disposeAnimationSource(object, disposed) {
+  // Live scene clones borrow the source GLB's maps. Release them only when the
+  // source cache is torn down, after the active clone has been detached.
+  const images = new Set();
+  object.traverse((child) => {
+    if (child.geometry && !disposed.geometries.has(child.geometry)) {
+      disposed.geometries.add(child.geometry);
+      child.geometry.dispose();
+    }
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    for (const material of materials) {
+      if (!material || disposed.materials.has(material)) continue;
+      disposed.materials.add(material);
+      // glTF PBR extension maps (clearcoat, sheen, etc.) are Texture properties
+      // too; avoid a fixed list that would miss newly authored material maps.
+      for (const value of Object.values(material)) {
+        if (!value?.isTexture || disposed.textures.has(value)) continue;
+        disposed.textures.add(value);
+        const data = value.source?.data ?? value.image;
+        for (const image of Array.isArray(data) ? data : [data]) {
+          if (typeof ImageBitmap !== "undefined" && image instanceof ImageBitmap) images.add(image);
+        }
+        value.dispose();
+      }
+      material.dispose();
+    }
+  });
+  // Multiple glTF textures can share one ImageBitmap. Close that owned backing
+  // once, after disposing its textures; ordinary DOM/data images are not closed.
+  for (const image of images) {
+    if (disposed.images.has(image)) continue;
+    disposed.images.add(image);
+    image.close();
+  }
+}
+
 function copyVector(target, values) {
   target.set(values[0], values[1], values[2]);
 }
@@ -278,6 +315,9 @@ export class MoveAnimationManager {
     this.options = options;
     this.assetCache = new Map();
     this.disposedAssetScenes = new WeakSet();
+    this.disposedAssetResources = {
+      geometries: new WeakSet(), materials: new WeakSet(), textures: new WeakSet(), images: new WeakSet(),
+    };
     this.textureCache = new Map();
     this.failedEmblemAssets = new Set();
     this.loader = new GLTFLoader();
@@ -975,7 +1015,7 @@ export class MoveAnimationManager {
     const scene = asset?.gltf?.scene;
     if (!scene || !asset?.clips?.length) return false;
     const roles = ["Attacker", "Defender"];
-    const cosmeticSlots = ["GiTop", "GiPants", "Skin", "Hair", "Belt", "BeltStripe", "Patch"];
+    const cosmeticSlots = ["gitop", "gipants", "skin", "hair", "belt", "beltstripe"];
     const materialNames = new Set();
     scene.traverse((node) => {
       if (!node.isMesh) return;
@@ -984,7 +1024,7 @@ export class MoveAnimationManager {
     });
     return roles.every((role) => (
       scene.getObjectByName("JQ_" + role)
-      && cosmeticSlots.every((slot) => materialNames.has("JQ_" + role + "_" + slot))
+      && cosmeticSlots.every((slot) => [...materialNames].some((name) => pairedMaterialSlot(name, role)?.slot === slot))
     ));
   }
 
@@ -1073,24 +1113,26 @@ export class MoveAnimationManager {
   _applyMocapFighterPalette(role, fighter, auraIndex) {
     const prefix = "JQ_" + role + "_";
     const colors = {
-      [prefix + "GiTop"]: safeColor(fighter.giTop, "#f8fbff"),
-      [prefix + "GiPants"]: safeColor(fighter.giPants, "#f8fbff"),
-      [prefix + "Skin"]: safeColor(fighter.skinTone, "#d99b71"),
-      [prefix + "Hair"]: safeColor(fighter.hairColor, "#11131c"),
-      [prefix + "Belt"]: safeColor(beltColors[fighter.belt] || beltColors.white, "#f8fbff"),
-      [prefix + "BeltStripe"]: safeColor(fighter.belt === "white" ? "#182030" : "#f8fbff", "#f8fbff"),
+      gitop: safeColor(fighter.giTop, "#f8fbff"),
+      gipants: safeColor(fighter.giPants, "#f8fbff"),
+      skin: safeColor(fighter.skinTone, "#d99b71"),
+      hair: safeColor(fighter.hairColor, "#11131c"),
+      brows: safeColor(fighter.hairColor, "#11131c"),
+      belt: safeColor(beltColors[fighter.belt] || beltColors.white, "#f8fbff"),
+      beltstripe: safeColor(fighter.belt === "white" ? "#182030" : "#f8fbff", "#f8fbff"),
     };
     const texture = this._getEmblemTexture(fighter.emblem);
     this.mocap.root.traverse((node) => {
       if (!node.isMesh) return;
       const materials = Array.isArray(node.material) ? node.material : [node.material];
       const isHairNode = node.name.startsWith(prefix)
-        && node.name.toLowerCase().includes("hair")
-        && materials.some((material) => material?.name === prefix + "Hair");
+        && /^Hair(?:Spikes|Crew|Mohawk|Long|Slick)(?:_|$)/i.test(node.name.slice(prefix.length))
+        && materials.some((material) => pairedMaterialSlot(material?.name, role)?.slot === "hair");
       materials.forEach((material) => {
-        const color = colors[material.name];
-        if (color && material.color) material.color.copy(color);
-        if (material.name === prefix + "Patch") {
+        const semantic = pairedMaterialSlot(material?.name, role);
+        const color = colors[semantic?.slot];
+        if (color) tintPairedMaterial(material, color, semantic.reference);
+        if (semantic?.slot === "patch") {
           material.map = texture;
           material.needsUpdate = true;
         }
@@ -1165,7 +1207,7 @@ export class MoveAnimationManager {
     const scene = asset?.gltf?.scene;
     if (!scene || this.disposedAssetScenes.has(scene)) return;
     this.disposedAssetScenes.add(scene);
-    disposeObject(scene);
+    disposeAnimationSource(scene, this.disposedAssetResources);
   }
 
   _disposeCachedAnimationAssets() {

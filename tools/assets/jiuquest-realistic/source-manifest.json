@@ -1,0 +1,118 @@
+{
+  "license": "CC0-1.0",
+  "mpfbVersion": "2.0.18",
+  "rigBones": 65,
+  "sourceObjects": [
+    {
+      "object": "Realistic_Body",
+      "vertices": 13380,
+      "sourceTexture": "young_lightskinned_male_diffuse.png",
+      "sourceTextureSha256": "862a26e335e958b70534cb5f0d7c47ef30ab148a56c42b3e9da969cf76f12963",
+      "derivedTexture": "young_lightskinned_male_diffuse-2048.jpg",
+      "maximumDimension": 2048,
+      "format": "JPEG"
+    },
+    {
+      "object": "Realistic_Eyes",
+      "vertices": 96,
+      "sourceTexture": "brown_eye.png",
+      "sourceTextureSha256": "4659691c7295ad6206c78b003e5fd0e5f91dcd53032fa914a229bb48cabe424b",
+      "derivedTexture": "brown_eye-256.jpg",
+      "maximumDimension": 256,
+      "format": "JPEG"
+    },
+    {
+      "object": "Realistic_Eyebrows",
+      "vertices": 124,
+      "sourceTexture": "eyebrow001.png",
+      "sourceTextureSha256": "9940f7d0b1b223709a19b05156ba6f6e9e4dbdbced02d7574f4d51d72c58967b",
+      "derivedTexture": "eyebrow001-256.png",
+      "maximumDimension": 256,
+      "format": "PNG"
+    },
+    {
+      "object": "Realistic_HairCrew",
+      "vertices": 1755,
+      "sourceTexture": "short02_diffuse.png",
+      "sourceTextureSha256": "47fe33831a3929567c733356dd66243116e05df2ace1f884ddca0080b728229f",
+      "derivedTexture": "short02_diffuse-512.png",
+      "maximumDimension": 512,
+      "format": "PNG"
+    },
+    {
+      "object": "Realistic_HairSlick",
+      "vertices": 865,
+      "sourceTexture": "short04_diffuse.png",
+      "sourceTextureSha256": "0bef7fc0e403db5a40fabb2111ebfa6f7e8158e204c6e56b8da98e9ef527846e",
+      "derivedTexture": "short04_diffuse-512.png",
+      "maximumDimension": 512,
+      "format": "PNG"
+    },
+    {
+      "object": "Realistic_HairLong",
+      "vertices": 3718,
+      "sourceTexture": "ponytail01_diffuse.png",
+      "sourceTextureSha256": "dcb364300cac06ce8bef91b2f7c0970baf310898bbdd06b0c6b884ee9306eb97",
+      "derivedTexture": "ponytail01_diffuse-512.png",
+      "maximumDimension": 512,
+      "format": "PNG"
+    }
+  ],
+  "redistributableFiles": [
+    {
+      "path": "athlete-cc0.blend",
+      "bytes": 1164713,
+      "sha256": "d858e39f839dfbc19c0bcb8766403984912e4d7bb12a73ad3e0299832b982dd8"
+    },
+    {
+      "path": "LICENSE-CC0.txt",
+      "bytes": 7048,
+      "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+    },
+    {
+      "path": "material-reference.json",
+      "bytes": 689,
+      "sha256": "9a58684ebb8a9f9e9e5f7dd9906bc1704b5740ffa74dcc064f2f5ccf990e63a5"
+    },
+    {
+      "path": "textures/brown_eye-256.jpg",
+      "bytes": 9414,
+      "sha256": "77b9520d3c9d665cb88671a3dbb79c06af6cc68152f2457888c0a90fe1e7dd19"
+    },
+    {
+      "path": "textures/eyebrow001-256.png",
+      "bytes": 27403,
+      "sha256": "10c8ff3ac95bcfdcd65d6a0e24f69c626898871b572df4588ed78d3c6adece03"
+    },
+    {
+      "path": "textures/Fabric042_1K-JPG_NormalGL-512.jpg",
+      "bytes": 116505,
+      "sha256": "3b54d60d23e500598eb60ac695d2d3624394bc60c5b6720bcd3e457e995cb2d9"
+    },
+    {
+      "path": "textures/Fabric042_1K-JPG_Roughness-256.jpg",
+      "bytes": 11041,
+      "sha256": "6d7cafac8bb584ffe84fd0d4323eaa6342135b9f48a4b6adc0c5d5eb7b108661"
+    },
+    {
+      "path": "textures/ponytail01_diffuse-512.png",
+      "bytes": 395216,
+      "sha256": "d735fc185f551e845c4e09947001f20b55fb6055b9eb85574e19383d46707224"
+    },
+    {
+      "path": "textures/short02_diffuse-512.png",
+      "bytes": 269241,
+      "sha256": "d0afdcb791eabb7bb7566ce9dc36baf1193438a7248438cd7a6c2b8a10523738"
+    },
+    {
+      "path": "textures/short04_diffuse-512.png",
+      "bytes": 263261,
+      "sha256": "4f0720e171055f2dc638f35d15151ec76c71588e246a0292ea81d90bc075729e"
+    },
+    {
+      "path": "textures/young_lightskinned_male_diffuse-2048.jpg",
+      "bytes": 602762,
+      "sha256": "824911a861ab3eb546588eba186781f7a5448b818889cfc7ea4c0d5ac6f5f4b0"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "name": "JiuQuest.Runtime",
+  "rootNamespace": "JiuQuest.Combat",
+  "references": ["glTFast", "Unity.RenderPipelines.Universal.Runtime", "Unity.RenderPipelines.Core.Runtime"]
+}

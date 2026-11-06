@@ -1,0 +1,3 @@
+# Unity's YAML serializer intentionally leaves spaces after empty property values.
+unity/JiuQuestCombat/**/*.asset whitespace=-blank-at-eol
+unity/JiuQuestCombat/**/*.meta whitespace=-blank-at-eol

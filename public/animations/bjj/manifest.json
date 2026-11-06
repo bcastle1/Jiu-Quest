@@ -2,11 +2,36 @@
   "format": "GLB / glTF 2.0",
   "motionType": "JiuQuest-authored paired choreography. These are animated 3D assets, not motion capture.",
   "replacementContract": {
-    "roots": ["JQ_Attacker", "JQ_Defender"],
-    "materialSlots": ["GiTop", "GiPants", "Skin", "Hair", "Belt", "BeltStripe", "Patch"],
-    "attachmentNodes": ["ChestPatch", "BeltStripe_1", "BeltStripe_2", "BeltStripe_3", "BeltStripe_4"],
-    "requirement": "Future licensed paired mocap may replace a file only when both roots and the cosmetic slots are preserved."
+    "roots": [
+      "JQ_Attacker",
+      "JQ_Defender"
+    ],
+    "materialSlots": [
+      "GiTop",
+      "GiPants",
+      "Skin",
+      "Hair",
+      "Brows",
+      "Eyes",
+      "Belt",
+      "BeltStripe"
+    ],
+    "attachmentNodes": [
+      "ChestPatch",
+      "BeltStripe_1",
+      "BeltStripe_2",
+      "BeltStripe_3",
+      "BeltStripe_4"
+    ],
+    "requirement": "Future licensed paired mocap may replace a file only when both roots and the cosmetic slots are preserved.",
+    "reservedAttachments": "ChestPatch and Lapel_L/Lapel_R remain named empty nodes. Their rigid decorative meshes are intentionally absent.",
+    "texturedMaterials": "Skin, Hair and Brows use _Ref_RRGGBB sRGB suffixes. Appearance tint divides by the reference in linear light, preserving authored texture detail. Eyes remain authored. Hair/Brows use MASK alpha; all other surfaces are opaque.",
+    "hairStyles": ["Crew", "Long", "Slick", "Mohawk", "Spikes", "Bald"],
+    "skinInfluences": 4,
+    "athleteScale": 1
   },
+  "cosmeticRevision": "2026-11-05-realistic-sports-cc0-athletes",
+  "anatomySource": "MPFB 2.0.18 / MakeHuman core CC0 human fitted to the stable Quaternius 65-bone rest rig. Clothing and paired animation are JiuQuest-authored.",
   "animations": {
     "standing_stance": "/animations/bjj/standing_stance.glb",
     "grip_fighting": "/animations/bjj/grip_fighting.glb",
@@ -17,11 +42,71 @@
     "guard_pass": "/animations/bjj/guard_pass.glb",
     "side_control": "/animations/bjj/side_control.glb",
     "mount": "/animations/bjj/mount.glb",
+    "trap_roll_escape": "/animations/bjj/trap_roll_escape.glb",
     "back_control": "/animations/bjj/back_control.glb",
     "armbar": "/animations/bjj/armbar.glb",
     "triangle_choke": "/animations/bjj/triangle_choke.glb",
     "rear_naked_choke": "/animations/bjj/rear_naked_choke.glb",
     "tap_out": "/animations/bjj/tap_out.glb",
     "reset_neutral": "/animations/bjj/reset_neutral.glb"
+  },
+  "clipMetadata": {
+    "trap_roll_escape": {
+      "durationSeconds": 5,
+      "reviewStatus": "authored-draft-needs-qualified-BJJ-coach-review",
+      "motionCapture": false,
+      "performerRoot": "JQ_Attacker",
+      "opponentRoot": "JQ_Defender",
+      "startPosition": "performer-bottom-mount",
+      "endPosition": "performer-top-inside-opponent-guard",
+      "trappedLimbs": "opponent-left-arm-and-left-ankle",
+      "rollDirection": "over-performer-right-shoulder",
+      "authoring": "New paired choreography with analytic limb contacts; not reverse playback of another clip."
+    },
+    "double_leg": {
+      "reviewStatus": "authored-draft-needs-qualified-BJJ-coach-review",
+      "motionCapture": false,
+      "performerRoot": "JQ_Attacker",
+      "opponentRoot": "JQ_Defender",
+      "authoringRevision": "2026-11-05-contact-refinement",
+      "durationSeconds": 4.166667,
+      "startPosition": "facing-standing-stance",
+      "endPosition": "performer-top-inside-opponent-guard",
+      "authoring": "Dense sampled level change, bilateral knee contacts through corner drive, deliberate grip release and grounded top-in-guard landing."
+    },
+    "triangle_choke": {
+      "reviewStatus": "authored-draft-needs-qualified-BJJ-coach-review",
+      "motionCapture": false,
+      "performerRoot": "JQ_Attacker",
+      "opponentRoot": "JQ_Defender",
+      "authoringRevision": "2026-11-05-contact-refinement",
+      "durationSeconds": 3.966667,
+      "startPosition": "performer-bottom-closed-guard",
+      "endPosition": "performer-bottom-triangle-finish-draft",
+      "authoring": "Grounded opponent, one arm inside and one outside, ankle-to-knee figure-four contact, head control; requires coach review of finish mechanics."
+    },
+    "rear_naked_choke": {
+      "reviewStatus": "authored-draft-needs-qualified-BJJ-coach-review",
+      "motionCapture": false,
+      "performerRoot": "JQ_Attacker",
+      "opponentRoot": "JQ_Defender",
+      "authoringRevision": "2026-11-05-contact-refinement",
+      "durationSeconds": 3.966667,
+      "startPosition": "performer-seated-back-control",
+      "endPosition": "performer-seated-rear-naked-choke-finish-draft",
+      "authoring": "Grounded seated pelvis, inside foot hooks, same-arm hand fighting, choking hand to biceps and support hand behind head; requires coach review."
+    },
+    "standing_stance": {
+      "reviewStatus": "authored-draft-needs-qualified-BJJ-coach-review",
+      "motionCapture": false,
+      "performerRoot": "JQ_Attacker",
+      "opponentRoot": "JQ_Defender",
+      "authoringRevision": "2026-11-05-contact-refinement",
+      "durationSeconds": 1.766667,
+      "startPosition": "facing-standing-stance",
+      "endPosition": "same-facing-standing-stance",
+      "loop": true,
+      "authoring": "Planted neutral entry shared with double-leg, with a closed full-cycle breathing loop."
+    }
   }
 }
