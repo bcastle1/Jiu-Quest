@@ -54,12 +54,206 @@ def hide_covered_body(body):
         neck=sum(g.weight for g in vertex.groups if groups[g.group] in {'neck_01','Head'})
         v_width=.016+.061*max(0,min(1,(p.z-1.205)/.30))
         chest=p.z>1.19 and p.z<1.52 and p.y<-.055 and abs(p.x)<v_width
-        if terminal>.10 or neck>.06 or p.z>1.49 or chest:visible.add(vertex.index)
+        # In the rest T-pose, upper arms also reach above z=1.49. A blanket
+        # height exemption retained covered deltoid/elbow skin, which could
+        # intrude through the bent sleeve. Keep the exposed anatomical regions
+        # by their existing bone influence and lapel-opening mask instead.
+        # Low neck weights extend onto the covered shoulder. Retaining that
+        # patch makes it poke through a properly sloped gi crown when bending.
+        # Keep the neck column and the entire head, plus the open chest.
+        # The 80 mm half-width includes the neck surface and its new definition;
+        # wider low-neck-weight trapezius skin remains under the jacket.
+        actual_neck = neck>.06 and (p.z>1.59 or abs(p.x)<.080)
+        if terminal>.10 or actual_neck or chest:visible.add(vertex.index)
     mesh=bmesh.new();mesh.from_mesh(body.data);mesh.verts.ensure_lookup_table()
     delete=[face for face in mesh.faces if not any(v.index in visible for v in face.verts)]
     bmesh.ops.delete(mesh,geom=delete,context='FACES')
     bmesh.ops.delete(mesh,geom=[v for v in mesh.verts if not v.link_faces],context='VERTS')
     mesh.to_mesh(body.data);mesh.free();body.data.update()
+
+def refine_grappler_definition(body, rig):
+    """Bounded neck/lower-jaw, chest and distal forearm definition on the rig.
+
+    Shape existing skin vertices only. The upper neck band also broadens the
+    lower jaw slightly. Preserve palms, wrists, joints and animation.
+    """
+    from mathutils import Vector
+
+    def smooth(lo, hi, value):
+        t = min(1., max(0., (value - lo) / (hi - lo)))
+        return t * t * (3. - 2. * t)
+
+    neck = rig.data.bones['neck_01'].head_local
+    head = rig.data.bones['Head'].head_local
+    groups = {group.index: group.name for group in body.vertex_groups}
+    forearms = [(rig.data.bones['lowerarm_' + side], rig.data.bones['hand_' + side])
+                for side in ('l', 'r')]
+    for vertex in body.data.vertices:
+        p = vertex.co.copy()
+        delta = Vector()
+        # A wider neck/lower-jaw transition and two restrained front muscle
+        # planes. Fade above the collar without raising the shoulders.
+        neck_band = smooth(neck.z + .039, neck.z + .052, p.z) * (1. - smooth(head.z - .018, head.z - .003, p.z))
+        if abs(p.x) < .075 and neck_band > 0.:
+            delta.x += max(-.0030, min(.0030, p.x * .075)) * neck_band
+            front = smooth(.015, .055, neck.y - p.y)
+            along = max(0., min(1., (p.z - neck.z - .035) / .055))
+            ridge_x = .018 + .029 * along
+            relief = .0018 * math.exp(-((abs(p.x) - ridge_x) / .009) ** 2)
+            delta.y -= relief * neck_band * front
+        # Defined pectoral planes and a restrained clavicle contour frame the
+        # exposed sternum. These stay below the shoulder/neck silhouette.
+        chest = smooth(1.25, 1.30, p.z) * (1. - smooth(1.45, 1.49, p.z))
+        if abs(p.x) < .080 and p.y < -.055 and chest > 0.:
+            front = smooth(.055, .095, -p.y)
+            pec = .0064 * math.exp(-((p.z - 1.405) / .066) ** 2) * math.exp(-((abs(p.x) - .043) / .032) ** 2)
+            sternum = .0010 * math.exp(-(p.x / .012) ** 2)
+            clavicle_z = 1.470 - .13 * abs(p.x)
+            clavicle = .0015 * math.exp(-((p.z - clavicle_z) / .014) ** 2)
+            clavicle *= 1. - math.exp(-(p.x / .014) ** 2)
+            delta.y -= (pec + clavicle - sternum) * chest * front
+        # Only the exposed distal forearm above the wrist: preserve palm
+        # contact, wrist circumference and all finger geometry.
+        named = {groups[group.group]: group.weight for group in vertex.groups}
+        for lower, hand in forearms:
+            axis = (hand.head_local - lower.head_local).normalized()
+            along = (p - lower.head_local).dot(axis) / lower.length
+            forearm = smooth(.57, .72, along) * (1. - smooth(.90, .98, along))
+            if forearm <= 0. or named.get(lower.name, 0.) < .1:
+                continue
+            radial = p - (lower.head_local + axis * ((p - lower.head_local).dot(axis)))
+            if radial.length > 1e-6:
+                dorsal = smooth(-.006, .025, radial.z)
+                # A long extensor plane gives definition without turning the
+                # forearm into a uniform cylinder or enlarging the wrist.
+                extensor = math.exp(-((radial.y + .010) / .020) ** 2)
+                delta += radial.normalized() * (.0034 * forearm * dorsal * (.55 + .45 * extensor))
+        if delta.length > .0065:
+            delta *= .0065 / delta.length
+        vertex.co += delta
+    body.data.update()
+
+
+def refine_hand_surfaces(body, rig):
+    """Shape fuller finger sides, palm backs and restrained dorsal landmarks.
+
+    The source athlete has palms facing down in its T pose. All changes stay on
+    the back/sides of the hand, away from palm contact surfaces and wrist seams.
+    No new geometry, skin weights, UVs, bone lengths or animation keys are added.
+    """
+    from mathutils import Vector
+    groups = {group.index: group.name for group in body.vertex_groups}
+    rest_normals = [vertex.normal.copy() for vertex in body.data.vertices]
+    details = {}
+    for side in ('l', 'r'):
+        wrist = rig.data.bones['hand_' + side].head_local.copy()
+        fingers = []
+        for finger in ('index', 'middle', 'ring', 'pinky'):
+            joints = [rig.data.bones[f'{finger}_{segment:02d}_{side}'].head_local.copy()
+                      for segment in (1, 2, 3)]
+            # The metacarpal ridge converges toward the wrist without making
+            # four parallel raised rails over its full length.
+            start = wrist.lerp(joints[0], .38)
+            fingers.append((start, joints))
+        details[side] = (wrist, fingers)
+    for vertex in body.data.vertices:
+        dorsal = max(0., min(1., (vertex.normal.z - .25) / .65))
+        if dorsal == 0.: continue
+        for side, (wrist, fingers) in details.items():
+            influence = sum(group.weight for group in vertex.groups
+                            if groups[group.group].endswith('_' + side)
+                            and groups[group.group].startswith(('hand_', 'index_', 'middle_', 'ring_', 'pinky_')))
+            if influence < .1: continue
+            p = vertex.co
+            distance_from_wrist = abs(p.x - wrist.x)
+            cuff_fade = min(1., max(0., (distance_from_wrist - .025) / .025))
+            relief = 0.
+            for start, joints in fingers:
+                end = joints[0]
+                dx, dy = end.x - start.x, end.y - start.y
+                t = ((p.x - start.x) * dx + (p.y - start.y) * dy) / (dx*dx + dy*dy)
+                if 0. < t < 1.:
+                    lateral = (p.x - start.x - t*dx)**2 + (p.y - start.y - t*dy)**2
+                    relief += .00115 * math.exp(-lateral / .0045**2) * math.sin(math.pi*t)**2
+                for joint, amplitude, width in zip(joints, (.0023, .0016, .0009), (.011, .0075, .006)):
+                    d = ((p.x-joint.x)/width)**2 + ((p.y-joint.y)/(.8*width))**2
+                    relief += amplitude * math.exp(-d)
+            p.z += min(.0032, relief) * dorsal * cuff_fade * min(1., influence)
+    # Give the long source fingers a firmer cross-section without shortening
+    # their bones, moving their joint centers or changing the grasping pose.
+    # The underside/contact mask and a 35mm wrist exclusion stay fixed.
+    def smooth(lo, hi, value):
+        t = min(1., max(0., (value-lo)/(hi-lo)))
+        return t*t*(3.-2.*t)
+
+    contours = {}
+    for side, (wrist, fingers) in details.items():
+        segments = {}
+        for finger in ('thumb', 'index', 'middle', 'ring', 'pinky'):
+            segments[finger] = []
+            for segment in (1, 2, 3):
+                bone = rig.data.bones[f'{finger}_{segment:02d}_{side}']
+                axis = (bone.tail_local-bone.head_local).normalized()
+                dorsal = (Vector((0., 0., 1.))-axis*axis.z).normalized()
+                lateral = axis.cross(dorsal).normalized()
+                segments[finger].append((bone.head_local.copy(), bone.length,
+                                         axis, dorsal, lateral))
+        palm_end = sum((joints[0] for _, joints in fingers), Vector())/4.
+        palm_axis = (palm_end-wrist).normalized()
+        palm_side = palm_axis.cross(Vector((0., 0., 1.))).normalized()
+        contours[side] = (segments, palm_end, palm_axis, palm_side)
+
+    for vertex, normal in zip(body.data.vertices, rest_normals):
+        if normal.z <= -.35: continue
+        p = vertex.co
+        for side, (wrist, _) in details.items():
+            named = {groups[g.group]: g.weight for g in vertex.groups}
+            hand_weight = named.get('hand_'+side, 0.)
+            finger_weights = {finger: sum(weight for name, weight in named.items()
+                              if name.startswith(finger+'_') and name.endswith('_'+side))
+                              for finger in ('thumb', 'index', 'middle', 'ring', 'pinky')}
+            finger = max(finger_weights, key=finger_weights.get)
+            weight = finger_weights[finger]
+            if hand_weight+sum(finger_weights.values()) < .1: continue
+            cuff = smooth(.035, .065, abs(p.x-wrist.x))
+            if cuff == 0.: continue
+            contact = smooth(-.35, .48, normal.z)
+            segments, palm_end, palm_axis, palm_side = contours[side]
+            delta = Vector()
+            if weight > .1:
+                # The dominant digit selects its own cross-section, avoiding
+                # a nearest-finger rule that could pull a web into its neighbor.
+                choices = []
+                for segment, (start, length, axis, dorsal, lateral) in enumerate(segments[finger]):
+                    along = (p-start).dot(axis)/length
+                    closest = start+axis*(min(1., max(0., along))*length)
+                    choices.append(((p-closest).length_squared, segment, along,
+                                    start, axis, dorsal, lateral))
+                _, segment, along, start, axis, dorsal, lateral = min(choices, key=lambda row: row[0])
+                offset = (p-start).dot(lateral)
+                # Smoothly tapered caps preserve the actual tip length. The
+                # width change is at most 1.2mm per side, not a scale of the hand.
+                taper = (1.-smooth(.72, 1.08, along)) if segment == 2 else 1.
+                if segment == 0: taper *= smooth(.05, .40, along)
+                width = max(-.0012, min(.0012, offset*.17))
+                delta += lateral*(width*taper*contact*min(1., weight)*cuff)
+                back = smooth(.20, .85, normal.dot(dorsal))
+                fullness = .00050*(.7+.3*math.sin(math.pi*min(1., max(0., along)))**2)
+                # A shallow distal oval rounds the existing nail surface;
+                # nails use the original skin UVs/material, with no overlay.
+                nail = 0.
+                if segment == 2 and .20 < along < .92:
+                    nail = .00025*math.sin(math.pi*(along-.20)/.72)**2*math.exp(-(offset/.006)**2)
+                delta += dorsal*((fullness*taper+nail)*back*min(1., weight)*cuff)
+            if hand_weight > .1:
+                along = (p-wrist).dot(palm_axis)/(palm_end-wrist).length
+                belly = math.sin(math.pi*min(1., max(0., along)))**2
+                offset = (p-wrist).dot(palm_side)
+                delta += palm_side*(max(-.00125, min(.00125, offset*.055))*belly*contact*hand_weight*cuff)
+                delta.z += .00085*belly*smooth(.15, .85, normal.z)*hand_weight*cuff
+            if delta.length > .0021: delta *= .0021/delta.length
+            p += delta
+    body.data.update()
 
 def derive_hair(crew, name, mohawk=False):
     obj=crew.copy();obj.data=crew.data.copy();obj.name=name
@@ -129,10 +323,16 @@ def make_realistic_fighter(role,colors,g):
     materials={key:g.make_material(prefix+'_'+name,colors[key],roughness=.75) for key,name in [('gi_top','GiTop'),('gi_pants','GiPants'),('belt','Belt'),('stripe','BeltStripe')]}
     build_realistic_gi(body,rig,root,materials,prefix)
     hide_covered_body(body)
+    refine_grappler_definition(body,rig)
+    refine_hand_surfaces(body,rig)
     stylize_anime(loaded,rig,prefix,g.make_material)
     for material in materials.values():
         for node in material.node_tree.nodes:
             if node.type=='TEX_IMAGE' and node.image:
+                # The original panel atlas has its own bounded resolution and
+                # source-hashed PNG name. Do not route it through the legacy
+                # 256px roughness/JPEG derivative cache and erase the stitching.
+                if node.image.name.startswith('jq-original-'): continue
                 node.image=optimized_image(node.image,512 if 'Normal' in node.image.name else 256,True)
     for obj in bpy.context.scene.objects:
         if obj.type=='MESH' and obj.find_armature()==rig:limit_weights(obj)

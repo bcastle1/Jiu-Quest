@@ -13,9 +13,9 @@ Shader "JiuQuest/Anime Fighter"
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
         _DetailStrength ("Texture detail", Range(0,1)) = 1
         _DetailBaseColor ("Texture reference (sRGB)", Vector) = (1,1,1,1)
-        _InkStrength ("Silhouette ink", Range(0,1)) = 0.52
-        _SpecularStrength ("Surface highlight", Range(0,1)) = 0.025
-        _RimStrength ("Soft edge light", Range(0,1)) = 0.08
+        _InkStrength ("Subtle silhouette definition", Range(0,1)) = 0.025
+        _SpecularStrength ("Dielectric highlight weight", Range(0,1)) = 0.30
+        _RimStrength ("Soft edge light", Range(0,1)) = 0.018
         _NormalDetailStrength ("Surface relief", Range(0,1)) = 0.42
         [HideInInspector] _SurfaceMaps ("Authored normal, roughness, occlusion", Vector) = (0,0,0,0)
         // Imported maps and transforms retain their glTF meaning; the art style
@@ -118,6 +118,7 @@ Shader "JiuQuest/Anime Fighter"
             #pragma shader_feature_local_fragment _ALPHATEST_ON
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -215,30 +216,36 @@ Shader "JiuQuest/Anime Fighter"
                     shadowCoord = ComputeScreenPos(TransformWorldToHClip(input.positionWS));
                 #endif
                 Light key = GetMainLight(shadowCoord);
-                half diffuse = saturate(dot(normalWS, key.direction) * .82h + .18h);
-                // Broad illustrated planes blend into a continuous response,
-                // keeping folds shaped instead of the previous flat white bands.
-                half middle = smoothstep(.10h, .43h, diffuse);
-                half bright = smoothstep(.48h, .90h, diffuse);
-                half tone = lerp(.32h + .38h * middle + .30h * bright, .27h + .73h * diffuse, .45h);
-                half visibility = lerp(.42h, 1.0h, key.shadowAttenuation);
-                half3 sky = max(SampleSH(geometricNormal), 0.0h);
-                half3 environment = lerp(half3(.13h,.17h,.23h), min(sky, .65h), .42h);
-                half3 color = albedo * (environment * occlusion
-                    + tone * visibility * key.color * .68h);
+                // Use the pinned URP metallic/roughness BRDF for smooth 3D
+                // form and energy-aware GGX highlights. Source maps, factors
+                // and the derivative normal frame above keep their glTF meaning.
+                // No band thresholds or artificial direct-shadow floor remain.
+                BRDFData brdf;
+                half alpha = 1.0h;
+                InitializeBRDFData(albedo, saturate(metallic), half3(0,0,0),
+                    1.0h - roughness, alpha, brdf);
+                // Cotton/skin/hair have restrained dielectric reflection;
+                // authored metals retain their full metallic BRDF response.
+                brdf.specular *= lerp(saturate(_SpecularStrength), 1.0h, saturate(metallic));
+                half3 sky = max(SampleSH(normalWS), 0.0h);
+                half3 color = brdf.diffuse * sky * occlusion * .65h;
+                color += LightingPhysicallyBased(brdf, key, normalWS, viewWS) * .90h;
 
-                // Separate material responses make cotton matte, hair satin and
-                // eyes glossy. A restrained highlight never washes out kit colors.
-                half3 halfDirection = SafeNormalize(key.direction + viewWS);
-                half highlight = pow(saturate(dot(normalWS, halfDirection)), lerp(110.0h, 7.0h, roughness));
-                highlight *= _SpecularStrength * key.shadowAttenuation * saturate(dot(normalWS, key.direction));
-                half3 highlightColor = lerp(half3(.85h,.90h,1.0h), albedo, saturate(metallic));
-                color += highlightColor * key.color * highlight;
+                // The same two existing fill lights reveal folds with the same
+                // continuous BRDF. No extra lights, map reads or render passes.
+                #if defined(_ADDITIONAL_LIGHTS)
+                    uint fillCount = (uint)min(GetAdditionalLightsCount(), 2);
+                    for (uint lightIndex = 0u; lightIndex < fillCount; lightIndex++)
+                    {
+                        Light fill = GetAdditionalLight(lightIndex, input.positionWS);
+                        color += LightingPhysicallyBased(brdf, fill, normalWS, viewWS) * .65h;
+                    }
+                #endif
 
                 half viewDot = saturate(dot(geometricNormal, viewWS));
                 half edgeLight = pow(1.0h - viewDot, 3.5h) * _RimStrength;
                 edgeLight *= .35h + .65h * saturate(dot(geometricNormal, -key.direction));
-                color += half3(.43h,.64h,.83h) * edgeLight * occlusion;
+                color += key.color * half3(1.0h,.98h,.94h) * edgeLight * occlusion;
                 half ink = (1.0h-smoothstep(.025h,.14h,viewDot)) * _InkStrength;
                 color *= 1.0h-ink;
                 return half4(MixFog(color, input.fog), 1);

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { AlertCircle, Camera, LoaderCircle, Maximize2, Minimize2, Pause, Play, RotateCcw } from 'lucide-react';
-import { createUnityBridge, snapshotFallbackUrl, toUnityAthlete, UNITY_CAMERAS, UNITY_EVENT, UNITY_SPEEDS } from '../unity/bridge.js';
+import { createUnityBridge, snapshotFallbackUrl, toUnityAthlete, UNITY_CAMERAS, UNITY_DEFAULT_CAMERA, UNITY_EVENT, UNITY_SPEEDS } from '../unity/bridge.js';
 import { createUnityPlayer } from '../unity/loader.js';
 import { createUnityLoadState } from '../unity/loadState.js';
 import './UnityGrapplingStage.css';
@@ -21,7 +21,7 @@ export default function UnityGrapplingStage({ moveId, moveLabel, performerSide =
   const [status, setStatus] = useState({ phase: 'loading', loaded: 0, message: '' });
   const [playback, setPlayback] = useState({ playing: false, progress: 0 });
   const [speed, setSpeed] = useState(1);
-  const [camera, setCamera] = useState('front');
+  const [camera, setCamera] = useState(UNITY_DEFAULT_CAMERA);
   const [fullScreenAvailable, setFullScreenAvailable] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const [stageMessage, setStageMessage] = useState('');

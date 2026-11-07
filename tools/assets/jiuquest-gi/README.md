@@ -11,3 +11,24 @@ The normal and roughness textures in `Fabric042/` are the 1024 × 1024 maps from
 The asset publisher explicitly permits commercial use and redistribution of raw asset files. No software from the source archive is executed or distributed. The optional source preview and color map are authoring references; only the normal/roughness maps are used by the neutral, recolorable gi materials.
 
 The garment mesh is authored in `tools/realistic_gi.py`. It uses skinned cloth panels, open sleeves, loose trousers and a flat belt; it does not copy the athlete's skin surface.
+
+The character-detail refinement adds rolled lapel faces, narrow lapel seams,
+cuff and hem bands, and softly raised shoulder reinforcement to the existing
+jacket mesh before its body-weight transfer. Broader waist/elbow folds and
+knee/cuff relief are shaped into the garment surfaces. These are authored
+geometry changes using the existing cotton material slots and texture maps;
+they add no rigid chest attachments, extra texture downloads or cloth simulation.
+Garment generation preserves the paired rig and authored choreography. The separate
+standing-idle movement pass changes only that clip, with planted-foot and loop
+regression checks; the other 15 clips retain their motion. Generated assets still require
+the normal pose, vertex-budget and browser checks before release.
+
+The original illustrated surface pass adds a neutral 512px construction atlas
+from `tools/original_surface_maps.py`: panel seams, lapel piping, reinforcement,
+sparse stitch rows and a small original split-summit mark. It is JiuQuest-authored
+procedural artwork and does not modify the ambientCG maps. UV1 places that
+artwork independently of the retained UV0 cotton normal/roughness tiling.
+The same atlas is shared by both athletes' jacket, trousers and belt; source
+base factors are white so runtime gi and earned-belt colors tint it once.
+Rank stripe materials and visibility are unchanged. Atlas filenames include
+the source recipe hash to prevent stale image reuse during regeneration.

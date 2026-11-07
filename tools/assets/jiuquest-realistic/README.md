@@ -49,23 +49,133 @@ four skin influences. Source geometry, maps and original reference values in
 
 `../../anime_fighter.py` applies a deterministic rest-space warp to the fitted
 adult face and eyes: wider eye sockets, a modestly larger cranium and a narrower
-chin. The same warp keeps the face, eyeballs, eyebrows and hair fitted together.
+chin. The face, eyeballs and hair share that warp; brow/lid strips are fitted
+to the resulting face surface afterward.
 The body proportions below the neck, 65-bone rig, four-influence skinning and
 paired choreography are retained.
 
 Hair and eyebrows in the runtime assets are new JiuQuest-authored solid meshes.
-Crew and Spikes have swept clumps and a three-lock fringe; Slick sweeps back;
+Crew and Spikes have swept clumps, with three- and four-lock fringes respectively; Slick sweeps back;
 Mohawk has a narrow crest; Long uses a tied ponytail and face-framing locks.
 Bald hides hair while retaining the brows. These meshes use opaque cosmetic
-colors without additional textures or alpha overdraw. They are created during
+materials without alpha overdraw. They are created during
 export; the original source scalp/hair/brow meshes in the blend are not edited.
 
-The final pair now shares **four embedded images**: skin 2K JPEG, eyes 256 JPEG,
-cotton normal 512 JPEG and roughness 256 JPEG. Skin keeps its measured
-`_Ref_RRGGBB` suffix for linear-light tinting. The runtime cel shader suppresses
-skin texture variation while retaining the eye texture and cloth detail.
+The next character-detail authoring pass gives those hair locks flattened
+cross-sections oriented along each curve, asymmetric crest heights and short
+temple locks. Existing style names, shared opaque hair materials and Head-bone
+weights are preserved. That pass retained the covered-body mask and source blend.
+
+The prior reviewed pair shared four embedded images: skin 2K JPEG, eyes 256 JPEG,
+cotton normal 512 JPEG and roughness 256 export. Skin keeps its measured
+`_Ref_RRGGBB` suffix for linear-light tinting. The runtime fighter shader retains
+80% of referenced skin texture variation and the complete eye/cloth detail.
+Its continuous URP light response uses authored roughness and restrained
+material-specific highlights; this runtime change does not alter the GLBs.
 All runtime materials are opaque. No third-party requests or paid assets are
 introduced by this derivative.
+
+## Original illustrated surface pass
+
+`../../original_surface_maps.py` authors two additional neutral RGB PNG maps:
+a 512px cloth construction atlas and a 256px root-to-tip hair paint map. They
+are original mathematical game-asset artwork, not edits of the source skin
+photograph or copies of a franchise costume. The original face and eye rasters
+remain unchanged. The texture filenames contain the recipe source SHA-256
+prefix; changed recipes cannot silently reuse an older derivative.
+
+The cloth map places panel seams, reinforcement, piping, sparse stitching and
+an original split-summit embroidered mark. Its UV1 coordinates are independent
+of the existing repeating cotton UV0 normal/roughness maps. Hair gains UV0
+coordinates following each solid lock, painted tonal planes and strand grooves,
+and additional short layered blades around the sides/back. No alpha cards,
+extra material slots, renderers or physics are added. Neutral atlas materials
+use white source factors so the existing cosmetic tint is applied once; belt
+colors and earned stripe visibility retain their existing semantics.
+
+The face warp retains an adult athlete, with a more tapered jaw, restrained
+cheek planes, narrower eye height and slightly raised outer corners. Thin
+upper-lid accents join the brow mesh after projection onto the finished face.
+These are geometry changes only; no facial photograph is modified.
+
+The original illustrated-surface pass used six shared embedded images and added
+1,946 vertices per athlete. Its largest paired clip was 6,614,380 bytes, below
+the 7 MiB cap. After
+desktop and phone pilot review, the measured maximum increase of 885,824 bytes
+was accepted in place of the initial 0.6 MB target to retain the useful surface
+detail without bespoke binary packing. Full-library motion, cosmetic and
+browser checks remain required before release; these sizes alone do not prove
+physical-phone performance or the quality of every contact pose.
+
+## Hero silhouette and garment refinement
+
+The subsequent head pass uses tapered six-sided locks with deliberate normal
+breaks, a slimmer scalp shell fitted to the source head, and three separated
+ponytail strands. The adult face has less eye-height expansion and restrained
+cheek, nose-bridge and chin planes. Densely sampled brow/lid ribbons are projected
+onto the finished face, with a small normal clearance; unfitted strips are
+omitted as a whole instead of leaving disconnected dark segments. All five hair
+slots and bald behavior remain available.
+
+The layered-hair refinement adds eight broad swept ridges to the fitted scalp,
+an irregular edge and style-specific hairlines. Crew retains a short fringe;
+Spikes has a longer asymmetric fringe. Slick and Mohawk roots overlap the scalp
+instead of sitting above it as a separate crest, and Long has wider forward
+face-framing locks. Existing face/brow geometry, the hair UV mapping scheme,
+opaque materials and Head-only skinning are retained; no new map or renderer
+is introduced.
+
+The latest reference pass narrows the lower hair cap, raises the side hairline
+around the ears and shapes the nape. Seven overlapping closed rear locks replace
+the exposed bowl-like silhouette with swept layers. Face, eye and eyebrow meshes
+remain unchanged. Hair still uses the same opaque map and Head-only weighting.
+
+The gi has slimmer upper sleeves and directional compression folds instead of
+complete padded rings. The separate shoulder reinforcement shells are removed;
+shallow sewn lines sit on the sleeve surface. Lapels taper toward the tied waist,
+the unbelted hem hangs slightly, and knee reinforcement stays nearly flush.
+The cloth construction atlas replaces heavy panel borders with fine stitching;
+its layout, neutral tint reference and cotton normal/roughness maps are retained.
+The recipe-derived hair filename changes, but its image payload is unchanged.
+Sleeve rest-body clearance is
+checked during export, but does not establish collision-free animated contact.
+The existing cloth UV islands, color and stripe controls remain.
+The exported cloth normal scale is reduced to keep the weave from reading as
+padding. Its linked roughness map remains authoritative. Hair uses a restrained
+runtime specular response so its painted planes do not sparkle like plastic.
+
+Small dorsal knuckle and tendon relief is sculpted into existing hand vertices.
+It adds no geometry or maps and leaves palm contact surfaces, wrist seams,
+topology, UVs and weights unchanged. The rest-mesh safety check measured a
+maximum 2.283 mm displacement; skinned poses still require visual review.
+
+The following detail pass adds compact adult face shaping around the jaw,
+chin, cheeks, bridge and brow. Its new offset is exactly zero outside the
+bounded front-face region and capped at 6 mm. Skin, eyes and fitted lid anchors
+share the offset; hair keeps the exact previous warp. Brows taper toward their
+outer ends. This modifies solid geometry without adding maps or expressions.
+
+Finger sides and palm backs receive bounded fullness on the existing mesh;
+the additional hand offset is capped at 2.1 mm. The original underside/contact
+vertices and the 35 mm wrist exclusion remain fixed. Finger bone lengths,
+joint centers, skin weights and UVs are retained. The latest lapels use shallow
+integrated stitching instead of four separate raised ribbons, with restrained
+longitudinal sleeve folds and cuff edges. These rest-mesh checks do not prove
+collision-free contact across every animated frame.
+
+The covered-skin mask no longer exempts every rest-pose vertex above 1.49 m:
+that height also includes the upper arms in the source T pose. The existing
+head/neck, hands/feet and V-shaped chest-opening masks are retained. The source
+comparison removes 259 covered vertices and 213 quads while preserving all
+10,072 explicitly exposed vertices, surviving positions, UV corners, skin
+weights and faces. Boundary normals are recalculated. This targets sleeve
+intrusions without enlarging the garment; animated contact still needs review.
+
+Original skin/eye photographs, the source blend, the 65-bone rest skeleton,
+inverse binds and motion channels remain unchanged. Exported geometry and
+normals change, so every release requires fresh clip-contract and actual Unity
+rendering checks. Current sizes and visual evidence belong to the dated release
+records, not the historical size figures above.
 
 ## Regenerate
 
@@ -83,3 +193,48 @@ and the actual Unity/browser review before packaging.
 These are authored choreography drafts, not motion capture or coach-approved
 instruction. Natural anatomy does not establish technical correctness; final
 techniques still require qualified BJJ review.
+
+Ready-hand presentation uses the existing finger joints in standing stance, grip
+fighting and reset-neutral only. Curl axes are derived from the anatomical palm
+direction in the source T pose, including the differently oriented thumb bones.
+Finger lengths, wrist poses and the other thirteen motion clips are protected.
+The loose curl is an authored visual gesture, not a contact-aware cloth grasp.
+
+Sleeve and cuff grids now weld their coincident longitudinal endpoints before
+Solidify, after assigning deform groups. Per-loop UV coordinates stay split at
+the texture seam. This removes duplicated internal wall faces and gives the
+seam continuous surface normals without enlarging the outer garment.
+
+The athletic-fit pass lowers the jacket crown by 20 mm and narrows its upper
+envelope. Upper sleeves lose up to 14 mm of radius with a 13 mm top-only drop.
+The taper is centered on the actual shoulder-joint position and fades before
+the buried join and cuffs. The existing clearance bounds stay
+in force. Earlier crown-to-neck taper removes some of the broad upper-back
+band while preserving the front opening and buried armhole. Upper torso
+wrinkles are softened by up to 40 percent; chest relief is reduced to 3 mm
+and remains part of the fabric surface.
+
+Existing skin vertices receive bounded neck/lower-jaw, pectoral and distal
+forearm definition. Joint lengths, wrist and palm contact regions, source UVs,
+weights and all animation keys remain unchanged. The covered-body mask also
+removes covered shoulder skin outside the 80 mm neck column below 1.59 m;
+the head, actual neck column, open chest, hands and feet retain visibility.
+Export verification checks that retained skin vertices keep their UV/weight
+correspondence and that surviving triangles preserve their winding.
+
+The subsequent definition pass changes only the pectoral, clavicle and distal
+forearm extensor regions of the retained skin. Compared with the prior fit,
+the actual rest mesh moves 170 vertices by at most 2.07 mm; neck, jaw, hand,
+covered-body mask, UVs, weights and rig remain unchanged. Surface-normal
+comparison and animated pose checks guard against local sculpt distortion.
+
+The subsequent shoulder/back tailoring preserves that muscle definition.
+Fixed-X/Z rays toward the full rest body accept only rear-facing torso hits,
+then take in up to 25 mm of excess upper-back depth while targeting 10 mm of
+cloth ease. The rear fit fades at the neck and armhole and runs before the
+existing 6 mm clearance check; corrections above 25 mm still fail export.
+Body positions, normals, UVs, triangle indices and skin weights remain exact
+to the prior build. Blender's derived body tangent vectors may differ by at
+most 0.000101 on export, with unchanged handedness and unit-vector checks.
+Garment weights are still transferred from the existing body after shaping;
+posed checks remain necessary because the fitted cloth samples new locations.
