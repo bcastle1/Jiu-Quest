@@ -4,7 +4,29 @@ This directory contains redistributable **CC0 character output and texture
 derivatives**, not the MPFB add-on. The app and normal animation regeneration do
 not require MPFB. Final paired assets always clothe both athletes.
 
-## Provenance
+## November 7 reference-directed character candidate
+
+The current candidate targets more natural adult facial proportions, a thicker
+reinforced collar, roomier sleeves and trousers, and visible cotton tension and
+compression folds. It uses the user's images for fidelity and silhouette only;
+no reference character, costume, tattoo, background or image is imported.
+
+`fighter_fabric_detail.py` supplies original bounded folds for the garment mesh
+and a panel-aligned 1024px normal atlas. The 1024px neutral cloth color atlas
+retains original seams and stitching. Both use UV1; the existing repeating
+roughness map keeps UV0. Six shared embedded images and the opaque hair meshes
+are retained. Original source skin and eye images are unchanged; skin shading
+retains more of the authored facial texture. The rig and paired motion remain
+separate from these appearance changes.
+
+The candidate's paired clip budget is 9 MiB, increased from 7 MiB for the denser
+sleeve geometry and larger garment maps. Record actual exported sizes and browser
+checks; this budget does not establish physical-phone performance. Run
+`python tools/test_fighter_fabric_detail.py` for fold bounds, opening preservation,
+periodic seams and finite unit normals, followed by the existing animation and
+material tests and actual Unity browser review before release.
+
+## Source provenance
 
 - Human generated with [MPFB 2.0.18](https://extensions.blender.org/add-ons/mpfb/versions/)
   using the MakeHuman core base and targets. The tool is GPL; its core assets

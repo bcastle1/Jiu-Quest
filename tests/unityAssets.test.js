@@ -65,7 +65,7 @@ for (const [move, path] of Object.entries(manifest.animations)) {
     const gltf = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString());
     assert.ok(gltf.skins?.length > 0, 'characters must be skinned, not still meshes');
     assert.equal(gltf.images?.length, 6, 'both actors share the four source images and two original cloth/hair atlases');
-    assert.ok(bytes.length < 7 * 1024 * 1024, 'paired clip stays below the reviewed browser asset budget');
+    assert.ok(bytes.length < 9 * 1024 * 1024, 'reference-detail paired clip stays below its 9 MiB asset budget');
     const binOffset = 20 + bytes.readUInt32LE(12) + 8;
     const imageBytes = [];
     for (const image of gltf.images) {
@@ -78,7 +78,7 @@ for (const [move, path] of Object.entries(manifest.animations)) {
     }
     assert.equal(new Set(imageBytes.map(image => createHash('sha256').update(image).digest('hex'))).size,
       imageBytes.length, 'embedded images are shared rather than duplicated per actor or garment');
-    const atlasSources = { cloth: new Set(), hair: new Set() };
+    const atlasSources = { cloth: new Set(), hair: new Set() }, foldNormalSources = new Set();
     const textureCoord = info => info.extensions?.KHR_texture_transform?.texCoord ?? info.texCoord ?? 0;
     for (const material of gltf.materials) {
       assert.equal(material.alphaMode ?? 'OPAQUE', 'OPAQUE', 'solid anime geometry avoids alpha overdraw and transparent sorting');
@@ -93,7 +93,8 @@ for (const [move, path] of Object.entries(manifest.animations)) {
         atlasSources[cloth ? 'cloth' : 'hair'].add(gltf.textures[pbr.baseColorTexture.index].source);
         if (cloth) {
           assert.ok(material.normalTexture && pbr.metallicRoughnessTexture, 'woven cloth retains authored normal and roughness maps');
-          assert.equal(textureCoord(material.normalTexture), 0, 'original weave normal keeps UV0');
+          assert.equal(textureCoord(material.normalTexture), 1, 'fold relief follows the garment panels on UV1');
+          foldNormalSources.add(gltf.textures[material.normalTexture.index].source);
           assert.equal(textureCoord(pbr.metallicRoughnessTexture), 0, 'original roughness keeps UV0');
         }
       }
@@ -108,6 +109,12 @@ for (const [move, path] of Object.entries(manifest.animations)) {
       assertNeutralAtlas(imageBytes[index], `${move} ${kind}`);
     }
     assert.notEqual([...atlasSources.cloth][0], [...atlasSources.hair][0], 'cloth and hair have distinct authored artwork');
+    assert.equal(foldNormalSources.size, 1, 'both athletes share one fold normal atlas');
+    const foldNormalIndex = [...foldNormalSources][0], foldNormal = imageBytes[foldNormalIndex];
+    assert.notEqual(foldNormalIndex, [...atlasSources.cloth][0], 'normal vectors are separate from tintable color');
+    assert.equal(foldNormal.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+    assert.equal(foldNormal.readUInt32BE(16), 1024);
+    assert.equal(foldNormal.readUInt32BE(20), 1024);
     for (const mesh of gltf.meshes) for (const primitive of mesh.primitives) {
       assert.equal(primitive.attributes.JOINTS_1, undefined, 'at most four influences per vertex');
       assert.equal(primitive.attributes.WEIGHTS_1, undefined, 'reviewed Blender and runtime skinning agree');

@@ -66,7 +66,7 @@ namespace JiuQuest.Combat
             // Retain most authored facial texture for a grounded 3D athlete,
             // with a small reduction in photographic mottling at phone size.
             // Cosmetic reference-color tinting stays independent of this blend.
-            material.SetFloat(DetailStrength, skin && hasReference ? .80f : 1f);
+            material.SetFloat(DetailStrength, skin && hasReference ? .94f : 1f);
             material.SetVector(DetailBaseColor, CombatMaterialAppearance.ReferenceColor(slot));
             material.SetFloat(InkStrength, facialDetail ? .01f : skin ? .025f : hair ? .07f : .025f);
             // Weights modulate URP's dielectric F0, not an additive white gloss.

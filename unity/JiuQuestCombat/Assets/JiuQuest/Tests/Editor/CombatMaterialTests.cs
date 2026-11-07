@@ -76,7 +76,7 @@ namespace JiuQuest.Combat.Tests
             Assert.That(material.shader.name, Is.Not.EqualTo(CombatMaterialGenerator.FighterShaderName));
         }
 
-        [TestCase("Skin_Ref_AA7755", .80f)]
+        [TestCase("Skin_Ref_AA7755", .94f)]
         [TestCase("Skin", 1f)]
         [TestCase("Skin_Eyes_Ref_AA7755", 1f)]
         [TestCase("Iris_Ref_557799", 1f)]
