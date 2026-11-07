@@ -198,6 +198,12 @@ async function camera(value) {
   await page.waitForTimeout(350); // Let the deliberately eased camera reach its preset before pixel evidence.
 }
 
+async function selectedCamera(label) {
+  const group = page.getByRole('group', { name: 'Camera view' });
+  assert.equal(await group.getByRole('button', { name: label, exact: true }).getAttribute('aria-pressed'), 'true');
+  assert.equal(await group.locator('button[aria-pressed="true"]').count(), 1);
+}
+
 async function pause() {
   const since = await count();
   // Check and invoke the currently displayed transport control in one browser
@@ -282,6 +288,7 @@ try {
   manifest = await manifestResponse.json();
   assert.equal(manifest.protocolVersion, 1); assert.equal(manifest.supportedMoves.length, 16);
   await page.goto(`${base}/?preview=unity`); await ready(); await pause();
+  await selectedCamera('Side');
   await recordRenderer('inventory');
   await checkpoint('desktop:ready');
   const firstSession = await page.evaluate(() => window.__unityEvents.find((event) => event.type === 'ready').instanceId);
@@ -297,6 +304,18 @@ try {
   const shiftedStance = await capture('stance-weight-shift');
   assert.notEqual(shiftedStance.sha256, stillStance.sha256, 'Seeking the standing loop must change the actual rendered pose.');
   checks.push('Standing weight shift renders while paused fighters and ambient scenery remain visually still.');
+  // The website opens side-on, while a deliberate view selection belongs to
+  // this mounted stage and survives technique, appearance and replay changes.
+  await camera('front');
+  const selectedFront = await capture('stance-front-selected');
+  assert.notEqual(selectedFront.sha256, shiftedStance.sha256, 'Choosing Front must visibly change the default Side presentation.');
+  await select('Technique', 'grip_fighting'); await selectedCamera('Front');
+  await select('Gi colors', 'night'); await selectedCamera('Front');
+  const replayFromFront = await count();
+  await page.getByRole('button', { name: 'Replay', exact: true }).click();
+  await state(replayFromFront, { moveId: 'grip_fighting', playing: true }); await pause(); await selectedCamera('Front');
+  await select('Technique', 'standing_stance'); await select('Gi colors', 'classic'); await seek(0.25); await selectedCamera('Front');
+  checks.push('Side is the default website view; a selected Front view changes rendered pixels and persists through technique, appearance and replay.');
   await camera('focus');
   const hairstyles = [];
   for (const style of ['shadow spikes', 'short fade', 'slicked back', 'long hair', 'mohawk', 'bald']) {
@@ -359,6 +378,7 @@ try {
   checks.push('Standalone playback does not write saved progression.');
   await checkpoint('training:starting');
   await page.goto(base); await page.getByRole('button', { name: 'Training', exact: true }).click(); await ready();
+  await selectedCamera('Side');
   assert.equal(new URL(page.url()).searchParams.has('engine'), false);
   const priorTrainingInstance = await page.evaluate(() => window.__unityEvents.findLast((event) => event.type === 'ready').instanceId);
   await page.getByRole('button', { name: /Kimura Armlock/ }).click(); await page.getByRole('region', { name: 'Unity preview unavailable' }).waitFor();
@@ -372,6 +392,7 @@ try {
     && window.__unityEvents.some((event) => event.type === 'state' && event.instanceId !== prior && event.moveId === 'rear_naked_choke'), priorTrainingInstance, { timeout: 95000 });
   await ready();
   assert.equal(await page.evaluate(() => new Set(window.__unityEvents.filter((event) => event.type === 'ready').map((event) => event.instanceId)).size), 2);
+  await selectedCamera('Side');
   trainingLifecycle = await page.evaluate(() => window.__unityLifecycle);
   assert.equal(trainingLifecycle.length, 2);
   assert.equal(trainingLifecycle[0].quitCompleted, true);
@@ -386,6 +407,7 @@ try {
     await checkpoint('mobile:starting', { viewport });
     const phone = await context({ viewport, isMobile: true, hasTouch: true, deviceScaleFactor: 1, reducedMotion: 'reduce' });
     await page.goto(`${base}/?preview=unity`); await ready(); await state(0, { moveId: 'double_leg', playing: false });
+    await selectedCamera('Side');
     assert.equal(await page.evaluate(() => window.__unityEvents.some((event) => event.type === 'state' && event.playing)), false);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     const stage = await page.locator('.unity-viewport').boundingBox(); dimensions.push({ viewport, stage });

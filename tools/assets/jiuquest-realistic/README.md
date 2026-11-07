@@ -68,8 +68,10 @@ weights are preserved. That pass retained the covered-body mask and source blend
 
 The prior reviewed pair shared four embedded images: skin 2K JPEG, eyes 256 JPEG,
 cotton normal 512 JPEG and roughness 256 export. Skin keeps its measured
-`_Ref_RRGGBB` suffix for linear-light tinting. The runtime cel shader suppresses
-skin texture variation while retaining the eye texture and cloth detail.
+`_Ref_RRGGBB` suffix for linear-light tinting. The runtime fighter shader retains
+80% of referenced skin texture variation and the complete eye/cloth detail.
+Its continuous URP light response uses authored roughness and restrained
+material-specific highlights; this runtime change does not alter the GLBs.
 All runtime materials are opaque. No third-party requests or paid assets are
 introduced by this derivative.
 

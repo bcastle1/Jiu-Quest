@@ -46,12 +46,12 @@ namespace JiuQuest.Combat
             environment = new GameObject("Summit Dojo").transform;
             environment.SetParent(transform, false);
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(.39f, .45f, .64f);
-            RenderSettings.ambientEquatorColor = new Color(.30f, .33f, .43f);
-            RenderSettings.ambientGroundColor = new Color(.17f, .19f, .22f);
+            RenderSettings.ambientSkyColor = new Color(.46f, .53f, .66f);
+            RenderSettings.ambientEquatorColor = new Color(.35f, .40f, .49f);
+            RenderSettings.ambientGroundColor = new Color(.20f, .24f, .29f);
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogColor = new Color(.31f, .36f, .48f);
+            RenderSettings.fogColor = new Color(.48f, .56f, .66f);
             RenderSettings.fogDensity = .013f;
             var dark = Material("Weathered basalt", new Color(.15f, .19f, .24f), .12f);
             var stone = Material("Hand-cut slate", new Color(.39f, .43f, .47f), .18f);
@@ -65,11 +65,11 @@ namespace JiuQuest.Combat
             var lantern = Material("Lantern paper", new Color(1f, .70f, .34f), .12f, true);
             var cloth = Material("Twilight pennants", Color.white, .05f);
             pennantMaterial = cloth;
-            var farRock = Material("Far mountains", new Color(.37f, .40f, .53f), .02f);
-            var nearRock = Material("Near mountains", new Color(.25f, .29f, .34f), .02f);
-            var snow = Material("Summit snow", new Color(.76f, .80f, .89f), .10f);
+            var farRock = Material("Far mountains", new Color(.49f, .56f, .66f), .02f);
+            var nearRock = Material("Near mountains", new Color(.36f, .43f, .51f), .02f);
+            var snow = Material("Summit snow", new Color(.79f, .84f, .90f), .06f);
             var pine = Material("Alpine pines", new Color(.10f, .22f, .21f), .02f);
-            var moss = Material("Alpine moss verge", new Color(.21f, .30f, .22f), .025f);
+            var moss = Material("Alpine moss verge", new Color(.30f, .37f, .35f), .025f);
             distantMaterials.UnionWith(new[] { farRock, nearRock, snow, pine, moss });
             // Shared maps keep surface detail independent of material/draw count.
             // With full mip chains these eleven RGBA maps occupy about 2.27 MB.
@@ -80,8 +80,8 @@ namespace JiuQuest.Combat
             ApplySurface(stone, slate); ApplySurface(stoneLight, slate); ApplySurface(dark, slate);
             ApplySurface(timber, cedar); ApplySurface(matA, weave); ApplySurface(matB, weave);
             ApplySurface(gold, bronze);
-            // Broad stratified rock and bough paint stay readable at background
-            // distance. Reuse each map across its material family, without more draws.
+            // Fine, low-contrast mineral layers soften distant slopes without
+            // competing with the pair. Each material family shares one map.
             var alpine = SurfaceMaps(SummitSurface.Alpine, 256);
             ApplySurface(farRock, alpine); ApplySurface(nearRock, alpine);
             var boughPaint = SurfaceMaps(SummitSurface.Pine, 128);
@@ -135,14 +135,14 @@ namespace JiuQuest.Combat
                 Gate(new Vector3(0, 0, side * 8.8f), side < 0 ? 180 : 0, stone, timber, gold, cloth);
             }
             AlpineBackdrop(farRock, nearRock, snow, pine, timber);
-            NaturalVerge(moss, stone, dark, nearRock);
+            NaturalVerge(moss, stone, dark, nearRock, snow);
             CombineArchitecture();
 
             // Keep colored dojo accents out of facial lighting so the authored
             // skin texture and selected tone remain natural from every camera.
-            keyLight = Light("Late afternoon key", new Vector3(48, -32, 0), new Color(1, .96f, .90f), 1.15f, true);
-            Light("Sky fill", new Vector3(32, 132, 0), new Color(.69f, .77f, 1), .32f, false);
-            Light("Summit rim", new Vector3(35, 210, 0), new Color(.78f, .83f, 1), .48f, false);
+            keyLight = Light("Winter daylight key", new Vector3(48, -32, 0), new Color(1, .97f, .93f), 1.05f, true);
+            Light("Sky fill", new Vector3(32, 132, 0), new Color(.77f, .85f, 1), .30f, false);
+            Light("Summit rim", new Vector3(35, 210, 0), new Color(1, .86f, .70f), .34f, false);
             sceneCamera = new GameObject("Combat Camera").AddComponent<Camera>();
             sceneCamera.transform.SetParent(environment, false);
             sceneCamera.tag = "MainCamera";
@@ -396,14 +396,15 @@ namespace JiuQuest.Combat
                     }
                     else if (surface == SummitSurface.Alpine)
                     {
-                        // Layered mineral bands and incised channels, deliberately
-                        // broader than nearby masonry grain to survive distant mip levels.
-                        float strata = Mathf.Sin(Mathf.PI * 2 * (v * 5 + u * 2) + broad * 2.6f) * .5f + .5f;
-                        float channel = 1 - SmoothBand(.035f, .16f,
-                            Mathf.Abs(Mathf.Sin(Mathf.PI * 2 * u * 3 + broad * 1.7f + medium * .5f)));
-                        float mineral = SmoothBand(.58f, .82f, medium);
-                        float value = .66f + broad * .22f + strata * .11f - channel * .15f;
-                        color = new Color(value + mineral * .045f, value + mineral * .025f, value + .025f);
+                        // Weathered mineral deposits, not a network of thick dark
+                        // seams. Fine layers soften naturally in the existing mip chain.
+                        float warp = broad * 1.6f + medium * .35f;
+                        float strata = Mathf.Sin(Mathf.PI * 2 * (v * 13 + u * 3) + warp) * .5f + .5f;
+                        float channel = 1 - SmoothBand(.025f, .10f,
+                            Mathf.Abs(Mathf.Sin(Mathf.PI * 2 * (u * 7 + v) + warp)));
+                        float mineral = SmoothBand(.50f, .83f, medium * .75f + grain * .25f);
+                        float value = .79f + broad * .11f + (strata - .5f) * .045f - channel * .030f;
+                        color = new Color(value + mineral * .025f, value + mineral * .018f, value + .015f);
                     }
                     else if (surface == SummitSurface.Pine)
                     {
@@ -608,6 +609,7 @@ namespace JiuQuest.Combat
             Ridge(29, 48, 5.2f, -4.1f, 1.7f, farRock, null);
             Ridge(23, 38, 2.2f, -3.4f, 2.4f, nearRock, null);
             var trees = new[] { PineBoughMesh(0), PineBoughMesh(1), PineBoughMesh(2) };
+            var frostedBoughs = new[] { PineBoughMesh(0, true), PineBoughMesh(1, true), PineBoughMesh(2, true) };
             var trunkMesh = TaperedPrismMesh(7, .10f, .035f, 3.4f);
             for (int cluster = 0; cluster < 8; cluster++)
             {
@@ -624,6 +626,7 @@ namespace JiuQuest.Combat
                     var proportions = new Vector3(width, scale, width);
                     MeshObject("Alpine pine trunk", trunkMesh, position, timber, rotation, proportions);
                     MeshObject("Branched alpine conifer", trees[seed % trees.Length], position, pine, rotation, proportions);
+                    MeshObject("Settled bough snow", frostedBoughs[seed % frostedBoughs.Length], position, snow, rotation, proportions);
                 }
             }
         }
@@ -729,7 +732,7 @@ namespace JiuQuest.Combat
             return count;
         }
 
-        void NaturalVerge(Material moss, Material stone, Material dark, Material ground)
+        void NaturalVerge(Material moss, Material stone, Material dark, Material ground, Material snow)
         {
             // Irregular low patches break up the terrace surround while keeping
             // all vegetation and rocks below the sparring surface.
@@ -757,21 +760,23 @@ namespace JiuQuest.Combat
             for (int i = 0; i < sections; i++)
             {
                 float a = i * Mathf.PI * 2 / sections, b = (i + 1) * Mathf.PI * 2 / sections;
-                float innerA = 7.4f + Mathf.Sin(a * 5) * .9f, innerB = 7.4f + Mathf.Sin(b * 5) * .9f;
+                float innerA = 7.6f + Mathf.Sin(a * 5) * .65f, innerB = 7.6f + Mathf.Sin(b * 5) * .65f;
                 float outerA = 27.4f + Mathf.Sin(a * 9) * 1.3f, outerB = 27.4f + Mathf.Sin(b * 9) * 1.3f;
-                // Narrow gaps provide exposed rock paths through the greenery.
+                // Sheltered snow follows the uneven shelf. Gaps expose stone;
+                // the inner edge stays outside the terrace and grappling mat.
                 if (Mathf.Abs(Mathf.Sin(a * 4 + .4f)) < .13f) continue;
                 for (int band = 0; band < 4; band++)
                 {
                     float from = band / 4f, to = (band + 1) / 4f;
-                    Quad(vertices, triangles, uv, ShelfPoint(a, Mathf.Lerp(innerA, outerA, from)) + Vector3.up * .035f,
-                        ShelfPoint(a, Mathf.Lerp(innerA, outerA, to)) + Vector3.up * .035f,
-                        ShelfPoint(b, Mathf.Lerp(innerB, outerB, to)) + Vector3.up * .035f,
-                        ShelfPoint(b, Mathf.Lerp(innerB, outerB, from)) + Vector3.up * .035f);
+                    Quad(vertices, triangles, uv, SnowShelfPoint(a, Mathf.Lerp(innerA, outerA, from)),
+                        SnowShelfPoint(a, Mathf.Lerp(innerA, outerA, to)),
+                        SnowShelfPoint(b, Mathf.Lerp(innerB, outerB, to)),
+                        SnowShelfPoint(b, Mathf.Lerp(innerB, outerB, from)));
                 }
             }
-            MeshObject("Alpine verge", Mesh("Moss and stone verge", vertices, triangles, uv), Vector3.zero, moss);
+            MeshObject("Sheltered snow drifts", Mesh("Irregular winter verge", vertices, triangles, uv), Vector3.zero, snow);
             var boulder = BoulderMesh();
+            var boulderSnow = BoulderMesh(true);
             var planting = AlpinePlantMesh();
             for (int cluster = 0; cluster < 9; cluster++)
             {
@@ -782,8 +787,10 @@ namespace JiuQuest.Combat
                     float radius = 7.5f + (cluster * 7 % 4) + member * .55f;
                     float size = .68f + ((cluster * 3 + member * 7) % 6) * .18f;
                     var position = ShelfPoint(angle, radius) - Vector3.up * .06f;
-                    MeshObject("Slate outcrop", boulder, position, member == 1 ? stone : dark,
-                        Quaternion.Euler(0, cluster * 67 + member * 33, 0), new Vector3(size * 1.2f, size * .72f, size));
+                    var rotation = Quaternion.Euler(0, cluster * 67 + member * 33, 0);
+                    var proportions = new Vector3(size * 1.2f, size * .72f, size);
+                    MeshObject("Slate outcrop", boulder, position, member == 1 ? stone : dark, rotation, proportions);
+                    MeshObject("Outcrop snow crown", boulderSnow, position, snow, rotation, proportions);
                     for (int tuft = 0; tuft < 2; tuft++)
                     {
                         float plantAngle = angle + (tuft == 0 ? -.055f : .065f);
@@ -805,6 +812,13 @@ namespace JiuQuest.Combat
             return new Vector3(Mathf.Sin(angle) * radius, height, Mathf.Cos(angle) * radius);
         }
 
+        static Vector3 SnowShelfPoint(float angle, float radius)
+        {
+            // Deterministic shallow drifts; no particles or changing snow surface.
+            float drift = .040f + Mathf.Pow(Mathf.Sin(angle * 7 + radius * .34f), 2) * .065f;
+            return ShelfPoint(angle, radius) + Vector3.up * drift;
+        }
+
         Mesh AlpinePlantMesh()
         {
             var vertices = new List<Vector3>(); var triangles = new List<int>(); var uv = new List<Vector2>();
@@ -824,7 +838,7 @@ namespace JiuQuest.Combat
             return Mesh("Bent alpine leaves", vertices, triangles, uv);
         }
 
-        Mesh BoulderMesh()
+        Mesh BoulderMesh(bool snowCrown = false)
         {
             const int sides = 9;
             var vertices = new List<Vector3>(); var triangles = new List<int>(); var uv = new List<Vector2>();
@@ -837,6 +851,18 @@ namespace JiuQuest.Combat
                 shoulder[i] = new Vector3(Mathf.Cos(angle) * radius * .78f + .06f, .49f + Mathf.Sin(i * 3) * .09f, Mathf.Sin(angle) * radius * .82f);
                 crown[i] = new Vector3(Mathf.Cos(angle) * radius * .43f + .14f, .72f + Mathf.Sin(i * 5) * .11f, Mathf.Sin(angle) * radius * .52f - .05f);
             }
+            if (snowCrown)
+            {
+                var center = new Vector3(.12f, .78f, -.07f);
+                vertices.Add(center + Vector3.up * .035f); uv.Add(Vector2.one * .5f);
+                for (int i = 0; i < sides; i++)
+                {
+                    vertices.Add(Vector3.Lerp(center, crown[i], .93f) + Vector3.up * .022f);
+                    uv.Add(new Vector2(crown[i].x, crown[i].z));
+                    triangles.AddRange(new[] { 0, i + 1, (i + 1) % sides + 1 });
+                }
+                return Mesh("Settled outcrop snow", vertices, triangles, uv);
+            }
             for (int i = 0; i < sides; i++)
             {
                 int next = (i + 1) % sides;
@@ -847,7 +873,7 @@ namespace JiuQuest.Combat
             return Mesh("Weathered slate boulder", vertices, triangles, uv);
         }
 
-        Mesh PineBoughMesh(int variant)
+        Mesh PineBoughMesh(int variant, bool snowCaps = false)
         {
             var vertices = new List<Vector3>(); var triangles = new List<int>(); var uv = new List<Vector2>();
             const int layers = 7, branches = 7;
@@ -856,6 +882,7 @@ namespace JiuQuest.Combat
                 {
                     int seed = layer * 11 + branch * 7 + variant * 23;
                     if ((seed % 13 == 0 && layer < 5) || (layer == 6 && branch > 3)) continue;
+                    if (snowCaps && (layer < 1 || (branch + layer + variant) % 3 != 0)) continue;
                     float angle = branch * Mathf.PI * 2 / branches + layer * 1.37f + variant * .71f + Mathf.Sin(seed) * .19f;
                     float height = .46f + layer * .42f + Mathf.Sin(seed * 3) * .10f;
                     float radius = (1 - layer / 7.6f) * (.83f + Mathf.Sin(seed * 7) * .21f);
@@ -877,12 +904,26 @@ namespace JiuQuest.Combat
                     uv.AddRange(new[] { new Vector2(.5f, 0), new Vector2(.12f, .38f),
                         new Vector2(0, .72f), new Vector2(.5f, 1), new Vector2(1, .75f),
                         new Vector2(.88f, .38f), new Vector2(.5f, .48f) });
+                    if (snowCaps)
+                    {
+                        // Keep a green border around an inset cap lying on the
+                        // existing top fans. Three cached variants add 4,144
+                        // vertices across all 48 trees, within the snow material.
+                        var spine = vertices[start + 6];
+                        for (int edge = 0; edge < 6; edge++)
+                        {
+                            float coverage = .69f + Mathf.Sin(seed + edge * 3) * .095f;
+                            vertices[start + edge] = Vector3.Lerp(spine, vertices[start + edge], coverage) + Vector3.up * .018f;
+                        }
+                        vertices[start + 6] += Vector3.up * .034f;
+                    }
                     for (int edge = 0; edge < 6; edge++)
                         triangles.AddRange(new[] { start + 6, start + (edge + 1) % 6, start + edge });
-                    for (int edge = 1; edge < 5; edge++)
-                        triangles.AddRange(new[] { start, start + edge, start + edge + 1 });
+                    if (!snowCaps)
+                        for (int edge = 1; edge < 5; edge++)
+                            triangles.AddRange(new[] { start, start + edge, start + edge + 1 });
                 }
-            return Mesh("Branched conifer " + variant, vertices, triangles, uv);
+            return Mesh((snowCaps ? "Frosted boughs " : "Branched conifer ") + variant, vertices, triangles, uv);
         }
 
         void FloorRing(float inner, float outer, float y, int segments, Material material)
