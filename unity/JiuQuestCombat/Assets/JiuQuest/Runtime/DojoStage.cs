@@ -15,6 +15,14 @@ namespace JiuQuest.Combat
         UnityEngine.Light keyLight;
         CombatRenderQuality renderQuality;
         Transform environment;
+        Transform architectureParent;
+        readonly List<Transform> architectureGroups = new List<Transform>();
+        readonly List<Transform> studioWalls = new List<Transform>();
+        Mesh unitBoxMesh;
+        public const float StudioWallDistance = 6.8f;
+        // All padded walls, benches and equipment lie beyond 5.675 m.
+        // Cut away earlier, including a near-clip allowance, on narrow phones.
+        public const float StudioCutawayDistance = 5.40f;
         Material pennantMaterial;
         Material skyMaterial;
         Material cedarMaterial;
@@ -43,107 +51,58 @@ namespace JiuQuest.Combat
         {
             FighterShader = Shader.Find("Universal Render Pipeline/Lit");
             if (FighterShader == null) throw new System.InvalidOperationException("The Unity URP Lit shader is missing from the build.");
-            environment = new GameObject("Summit Dojo").transform;
+            environment = new GameObject("JiuQuest Studio").transform;
             environment.SetParent(transform, false);
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(.46f, .53f, .66f);
-            RenderSettings.ambientEquatorColor = new Color(.35f, .40f, .49f);
-            RenderSettings.ambientGroundColor = new Color(.20f, .24f, .29f);
-            RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogColor = new Color(.48f, .56f, .66f);
-            RenderSettings.fogDensity = .013f;
-            var dark = Material("Weathered basalt", new Color(.15f, .19f, .24f), .12f);
-            var stone = Material("Hand-cut slate", new Color(.39f, .43f, .47f), .18f);
-            var stoneLight = Material("Slate bevels", new Color(.51f, .54f, .55f), .22f);
-            var timber = Material("Oiled cedar", new Color(.43f, .29f, .18f), .24f);
+            RenderSettings.ambientSkyColor = new Color(.52f, .54f, .58f);
+            RenderSettings.ambientEquatorColor = new Color(.42f, .44f, .48f);
+            RenderSettings.ambientGroundColor = new Color(.24f, .27f, .32f);
+            RenderSettings.fog = false;
+            RenderSettings.fogColor = new Color(.70f, .72f, .74f);
+            var padding = Material("Navy wall padding", new Color(.10f, .15f, .23f), .13f);
+            var plaster = Material("Warm white plaster", new Color(.80f, .81f, .80f), .10f);
+            var timber = Material("Studio oak", new Color(.62f, .46f, .30f), .22f);
+            var matA = Material("Navy woven tatami", new Color(.20f, .27f, .35f), .08f);
+            var matB = Material("Gray woven tatami", new Color(.31f, .36f, .41f), .08f);
             cedarMaterial = timber;
-            var matA = Material("Woven jade tatami", new Color(.23f, .33f, .35f), .09f);
-            var matB = Material("Woven blue tatami", new Color(.25f, .35f, .39f), .09f);
-            var accent = Material("Jade inlay", new Color(.15f, .64f, .55f), .42f, true);
-            var gold = Material("Aged bronze", new Color(.94f, .85f, .70f), .80f);
-            var lantern = Material("Lantern paper", new Color(1f, .70f, .34f), .12f, true);
-            var cloth = Material("Twilight pennants", Color.white, .05f);
-            pennantMaterial = cloth;
-            var farRock = Material("Far mountains", new Color(.49f, .56f, .66f), .02f);
-            var nearRock = Material("Near mountains", new Color(.36f, .43f, .51f), .02f);
-            var snow = Material("Summit snow", new Color(.79f, .84f, .90f), .06f);
-            var pine = Material("Alpine pines", new Color(.10f, .22f, .21f), .02f);
-            var moss = Material("Alpine moss verge", new Color(.30f, .37f, .35f), .025f);
-            distantMaterials.UnionWith(new[] { farRock, nearRock, snow, pine, moss });
-            // Shared maps keep surface detail independent of material/draw count.
-            // With full mip chains these thirteen RGBA maps occupy about 2.45 MB.
-            var slate = SurfaceMaps(SummitSurface.Slate, 256);
             var cedar = SurfaceMaps(SummitSurface.Cedar, 256);
             var weave = SurfaceMaps(SummitSurface.Tatami, 128);
-            var bronze = SurfaceMaps(SummitSurface.Bronze, 128);
-            ApplySurface(stone, slate); ApplySurface(stoneLight, slate); ApplySurface(dark, slate);
             ApplySurface(timber, cedar); ApplySurface(matA, weave); ApplySurface(matB, weave);
-            ApplySurface(gold, bronze);
-            // Fine, low-contrast mineral layers soften distant slopes without
-            // competing with the pair. Each material family shares one map.
-            var alpine = SurfaceMaps(SummitSurface.Alpine, 256);
-            ApplySurface(farRock, alpine); ApplySurface(nearRock, alpine);
-            ApplySurface(snow, SurfaceMaps(SummitSurface.Snow, 128));
-            var boughPaint = SurfaceMaps(SummitSurface.Pine, 128);
-            boughPaint.Color.wrapMode = TextureWrapMode.Clamp;
-            ApplySurface(pine, boughPaint);
+            // The same fine textile maps give wall pads a restrained fabric skin.
+            ApplySurface(padding, weave);
+            padding.SetTextureScale("_BaseMap", new Vector2(2, 2));
+            padding.SetTextureScale("_BumpMap", new Vector2(2, 2));
             matA.SetTextureOffset("_BaseMap", new Vector2(.5f, .5f));
             matB.SetTextureOffset("_BaseMap", new Vector2(.5f, .5f));
-            moss.SetTexture("_BaseMap", slate.Color);
-            moss.SetTextureScale("_BaseMap", new Vector2(.071f, .083f));
-            cloth.SetTexture("_BaseMap", SurfaceMaps(SummitSurface.Banner, 128).Color);
-            CreateSky();
-
-            // The center stays uncluttered for grappling. Detail belongs to the
-            // chamfered edge, quiet tatami weave, and silhouettes behind the pair.
-            Prism("Terrace footing", 8, 6.65f, 1.60f, -1.69f, dark);
-            Prism("Terrace upper ledge", 8, 6.45f, .20f, -.32f, stoneLight);
-            Prism("Terrace face", 8, 6.28f, .19f, -.18f, stone);
-            BevelBox("Mat plinth", new Vector3(0, -.06f, 0), new Vector3(7.4f, .14f, 7.4f), .06f, dark);
-            var tile = BeveledBoxMesh(new Vector3(.992f, .04f, .992f), .012f);
-            for (int x = -3; x <= 3; x++)
-                for (int z = -3; z <= 3; z++)
-                    MeshObject("Tatami", tile, new Vector3(x, .007f, z), ((x + z) & 1) == 0 ? matA : matB);
-            for (int edge = 0; edge < 4; edge++)
-            {
-                float angle = edge * 90;
-                var rotation = Quaternion.Euler(0, angle, 0);
-                Box("Bronze mat frame", rotation * new Vector3(0, .026f, 3.57f), new Vector3(7.2f, .025f, .10f), gold, rotation);
-                Box("Jade perimeter", rotation * new Vector3(0, .042f, 3.54f), new Vector3(7.04f, .009f, .026f), accent, rotation);
-                for (int block = -3; block <= 3; block++)
-                    BevelBox("Terrace paver", rotation * new Vector3(block * 1.08f, -.036f, 4.30f), new Vector3(1.04f, .10f, 1.08f), .035f, ((block + edge) & 1) == 0 ? stone : stoneLight, rotation);
-                // Short corner marks read as a sparring surface, not a spell circle.
-                for (int corner = -1; corner <= 1; corner += 2)
+            // Four mipmapped maps total about .84 MB; no image downloads,
+            // active outdoor geometry, sky dome, ceiling or moving scenery.
+            architectureParent = ArchitectureGroup("Studio floor");
+            BevelBox("Studio floor foundation", new Vector3(0, -.10f, 0), new Vector3(13.85f, .16f, 13.85f), .035f, padding);
+            Box("Oak perimeter floor", new Vector3(0, -.018f, 0), new Vector3(13.6f, .025f, 13.6f), timber);
+            BevelBox("Training mat edge", new Vector3(0, -.012f, 0), new Vector3(8.35f, .065f, 8.35f), .035f, padding);
+            var tile = BeveledBoxMesh(new Vector3(.994f, .040f, .994f), .009f);
+            for (int x = -4; x <= 3; x++)
+                for (int z = -4; z <= 3; z++)
+                    MeshObject("Interlocking tatami", tile, new Vector3(x + .5f, .007f, z + .5f),
+                        x == -4 || x == 3 || z == -4 || z == 3 ? matA : matB);
+            // Small inset marks establish the training area without distracting
+            // from grips, foot contacts or the athletes' real cast shadows.
+            for (int cornerX = -1; cornerX <= 1; cornerX += 2)
+                for (int cornerZ = -1; cornerZ <= 1; cornerZ += 2)
                 {
-                    Box("Sparring corner", rotation * new Vector3(corner * 2.80f, .031f, 2.95f), new Vector3(.35f, .006f, .025f), gold, rotation);
-                    Box("Sparring corner return", rotation * new Vector3(corner * 2.95f, .031f, 2.80f), new Vector3(.025f, .006f, .35f), gold, rotation);
+                    Box("Training corner", new Vector3(cornerX * 2.65f, .029f, cornerZ * 2.8f), new Vector3(.35f, .004f, .025f), padding);
+                    Box("Training corner return", new Vector3(cornerX * 2.8f, .029f, cornerZ * 2.65f), new Vector3(.025f, .004f, .35f), padding);
                 }
-            }
-            // A small original compass inlay remains beneath the athletes and
-            // introduces scale without obscuring grips or their cast shadows.
-            FloorRing(.57f, .585f, .029f, 64, gold);
-            FloorRing(.61f, .622f, .029f, 64, dark);
-            for (int quadrant = 0; quadrant < 4; quadrant++)
-                Box("Center compass", Vector3.up * .030f, new Vector3(.025f, .003f, .28f), gold, Quaternion.Euler(0, quadrant * 90 + 45, 0));
-
-            // Architecture sits outside every normal combat camera position.
-            // It is symmetric so the reverse and orbit views remain intentional.
-            for (int side = -1; side <= 1; side += 2)
-            {
-                for (int end = -1; end <= 1; end += 2)
-                    Lantern(new Vector3(side * 5.25f, 0, end * 5.25f), stone, timber, gold, lantern);
-                Gate(new Vector3(0, 0, side * 8.8f), side < 0 ? 180 : 0, stone, timber, gold, cloth);
-            }
-            AlpineBackdrop(farRock, nearRock, snow, pine, timber);
-            NaturalVerge(moss, stone, dark, nearRock, snow);
+            for (int side = 0; side < 4; side++)
+                CreateStudioWall(side, padding, plaster, timber);
+            architectureParent = null;
             CombineArchitecture();
 
-            // Keep colored dojo accents out of facial lighting so the authored
-            // skin texture and selected tone remain natural from every camera.
-            keyLight = Light("Winter daylight key", new Vector3(48, -32, 0), new Color(1, .97f, .93f), 1.05f, true);
-            Light("Sky fill", new Vector3(32, 132, 0), new Color(.77f, .85f, 1), .30f, false);
-            Light("Summit rim", new Vector3(35, 210, 0), new Color(1, .86f, .70f), .34f, false);
+            // One neutral overhead shadow light keeps faces and white gis
+            // readable. Wall cutaways never alter the athletes' lighting.
+            keyLight = Light("Studio overhead key", new Vector3(64, -32, 0), new Color(1, .97f, .92f), 1.08f, true);
+            Light("Studio soft fill", new Vector3(35, 132, 0), new Color(.87f, .92f, 1), .28f, false);
+            Light("Studio warm rim", new Vector3(42, 210, 0), new Color(1, .91f, .81f), .30f, false);
             sceneCamera = new GameObject("Combat Camera").AddComponent<Camera>();
             sceneCamera.transform.SetParent(environment, false);
             sceneCamera.tag = "MainCamera";
@@ -161,6 +120,145 @@ namespace JiuQuest.Combat
                 GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset, sceneCamera, keyLight);
             ApplyRenderQuality(false);
             PlaceCamera(true);
+        }
+
+        Transform ArchitectureGroup(string label)
+        {
+            var group = new GameObject(label).transform;
+            group.SetParent(environment, false);
+            architectureGroups.Add(group);
+            return group;
+        }
+
+        void CreateStudioWall(int side, Material padding, Material plaster, Material timber)
+        {
+            architectureParent = ArchitectureGroup("Studio wall " + side);
+            architectureParent.localRotation = Quaternion.Euler(0, side * 90, 0);
+            studioWalls.Add(architectureParent);
+            const float wall = StudioWallDistance;
+            Box("Plaster wall", new Vector3(0, 2.54f, wall), new Vector3(13.6f, 2.55f, .18f), plaster);
+            Box("Wall pad backing", new Vector3(0, .70f, wall), new Vector3(13.6f, 1.40f, .16f), padding);
+            for (int panel = -6; panel <= 6; panel++)
+                BevelBox("Sewn wall pad", new Vector3(panel * 1.035f, .72f, wall - .13f), new Vector3(1.015f, 1.38f, .16f), .035f, padding);
+            Box("Oak chair rail", new Vector3(0, 1.46f, wall - .16f), new Vector3(13.6f, .09f, .09f), timber);
+            Box("Oak skirting", new Vector3(0, .08f, wall - .18f), new Vector3(13.6f, .13f, .10f), timber);
+            Box("Upper oak cornice", new Vector3(0, 3.78f, wall - .13f), new Vector3(13.6f, .14f, .30f), timber);
+            // Perimeter-only soffits imply an interior roof while leaving every
+            // overhead/orbit ray to the training mat open. No spanning ceiling.
+            Box("Acoustic soffit", new Vector3(0, 3.70f, wall - .40f), new Vector3(13.6f, .16f, .75f), padding);
+            for (int fixture = -1; fixture <= 1; fixture++)
+            {
+                Box("Linear light oak housing", new Vector3(fixture * 3.7f, 3.57f, wall - .62f), new Vector3(2.45f, .10f, .19f), timber);
+                Box("Linear light diffuser", new Vector3(fixture * 3.7f, 3.515f, wall - .62f), new Vector3(2.30f, .018f, .13f), plaster);
+            }
+            for (int post = -1; post <= 1; post += 2)
+                BevelBox("Oak wall pilaster", new Vector3(post * 5.38f, 2.62f, wall - .12f), new Vector3(.16f, 2.22f, .16f), .018f, timber);
+            if ((side & 1) == 0)
+            {
+                BevelBox("JiuQuest wall plaque", new Vector3(0, 2.60f, wall - .17f), new Vector3(4.7f, 1.42f, .095f), .035f, timber);
+                Box("Navy sign face", new Vector3(0, 2.60f, wall - .225f), new Vector3(4.56f, 1.28f, .025f), padding);
+                StudioWord("JIUQUEST", new Vector3(0, 2.78f, wall - .255f), .073f, plaster);
+                StudioWord("JIU-JITSU", new Vector3(0, 2.24f, wall - .255f), .033f, plaster);
+                StudioBench(new Vector3(-3.20f, 0, 6.05f), timber, padding, plaster);
+                StudioRolls(new Vector3(3.70f, 0, 6.02f), padding, timber);
+            }
+            else
+            {
+                // Recessed storage and belt rails sit outside the complete mat
+                // and camera-safe inner slab, and disappear with their wall.
+                StudioWord(side == 1 ? "TRAIN" : "GRAPPLE", new Vector3(0, 2.66f, wall - .16f), .080f, padding);
+                Box("Belt display rail", new Vector3(0, 2.08f, wall - .16f), new Vector3(3.5f, .065f, .10f), timber);
+                for (int belt = -2; belt <= 2; belt++)
+                {
+                    Box("Display belt", new Vector3(belt * .54f, 1.84f, wall - .22f), new Vector3(.11f, .44f, .035f), belt % 2 == 0 ? padding : plaster);
+                    Box("Display belt end", new Vector3(belt * .54f + .055f, 1.72f, wall - .24f), new Vector3(.055f, .19f, .035f), belt % 2 == 0 ? padding : plaster);
+                }
+                StudioBench(new Vector3(3.20f, 0, 6.05f), timber, padding, plaster);
+                // Stacked folded training pads, constructed as solid soft boxes.
+                for (int stack = 0; stack < 3; stack++)
+                    BevelBox("Folded practice pad", new Vector3(-3.50f, .15f + stack * .20f, 6.14f), new Vector3(1.35f, .19f, .72f), .045f, stack == 1 ? plaster : padding);
+            }
+        }
+
+        void StudioBench(Vector3 origin, Material timber, Material padding, Material plaster)
+        {
+            BevelBox("Studio bench seat", origin + Vector3.up * .47f, new Vector3(2.85f, .13f, .75f), .035f, timber);
+            for (int leg = -1; leg <= 1; leg += 2)
+                Box("Bench trestle", origin + new Vector3(leg * 1.16f, .22f, 0), new Vector3(.14f, .44f, .62f), timber);
+            Box("Bench shoe shelf", origin + new Vector3(0, .13f, .02f), new Vector3(2.75f, .045f, .59f), timber);
+            for (int slot = -1; slot <= 1; slot++)
+            {
+                Box("Bench cubby divider", origin + new Vector3(slot * .72f, .28f, .02f), new Vector3(.045f, .29f, .59f), timber);
+                BevelBox("Folded gi on bench", origin + new Vector3(slot * .68f, .58f, .02f), new Vector3(.48f, .10f, .41f), .022f, slot == 0 ? plaster : padding);
+            }
+        }
+
+        void StudioRolls(Vector3 origin, Material padding, Material timber)
+        {
+            var roll = TaperedPrismMesh(16, .19f, .19f, 1.25f);
+            for (int index = 0; index < 3; index++)
+            {
+                var position = origin + new Vector3(index * .43f, .03f, 0);
+                MeshObject("Rolled training mat", roll, position, padding);
+                MeshObject("Roll woven end", TaperedPrismMesh(16, .13f, .13f, .008f), position + Vector3.up * 1.255f, timber);
+                MeshObject("Roll hollow center", TaperedPrismMesh(16, .038f, .038f, .011f), position + Vector3.up * 1.263f, padding);
+            }
+        }
+
+        void StudioWord(string word, Vector3 center, float cell, Material material)
+        {
+            // Original raised geometric lettering needs no font atlas or shader.
+            // Horizontal runs are merged to keep this small architectural detail cheap.
+            float width = (word.Length * 6 - 1) * cell;
+            for (int letter = 0; letter < word.Length; letter++)
+            {
+                string[] glyph = StudioGlyph(word[letter]);
+                for (int row = 0; row < 7; row++)
+                    for (int column = 0; column < 5;)
+                    {
+                        if (glyph[row][column] == '0') { column++; continue; }
+                        int start = column;
+                        while (column < 5 && glyph[row][column] == '1') column++;
+                        int count = column - start;
+                        Box("Raised studio lettering", center + new Vector3(-width * .5f + (letter * 6 + start + count * .5f) * cell,
+                            (3 - row) * cell, 0), new Vector3(count * cell * .96f, cell * .86f, .022f), material);
+                    }
+            }
+        }
+
+        static string[] StudioGlyph(char letter)
+        {
+            switch (letter)
+            {
+                case 'J': return new[] { "11111", "00010", "00010", "00010", "10010", "10010", "01100" };
+                case 'I': return new[] { "11111", "00100", "00100", "00100", "00100", "00100", "11111" };
+                case 'U': return new[] { "10001", "10001", "10001", "10001", "10001", "10001", "01110" };
+                case 'Q': return new[] { "01110", "10001", "10001", "10001", "10101", "10010", "01101" };
+                case 'E': return new[] { "11111", "10000", "10000", "11110", "10000", "10000", "11111" };
+                case 'S': return new[] { "01111", "10000", "10000", "01110", "00001", "00001", "11110" };
+                case 'T': return new[] { "11111", "00100", "00100", "00100", "00100", "00100", "00100" };
+                case 'R': return new[] { "11110", "10001", "10001", "11110", "10100", "10010", "10001" };
+                case 'A': return new[] { "01110", "10001", "10001", "11111", "10001", "10001", "10001" };
+                case 'N': return new[] { "10001", "11001", "11001", "10101", "10011", "10011", "10001" };
+                case 'G': return new[] { "01111", "10000", "10000", "10111", "10001", "10001", "01111" };
+                case 'P': return new[] { "11110", "10001", "10001", "11110", "10000", "10000", "10000" };
+                case 'L': return new[] { "10000", "10000", "10000", "10000", "10000", "10000", "11111" };
+                case '-': return new[] { "00000", "00000", "00000", "11111", "00000", "00000", "00000" };
+                default: return new[] { "00000", "00000", "00000", "00000", "00000", "00000", "00000" };
+            }
+        }
+
+        public static bool IsStudioWallVisible(Vector3 localCamera, Vector3 outwardNormal, float cutawayDistance)
+            => Vector3.Dot(localCamera, outwardNormal) <= cutawayDistance;
+
+        void UpdateStudioWalls()
+        {
+            var localCamera = environment.InverseTransformPoint(sceneCamera.transform.position);
+            for (int side = 0; side < studioWalls.Count; side++)
+            {
+                bool visible = IsStudioWallVisible(localCamera, Quaternion.Euler(0, side * 90, 0) * Vector3.forward, StudioCutawayDistance);
+                if (studioWalls[side].gameObject.activeSelf != visible) studioWalls[side].gameObject.SetActive(visible);
+            }
         }
 
         public void Frame(Bounds bounds, string authoredMoveId)
@@ -263,52 +361,40 @@ namespace JiuQuest.Combat
             float distance = CombatFraming.Distance(framingBounds, cameraOrientation, sceneCamera.fieldOfView,
                 Mathf.Max(.1f, sceneCamera.aspect), compactViewport ? .9f : .85f);
             sceneCamera.transform.SetPositionAndRotation(lookAt + cameraOrientation * new Vector3(0, 0, -distance), cameraOrientation);
+            UpdateStudioWalls();
         }
 
         void CombineArchitecture()
         {
-            // Static scenery uses one draw per material rather than a separate draw per tile.
-            var filters = environment.GetComponentsInChildren<MeshFilter>();
-            foreach (var material in materials)
+            // Each wall remains a separate cutaway unit, including all props.
+            // Five shared materials produce four floor and three-per-wall batches.
+            foreach (var group in architectureGroups)
             {
-                var instances = new List<CombineInstance>();
-                foreach (var filter in filters)
+                var filters = group.GetComponentsInChildren<MeshFilter>();
+                foreach (var material in materials)
                 {
-                    var renderer = filter.GetComponent<MeshRenderer>();
-                    if (renderer == null || renderer.sharedMaterial != material) continue;
-                    instances.Add(new CombineInstance { mesh = filter.sharedMesh, transform = environment.worldToLocalMatrix * filter.transform.localToWorldMatrix });
-                    renderer.enabled = false;
-                    Destroy(filter.gameObject);
-                }
-                if (instances.Count == 0) continue;
-                var mesh = new Mesh { name = "Dojo architecture - " + material.name };
-                mesh.CombineMeshes(instances.ToArray(), true, true);
-                if (material.IsKeywordEnabled("_NORMALMAP")) mesh.RecalculateTangents();
-                if (material == pennantMaterial)
-                {
-                    // Retain independent rest and output arrays. Only this tiny
-                    // existing material group changes; architecture stays static.
-                    pennantMesh = mesh;
-                    pennantRestVertices = mesh.vertices;
-                    pennantAnimatedVertices = (Vector3[])pennantRestVertices.Clone();
-                    pennantWindWeights = new Vector4[pennantRestVertices.Length];
-                    for (int index = 0; index < pennantRestVertices.Length; index++)
-                        pennantWindWeights[index] = SummitAmbientMotion.BannerWeights(pennantRestVertices[index]);
-                    pennantMotionBounds = mesh.bounds;
-                    pennantMotionBounds.Expand(SummitAmbientMotion.MaxDisplacement * 2);
-                    mesh.bounds = pennantMotionBounds;
-                    mesh.MarkDynamic();
-                }
-                stageMeshes.Add(mesh);
-                var combined = new GameObject(mesh.name);
-                combined.transform.SetParent(environment, false);
-                combined.AddComponent<MeshFilter>().sharedMesh = mesh;
-                var combinedRenderer = combined.AddComponent<MeshRenderer>();
-                combinedRenderer.sharedMaterial = material;
-                if (distantMaterials.Contains(material))
-                {
-                    combinedRenderer.shadowCastingMode = ShadowCastingMode.Off;
-                    combinedRenderer.receiveShadows = false;
+                    var instances = new List<CombineInstance>();
+                    foreach (var filter in filters)
+                    {
+                        var renderer = filter.GetComponent<MeshRenderer>();
+                        if (renderer == null || renderer.sharedMaterial != material) continue;
+                        instances.Add(new CombineInstance { mesh = filter.sharedMesh, transform = group.worldToLocalMatrix * filter.transform.localToWorldMatrix });
+                        renderer.enabled = false;
+                        Destroy(filter.gameObject);
+                    }
+                    if (instances.Count == 0) continue;
+                    var mesh = new Mesh { name = group.name + " - " + material.name };
+                    mesh.CombineMeshes(instances.ToArray(), true, true);
+                    if (material.IsKeywordEnabled("_NORMALMAP")) mesh.RecalculateTangents();
+                    stageMeshes.Add(mesh);
+                    var combined = new GameObject(mesh.name);
+                    combined.transform.SetParent(group, false);
+                    combined.AddComponent<MeshFilter>().sharedMesh = mesh;
+                    var rendererCombined = combined.AddComponent<MeshRenderer>();
+                    rendererCombined.sharedMaterial = material;
+                    // Decorative walls/soffits must not block the single overhead
+                    // key. The floor still receives the actual fighter shadows.
+                    rendererCombined.shadowCastingMode = ShadowCastingMode.Off;
                 }
             }
         }
@@ -1052,7 +1138,7 @@ namespace JiuQuest.Combat
         void MeshObject(string name, Mesh mesh, Vector3 position, Material material, Quaternion rotation = default, Vector3 scale = default)
         {
             var item = new GameObject(name);
-            item.transform.SetParent(environment, false);
+            item.transform.SetParent(architectureParent != null ? architectureParent : environment, false);
             item.transform.localPosition = position;
             item.transform.localRotation = rotation.Equals(default(Quaternion)) ? Quaternion.identity : rotation;
             item.transform.localScale = scale == default ? Vector3.one : scale;
@@ -1062,14 +1148,19 @@ namespace JiuQuest.Combat
 
         void Box(string name, Vector3 position, Vector3 size, Material material, Quaternion rotation = default)
         {
-            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            cube.name = name;
-            cube.transform.SetParent(environment, false);
-            cube.transform.localPosition = position;
-            cube.transform.localRotation = rotation.Equals(default(Quaternion)) ? Quaternion.identity : rotation;
-            cube.transform.localScale = size;
-            cube.GetComponent<Renderer>().sharedMaterial = material;
-            Destroy(cube.GetComponent<Collider>());
+            if (unitBoxMesh == null)
+            {
+                var vertices = new List<Vector3>(); var triangles = new List<int>(); var uv = new List<Vector2>();
+                const float h = .5f;
+                Quad(vertices, triangles, uv, new Vector3(-h, -h, -h), new Vector3(-h, h, -h), new Vector3(h, h, -h), new Vector3(h, -h, -h));
+                Quad(vertices, triangles, uv, new Vector3(h, -h, h), new Vector3(h, h, h), new Vector3(-h, h, h), new Vector3(-h, -h, h));
+                Quad(vertices, triangles, uv, new Vector3(-h, -h, h), new Vector3(-h, h, h), new Vector3(-h, h, -h), new Vector3(-h, -h, -h));
+                Quad(vertices, triangles, uv, new Vector3(h, -h, -h), new Vector3(h, h, -h), new Vector3(h, h, h), new Vector3(h, -h, h));
+                Quad(vertices, triangles, uv, new Vector3(-h, h, -h), new Vector3(-h, h, h), new Vector3(h, h, h), new Vector3(h, h, -h));
+                Quad(vertices, triangles, uv, new Vector3(-h, -h, h), new Vector3(-h, -h, -h), new Vector3(h, -h, -h), new Vector3(h, -h, h));
+                unitBoxMesh = Mesh("Collision-free studio box", vertices, triangles, uv);
+            }
+            MeshObject(name, unitBoxMesh, position, material, rotation, size);
         }
 
         UnityEngine.Light Light(string label, Vector3 angles, Color color, float intensity, bool shadow)
