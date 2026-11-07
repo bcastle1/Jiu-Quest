@@ -52,6 +52,11 @@ MOVE_DURATIONS = {
 }
 
 CONTACT_SAMPLED_MOVES = {"trap_roll_escape", "double_leg", "triangle_choke", "rear_naked_choke", "standing_stance"}
+READY_HAND_MOVES = {"standing_stance", "grip_fighting", "reset_neutral"}
+FINGER_BONES = tuple(f"{digit}_{segment:02d}_{side}"
+                     for side in ("l", "r")
+                     for digit in ("thumb", "index", "middle", "ring", "pinky")
+                     for segment in (1, 2, 3))
 
 ANIMATED_BONES = (
     "pelvis",
@@ -1020,6 +1025,39 @@ def pose_standing_stance(attacker: dict, defender: dict, progress: float) -> Non
             bpy.context.view_layer.update()
 
 
+def relaxed_ready_hands(fighter: dict, key: str, progress: float) -> None:
+    """A loose, staggered finger curl for the three ready-hand presentations.
+
+    Curl toward the anatomical palm (-Z in this rig's rest T pose), converted
+    into each joint's own frame. Mirrored hands therefore use the same rule.
+    Wrists, palm roots, joint lengths and the other technique poses stay fixed.
+    This is presentation motion, not a solved cloth grip or collision response.
+    """
+    phase = 0. if fighter["role"] == "Attacker" else math.pi
+    if key == "standing_stance":
+        amount = 1. + .045 * math.sin(math.tau * clamp(progress) + phase)
+    elif key == "grip_fighting":
+        amount = 1. + .22 * math.sin(math.pi * clamp(progress)) ** 2
+    else:
+        amount = 1.12 - .12 * smooth(progress)
+    rig = fighter["armature"]
+    for side in ("l", "r"):
+        for digit, stagger in (("thumb", 1.), ("index", .88), ("middle", 1.),
+                               ("ring", 1.08), ("pinky", 1.15)):
+            angles = (6., 10., 7.) if digit == "thumb" else (12., 24., 12.)
+            for segment, degrees in enumerate(angles, 1):
+                name = f"{digit}_{segment:02d}_{side}"
+                rest = rig.data.bones[name]
+                direction = (rest.tail_local - rest.head_local).normalized()
+                axis = direction.cross(Vector((0., 0., -1.)))
+                if axis.length < 1e-6:
+                    raise ValueError("Ready-hand curl has no anatomical axis: " + name)
+                local_axis = rest.matrix_local.to_3x3().inverted() @ axis.normalized()
+                rig.pose.bones[name].rotation_quaternion = Quaternion(
+                    local_axis.normalized(), math.radians(degrees) * stagger * amount)
+    bpy.context.view_layer.update()
+
+
 def pose_pair(key: str, attacker: dict, defender: dict, progress: float) -> None:
     reset_fighter(attacker)
     reset_fighter(defender)
@@ -1154,6 +1192,10 @@ def pose_pair(key: str, attacker: dict, defender: dict, progress: float) -> None
         stance(attacker, lerp(-0.28, -0.90, p), 0.06, 1, 0.22 * (1.0 - p), 0.0, 0.06)
         stance(defender, lerp(0.28, 0.90, p), 0.02, -1, 0.20 * (1.0 - p), 0.0, -0.06)
 
+    if key in READY_HAND_MOVES:
+        relaxed_ready_hands(attacker, key, progress)
+        relaxed_ready_hands(defender, key, progress)
+
 
 def keyframe_fighter(fighter: dict, frame: int) -> None:
     root = fighter["root"]
@@ -1225,6 +1267,9 @@ def build_move(key: str, duration: float) -> None:
     )
     attacker["root"].parent = pair
     defender["root"].parent = pair
+    if key in READY_HAND_MOVES:
+        for fighter in (attacker, defender):
+            fighter["pose_bones"].extend(fighter["armature"].pose.bones[name] for name in FINGER_BONES)
 
     frame_span = scene.frame_end - scene.frame_start
     samples = ([frame / frame_span for frame in range(frame_span + 1)]

@@ -193,3 +193,14 @@ and the actual Unity/browser review before packaging.
 These are authored choreography drafts, not motion capture or coach-approved
 instruction. Natural anatomy does not establish technical correctness; final
 techniques still require qualified BJJ review.
+
+Ready-hand presentation uses the existing finger joints in standing stance, grip
+fighting and reset-neutral only. Curl axes are derived from the anatomical palm
+direction in the source T pose, including the differently oriented thumb bones.
+Finger lengths, wrist poses and the other thirteen motion clips are protected.
+The loose curl is an authored visual gesture, not a contact-aware cloth grasp.
+
+Sleeve and cuff grids now weld their coincident longitudinal endpoints before
+Solidify, after assigning deform groups. Per-loop UV coordinates stay split at
+the texture seam. This removes duplicated internal wall faces and gives the
+seam continuous surface normals without enlarging the outer garment.

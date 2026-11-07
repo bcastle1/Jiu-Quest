@@ -39,6 +39,7 @@ class ClothMesh:
     def __init__(self):
         self.vertices, self.faces, self.uvs, self.weights = [], [], [], []
         self.detail_uvs = []
+        self.periodic_pairs = []
 
     def vertex(self, point, uv, weights, detail_uv=None):
         index = len(self.vertices)
@@ -47,13 +48,24 @@ class ClothMesh:
         self.detail_uvs.append(detail_uv)
         return index
 
-    def grid(self, rows, columns, sample, keep=None, reverse=False, detail=None):
+    def grid(self, rows, columns, sample, keep=None, reverse=False, detail=None, periodic=False):
         start = len(self.vertices)
         for row in range(rows + 1):
             for column in range(columns + 1):
                 t, u = row / rows, column / columns
                 point, uv, weights = sample(t, u)
                 self.vertex(point, uv, weights, detail(t, u) if detail else None)
+            if periodic:
+                first = start + row * (columns + 1)
+                last = first + columns
+                # A UV seam is not an open cut through the garment. Keep its
+                # separate loop UVs, but join only coincident cylinder endpoints.
+                if (Vector(self.vertices[first]) - Vector(self.vertices[last])).length > 1e-7:
+                    raise ValueError('Periodic cloth endpoints must coincide')
+                names = set(self.weights[first]) | set(self.weights[last])
+                if any(abs(self.weights[first].get(name, 0.) - self.weights[last].get(name, 0.)) > 1e-7 for name in names):
+                    raise ValueError('Periodic cloth endpoints must share skin weights')
+                self.periodic_pairs.append((last, first))
         for row in range(rows):
             for column in range(columns):
                 a = start + row * (columns + 1) + column
@@ -87,6 +99,22 @@ class ClothMesh:
                     raise ValueError('Missing uniform bone ' + bone)
                 group = groups.setdefault(bone, obj.vertex_groups.get(bone) or obj.vertex_groups.new(name=bone))
                 group.add([index], weight, 'REPLACE')
+        if self.periodic_pairs:
+            # Preserve loop UVs and already assigned deform groups while welding
+            # only each sleeve/cuff's duplicate longitudinal boundary. Otherwise
+            # Solidify closes both coincident cuts with overlapping side walls,
+            # producing a dark nick and sharply split normals during grappling.
+            joined = bmesh.new()
+            try:
+                joined.from_mesh(mesh)
+                joined.verts.ensure_lookup_table()
+                targets = {joined.verts[last]: joined.verts[first] for last, first in self.periodic_pairs}
+                bmesh.ops.weld_verts(joined, targetmap=targets)
+                joined.normal_update()
+                joined.to_mesh(mesh)
+            finally:
+                joined.free()
+            mesh.update()
         if thickness:
             bpy.ops.object.select_all(action='DESELECT'); obj.select_set(True)
             bpy.context.view_layer.objects.active = obj
@@ -340,7 +368,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
                 upper = smooth(t / .31)
                 weights = {'spine_03': (1. - upper) * .80, 'clavicle_' + suffix: .20 * (1. - upper), 'upperarm_' + suffix: upper}
             return point, (u * 2., t * 4.2), weights
-        jacket.grid(32, 28, sleeve, detail=lambda t, u: panel_uv('sleeve', u, t))
+        jacket.grid(32, 28, sleeve, detail=lambda t, u: panel_uv('sleeve', u, t), periodic=True)
         def cuff(t, u, sample=sleeve, shoulder=shoulder, wrist=wrist):
             sleeve_t = mix(.944, .989, t)
             point, uv, weights = sample(sleeve_t, u)
@@ -348,7 +376,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             center = start.lerp(wrist, sleeve_t * .97)
             point += (point - center).normalized() * (.0012 + .0013 * math.sin(t * math.pi))
             return point, uv, weights
-        jacket.grid(3, 28, cuff, detail=lambda t, u: panel_uv('sleeve', u, mix(.944, .989, t)))
+        jacket.grid(3, 28, cuff, detail=lambda t, u: panel_uv('sleeve', u, mix(.944, .989, t)), periodic=True)
 
     belt = ClothMesh()
     def belt_wrap(t, u):
