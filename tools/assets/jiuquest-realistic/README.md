@@ -206,8 +206,9 @@ the texture seam. This removes duplicated internal wall faces and gives the
 seam continuous surface normals without enlarging the outer garment.
 
 The athletic-fit pass lowers the jacket crown by 20 mm and narrows its upper
-envelope. Upper sleeves lose up to 8 mm of radius with a 5 mm top-only drop,
-fading before the buried armhole and cuffs. The existing clearance bounds stay
+envelope. Upper sleeves lose up to 14 mm of radius with a 13 mm top-only drop.
+The taper is centered on the actual shoulder-joint position and fades before
+the buried join and cuffs. The existing clearance bounds stay
 in force. Earlier crown-to-neck taper removes some of the broad upper-back
 band while preserving the front opening and buried armhole. Upper torso
 wrinkles are softened by up to 40 percent; chest relief is reduced to 3 mm
@@ -226,3 +227,14 @@ forearm extensor regions of the retained skin. Compared with the prior fit,
 the actual rest mesh moves 170 vertices by at most 2.07 mm; neck, jaw, hand,
 covered-body mask, UVs, weights and rig remain unchanged. Surface-normal
 comparison and animated pose checks guard against local sculpt distortion.
+
+The subsequent shoulder/back tailoring preserves that muscle definition.
+Fixed-X/Z rays toward the full rest body accept only rear-facing torso hits,
+then take in up to 25 mm of excess upper-back depth while targeting 10 mm of
+cloth ease. The rear fit fades at the neck and armhole and runs before the
+existing 6 mm clearance check; corrections above 25 mm still fail export.
+Body positions, normals, UVs, triangle indices and skin weights remain exact
+to the prior build. Blender's derived body tangent vectors may differ by at
+most 0.000101 on export, with unchanged handedness and unit-vector checks.
+Garment weights are still transferred from the existing body after shaping;
+posed checks remain necessary because the fitted cloth samples new locations.

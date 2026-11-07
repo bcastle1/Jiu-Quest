@@ -188,7 +188,8 @@ def build_realistic_gi(body, armature, root, materials, prefix):
                         'correctedSamples': 0, 'maxCorrectionMeters': 0.,
                         'maxCorrectionRegion': None, 'limitMeters': .025,
                         'torsoArmholeBoundaryMeters': armhole_x,
-                        'torsoArmholeFadeMeters': .045}
+                        'torsoArmholeFadeMeters': .045,
+                        'backFitSamples': 0, 'maxBackFitMeters': 0.}
 
     def clear_body(point, coverage, region):
         clearance_report['sampleQueries'] += 1
@@ -291,6 +292,25 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             taper = early_taper * front_opening * armhole_fit
             point.x -= (.224 - .073) * taper * math.sin(theta)
             point.y += (.135 - .072) * taper * math.cos(theta)
+        # Replace the inflated rear oval with cloth over the actual shoulder
+        # blades. A fixed-X/Z ray avoids snapping to the underside of a T-pose
+        # arm, which a generic nearest-surface projection could select.
+        back_fit = smooth((-math.cos(theta) - .15) / .50) * armhole_fit
+        back_fit *= smooth((z - waist_z - .07) / .16)
+        back_fit *= 1. - smooth((z - neck_z + .035) / .035)
+        if back_fit > 0.:
+            hit, normal, _, _ = body_surface.ray_cast(
+                Vector((point.x, .50, point.z)), Vector((0., -1., 0.)), 1.)
+            if hit is not None and normal.y > .25 and hit.y > -.02:
+                # Ten millimeters of fabric ease, with a bounded inward fit.
+                # The existing six-millimeter clearance guard still runs below.
+                target_y = hit.y + .010 / max(.5, normal.y)
+                take_in = min(.025, max(0., point.y - target_y)) * back_fit
+                point.y -= take_in
+                if take_in > 0.:
+                    clearance_report['backFitSamples'] += 1
+                    clearance_report['maxBackFitMeters'] = max(
+                        clearance_report['maxBackFitMeters'], take_in)
         point = clear_body(point, upper_fit * opening_fit * armhole_fit, 'torso')
         # Broad cotton tension over the chest suggests an athletic build.
         # Keep the relief below the armholes and away from the open lapels;
@@ -352,8 +372,10 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             radius *= mix(.40, 1., smooth(t / .21))
             # Keep the buried shoulder join, but reduce the rounded outer
             # upper sleeve so the gi follows the deltoid without a padded cap.
-            shoulder_fit = smooth((t - .23) / .11) * (1. - smooth((t - .46) / .20))
-            radius -= .008 * shoulder_fit
+            joint_t = (shoulder - start).length / (wrist - start).length
+            shoulder_fit = smooth((t - joint_t + .08) / .12)
+            shoulder_fit *= 1. - smooth((t - .46) / .20)
+            radius -= .014 * shoulder_fit
             fold = .0006 * math.sin(angle * 5 + t * 8)
             elbow_t = (elbow - start).length / (wrist - start).length
             front = max(0., math.sin(angle) * (1. if suffix == 'l' else -1.)) ** 2
@@ -386,7 +408,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             center -= basis_a * hang
             point = center + (basis_a * math.cos(angle) + basis_b * math.sin(angle) * oval) * (radius + fold)
             # Settle the top surface without shrinking the underarm overlap.
-            point -= basis_a * (.005 * shoulder_fit * max(0., math.cos(angle)) ** 2)
+            point -= basis_a * (.013 * shoulder_fit * max(0., math.cos(angle)) ** 2)
             point = clear_body(point, smooth((t - .20) / .14), 'sleeve_' + suffix)
             low = smooth((t - elbow_t + .11) / .22)
             weights = {'upperarm_' + suffix: 1. - low, 'lowerarm_' + suffix: low}
