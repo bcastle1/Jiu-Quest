@@ -37,7 +37,7 @@
     "skinInfluences": 4,
     "athleteScale": 1
   },
-  "cosmeticRevision": "2026-11-07-reference-directed-fabric-detail",
+  "cosmeticRevision": "2026-11-07-adult-jaw-and-gi-drape",
   "anatomySource": "MPFB / MakeHuman core CC0 adult human on the stable Quaternius 65-bone rest rig. More natural adult facial proportions, original solid hair/brows, roomier BJJ gis, modeled tension folds and panel-aligned surface relief. Paired choreography is unchanged.",
   "animations": {
     "standing_stance": "/animations/bjj/standing_stance.glb",

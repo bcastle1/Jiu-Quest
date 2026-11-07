@@ -17,24 +17,30 @@ def smoothstep(low, high, value):
     return t * t * (3.0 - 2.0 * t)
 
 
-def face_detail_offset(co):
-    """Small adult facial planes, with exactly zero change outside the face."""
+def front_face_mask(co):
+    """Compact anterior-face support, excluding neck, ears and scalp."""
     x, y, z = co
-    # Compact source-space support protects neck, ears and scalp exactly. The
-    # shared offset also reaches eyes and fitted lid anchors, not just the skin.
     if abs(x) >= .074 or y <= -.145 or y >= -.035 or z <= 1.550 or z >= 1.678:
-        return Vector((0., 0., 0.))
+        return 0.
     mask = (1. - smoothstep(.058, .074, abs(x)))
     mask *= smoothstep(-.145, -.120, y) * (1. - smoothstep(-.060, -.035, y))
     mask *= smoothstep(1.550, 1.565, z) * (1. - smoothstep(1.667, 1.678, z))
+    return mask
 
-    # Recover a little jaw width and chin projection rather than enlarging the
-    # whole head. A shallow lower-cheek recess separates cheekbone and jaw.
+
+def face_detail_offset(co):
+    """Adult facial planes and lateral jaw; combined displacement <= 6 mm."""
+    x, y, z = co
+    mask = front_face_mask(co)
+
+    # A broader mandibular plane and projected chin give the reference's adult
+    # athletic profile. Keep neck/collar fit fixed; a lower-cheek recess makes
+    # the jaw readable without enlarging the head or adding a muscle shell.
     jaw = math.exp(-((abs(x)-.046)/.025)**4 - ((z-1.583)/.018)**2)
     chin = math.exp(-(x/.028)**4 - ((z-1.576)/.013)**2)
     lower_cheek = math.exp(-((abs(x)-.039)/.023)**2 - ((z-1.607)/.014)**2)
-    dx = .0032 * math.tanh(x/.018) * jaw
-    dy = -.0034 * chin + .0013 * lower_cheek
+    dx = .0046 * math.tanh(x/.018) * jaw
+    dy = -.0041 * chin + .0017 * lower_cheek
     dz = -.0014 * chin
 
     # Modest bridge/tip and supraorbital relief give the profile real volume.
@@ -44,10 +50,17 @@ def face_detail_offset(co):
     nose_tip = math.exp(-(x/.009)**2 - ((z-1.616)/.012)**2)
     brow = math.exp(-((abs(x)-.031)/.026)**4 - ((z-1.661)/.011)**2)
     orbit = math.exp(-((abs(x)-.0314)/.026)**4 - ((z-1.6434)/.024)**4)
-    dy -= .0028 * bridge + .0017 * nose_tip + .0020 * brow
-    dz -= .085 * (z-1.6434) * orbit
+    dy -= .0028 * bridge + .0017 * nose_tip + .0025 * brow
+    dz -= .120 * (z-1.6434) * orbit
     offset = Vector((dx, dy, dz)) * mask
-    # Explicit bound also applies if the local shaping fields are retuned.
+    # The measured mandibular corners sit behind the anterior-face mask.
+    # Reach that lower side plane with a separate compact field, tapering to
+    # exactly zero below the chin/neck and above the lower cheek, before ears.
+    mandible = smoothstep(.035, .046, abs(x)) * (1. - smoothstep(.066, .078, abs(x)))
+    mandible *= smoothstep(-.072, -.050, y) * (1. - smoothstep(.005, .020, y))
+    mandible *= smoothstep(1.550, 1.566, z) * (1. - smoothstep(1.597, 1.615, z))
+    offset += Vector((math.copysign(.0050, x), 0., -.0010)) * mandible
+    # Explicit bound covers the sum, including overlapping shaping fields.
     if offset.length > .006:
         offset *= .006 / offset.length
     return offset
@@ -55,24 +68,26 @@ def face_detail_offset(co):
 
 def face_warp(co, facial_detail=True):
     x, y, z = co
-    # Widen the eyes and their sockets together, fading into the cheek planes.
+    refinement = front_face_mask(co) if facial_detail else 0.
+    # Remove the previous eye enlargement within the adult-face support.
+    # Skin and eyeballs share the field; authored hair retains its old warp.
     side = 1 if x >= 0 else -1
     cx, cy, cz = side * .0314, -.077, 1.6434
     eye = math.exp(-((x-cx)/.029)**4 - ((z-cz)/.028)**4)
     eye *= 1.0 - smoothstep(-.049, -.020, y)
-    x = cx + (x-cx) * (1.0 + .08*eye)
+    x = cx + (x-cx) * (1.0 + .08*eye*(1. - refinement))
     # A narrower adult eye and slightly raised outer corner replace the rounder
     # expression. Apply the identical warp to the face, eyeballs and lid ink.
-    z = cz + (z-cz) * (1.0 + .035*eye)
-    z += .0011 * min(1., max(-1., (abs(x) - abs(cx)) / .022)) * eye
+    z = cz + (z-cz) * (1.0 + .035*eye*(1. - refinement))
+    z += (.0011 - .0007*refinement) * min(1., max(-1., (abs(x) - abs(cx)) / .022)) * eye
     # A modest larger cranium and tapered jaw keep an adult athletic silhouette.
     head = smoothstep(1.515, 1.605, z)
     jaw = math.exp(-((z-1.589)/.026)**2) * (1-smoothstep(-.025, .025, y))
     x *= (1.0 + .018*head) * (1.0 - .045*jaw)
     cheek = math.exp(-((abs(x) - .047) / .024) ** 2 - ((z - 1.615) / .023) ** 2)
     cheek *= 1. - smoothstep(-.030, .015, y)
-    x += side * .0028 * cheek
-    y -= .0024 * cheek
+    x += side * (.0028 - .0020*refinement) * cheek
+    y -= (.0024 - .0018*refinement) * cheek
     # Shallow bridge/chin planes give the adult face a readable side profile.
     # The same continuous field reaches every facial mesh, with no raster edit.
     front = 1. - smoothstep(-.065, -.025, y)
@@ -82,7 +97,15 @@ def face_warp(co, facial_detail=True):
     y = .0174 + (y-.0174) * (1.0 + .018*head)
     z = 1.5998 + (z-1.5998) * (1.0 + .018*head)
     result = Vector((x, y, z))
-    return result + face_detail_offset(co) if facial_detail else result
+    if not facial_detail:
+        return result
+    result += face_detail_offset(co)
+    # The 6 mm limit includes the older base styling as well as added detail.
+    # It only limits existing facial displacement; it does not scale the head.
+    delta = result - co
+    if delta.length > .006:
+        result = co + delta * (.006 / delta.length)
+    return result
 
 
 def hair_mesh(name, rig, style, surface=None):

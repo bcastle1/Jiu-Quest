@@ -254,9 +254,9 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         # Parameterize the actual opening boundary. Removing grid faces leaves
         # staircase edges that remain visible beside the lapel in close views.
         theta = mix(edge_angle, TAU - edge_angle, u)
-        folds = (.0014 * math.sin(theta * 11 + t * 8)
-                 + .0016 * math.sin(theta * 19 - t * 14)) * (1. - .55 * t)
-        # Fine wrinkles soften across the stretched upper chest/back. Broad
+        folds = (.0008 * math.sin(theta * 11 + t * 8)
+                 + .0009 * math.sin(theta * 19 - t * 14)) * (1. - .55 * t)
+        # Reduce repeated small ripples across the stretched chest/back. Broad
         # fabric tension carries the shape instead of a rippled padded yoke.
         folds *= 1. - .40 * smooth((t - .58) / .22)
         # A few broad tension folds read at combat distance; fine textile relief

@@ -33,10 +33,11 @@ def fold_height(panel, u, v):
         window = smooth(.28, .37, v) * (1. - smooth(.89, .97, v))
         compression = .12 + .88 * max(0., math.cos(angle - math.pi * .5)) ** 4
         value = 0.
-        for center, slant, width, amplitude in ((.51, .055, .029, .0068),
-                                                (.61, -.040, .025, .0054),
-                                                (.71, .045, .033, .0041)):
+        for center, slant, width, amplitude in ((.50, .055, .038, .0056),
+                                                (.62, -.040, .032, .0048),
+                                                (.74, .045, .042, .0035)):
             value += ridge(v - center - slant * math.sin(angle), width, amplitude) * compression
+        # Broad, unequal creases leave calm cloth between bent-arm folds.
         # One longer oblique pull breaks up the compression group. Cuff
         # folds fade into the turned hem instead of changing the wrist fit.
         value += ridge(v - .44 - .15 * math.cos(angle), .032, .0034) * max(0., -math.cos(angle)) ** 3
@@ -54,7 +55,17 @@ def fold_height(panel, u, v):
             value += ridge(v - center - slant * math.sin(angle), width, amplitude) * (.14 + .86 * front)
         value += ridge(v - .71 - .09 * math.sin(angle), .036, .0042) * max(0., -math.sin(angle)) ** 2
         value += ridge(v - .17 - .027 * math.cos(angle), .020, .0037) * (.25 + .75 * front)
-        return value * window * 1.45
+        # Longer hanging channels between hip and cuff give the trouser leg
+        # weight. Unequal directions avoid a pressed dress-trouser centerline;
+        # only the side/back panels receive these drapes, leaving the front
+        # knee compression readable. Both ends fade before the sewn openings.
+        drape_window = smooth(.12, .24, v) * (1. - smooth(.65, .81, v))
+        for anchor, lean, amplitude in ((.19, .065, .0038),
+                                         (.74, -.045, .0031)):
+            center = anchor + lean * (v - .45)
+            distance = (u - center + .5) % 1. - .5
+            value += ridge(distance, .050, amplitude) * drape_window
+        return .0115 * math.tanh(value * window * 1.45 / .0115)
     return 0.
 
 
