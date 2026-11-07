@@ -111,13 +111,17 @@ def hair_mesh(name, rig, style, surface=None):
         top=start+(len(points)-1)*segments
         face(tuple(top+j for j in range(segments)), cap_v=1., smooth=False)
 
-    # Smooth scalp cap with a forehead hairline and lower coverage behind ears.
+    # Broad offset ridges break up the spherical shell without adding hair
+    # cards or tiny spikes. The same fitted cap is the root surface for every
+    # lock, with a shallow irregular edge instead of a straight helmet rim.
     around, rows = 32, 8
     for row in range(rows+1):
         for j in range(around):
             a=math.tau*j/around
             front=max(0.0, -math.sin(a))
-            bottom=1.91-.56*front + .018*front*math.cos(3*a)
+            edge_wave=.032*math.cos(5*a+.35) + .016*math.sin(3*a)
+            front_trim=.74 if style=='Crew' else .64 if style in ('Slick','Mohawk') else .56
+            bottom=1.91-front_trim*front + edge_wave
             theta=.035+(bottom-.035)*row/rows
             co = Vector((.089*math.sin(theta)*math.cos(a),
                          .008+.110*math.sin(theta)*math.sin(a),
@@ -126,6 +130,13 @@ def hair_mesh(name, rig, style, surface=None):
                 location, normal, _, _ = surface.find_nearest(co)
                 if location is not None and location.z > 1.62 and (co-location).dot(normal) < .0032:
                     co = location + normal * .0032
+            # Eight wide, gently swept ridges produce discrete hair planes.
+            # Relief is outward-only, retaining the checked skin clearance.
+            phase=(j-row*.28)/4.
+            ridge=1.-abs(2.*(phase-math.floor(phase)) - 1.)
+            outward=Vector((co[0]/.089,(co[1]-.008)/.110,(co[2]-1.670)/.102)).normalized()
+            relief=(.0012+.0058*ridge)*math.sin(theta)**1.3
+            co += outward*relief
             vertices.append(tuple(co))
             vertex_uvs.append((j / around, .18 + .64 * (1. - row / rows)))
     for row in range(rows):
@@ -151,23 +162,35 @@ def hair_mesh(name, rig, style, surface=None):
                   (x+lean*.64,sweep*.48,tip-.007),
                   (x+lean,sweep,tip)],
                  [.025,.026,.019,.0008], [.024,.022,.016,.0009])
-        # Wide planar fringe flows out of the crown before tapering above the
-        # eyes. The intermediate surfaces remain visible over the scalp shell.
-        for x, fall, sweep in [(-.058,.008,.022),(-.031,.019,.033),(-.004,.006,.040),(.026,-.006,.025)]:
+        # Crew has a short broken fringe; Spikes keeps the longer asymmetric
+        # fall. The distinction remains visible at ordinary combat distance.
+        fringe=([(-.049,.002,.016),(-.012,.009,.022),(.025,-.004,.017)]
+                if style=='Crew' else
+                [(-.058,.008,.022),(-.031,.019,.033),(-.004,.006,.040),(.026,-.006,.025)])
+        for x, fall, sweep in fringe:
+            end_z=(1.716 if style=='Crew' else 1.682)-fall
             tube([(x,-.025,1.764),(x+sweep*.28,-.065,1.750),
-                  (x+sweep*.70,-.094,1.714-fall*.35),
-                  (x+sweep,-.104,1.682-fall)],
-                 [.024,.022,.014,.0008], [.023,.021,.014,.0009])
+                  (x+sweep*.70,-.094,max(end_z+.012,1.714-fall*.35)),
+                  (x+sweep,-.104,end_z)],
+                 [.025,.023,.014,.0011], [.023,.021,.014,.0011])
     elif style=='Slick':
+        # Start the sweep down at the hairline and hug the crown. A higher
+        # disconnected middle used to read as a comb resting on a round cap.
         for i,x in enumerate([-.063,-.040,-.015,.010,.035,.058]):
-            lift=(.004,.015,.023,.020,.012,.001)[i]
-            tube([(x,-.056,1.747),(x+.012,-.003,1.776+lift),
-                  (x+.022,.064,1.765+lift),(x+.026,.120,1.709+lift*.40)],
-                 [.024,.023,.017,.0008], [.023,.021,.016,.0009])
+            edge=abs(x)/.063
+            lift=(.001,.004,.006,.005,.003,0.)[i]
+            tube([(x,-.090,1.718-edge*.005),
+                  (x+.004,-.049,1.762-edge*.012),
+                  (x+.010,.037,1.776+lift-edge*.009),
+                  (x+.018,.118,1.708+lift)],
+                 [.022,.026,.024,.0011], [.024,.026,.021,.0011])
     elif style=='Mohawk':
+        # A wide buried root and overlapping shoulder join the narrow crest
+        # continuously into the forehead/crown rather than a separate horn.
         for y,tip in [(-.050,1.791),(-.020,1.812),(.015,1.821),(.050,1.801),(.079,1.774)]:
-            tube([(0,y,1.757),(.012,y+.014,1.757+(tip-1.757)*.68),
-                  (.032,y+.039,tip)], [.021,.019,.0008], [.027,.023,.0009])
+            root=1.755-.22*abs(y)
+            tube([(0,y-.030,root),(.009,y+.002,root+(tip-root)*.62),
+                  (.025,y+.031,tip)], [.032,.027,.0011], [.032,.027,.0011])
     else:
         # Three separated tapered tail locks replace the single bulbous tube.
         for side, fall in [(-1,.008),(0,0.),(1,.016)]:
@@ -176,9 +199,11 @@ def hair_mesh(name, rig, style, surface=None):
                   (side*.024+.014,.141,1.555-fall)],
                  [.015,.013,.007,.0004], [.020,.016,.008,.0005])
         for side in (-1,1):
-            tube([(side*.061,-.032,1.720),(side*.073,-.045,1.673),
-                  (side*.076,-.054,1.627),(side*.067,-.059,1.597)],
-                 [.013,.010,.005,.00035], [.018,.013,.007,.00045])
+            # Forward, broad cheek-framing planes remain outside the cap and
+            # temple. They taper below the cheek without crossing the eyes.
+            tube([(side*.045,-.038,1.755),(side*.069,-.078,1.725),
+                  (side*.075,-.090,1.662),(side*.068,-.067,1.608)],
+                 [.023,.023,.016,.0008], [.024,.023,.016,.0009])
 
     # Small swept secondary blades keep a broken silhouette without turning
     # the scalp into a helmet or covering the ears. Same Head weights/material.

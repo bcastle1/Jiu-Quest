@@ -55,7 +55,7 @@ The body proportions below the neck, 65-bone rig, four-influence skinning and
 paired choreography are retained.
 
 Hair and eyebrows in the runtime assets are new JiuQuest-authored solid meshes.
-Crew and Spikes have swept clumps and a four-lock fringe; Slick sweeps back;
+Crew and Spikes have swept clumps, with three- and four-lock fringes respectively; Slick sweeps back;
 Mohawk has a narrow crest; Long uses a tied ponytail and face-framing locks.
 Bald hides hair while retaining the brows. These meshes use opaque cosmetic
 materials without alpha overdraw. They are created during
@@ -64,7 +64,7 @@ export; the original source scalp/hair/brow meshes in the blend are not edited.
 The next character-detail authoring pass gives those hair locks flattened
 cross-sections oriented along each curve, asymmetric crest heights and short
 temple locks. Existing style names, shared opaque hair materials and Head-bone
-weights are preserved. The covered-body mask and source blend remain unchanged.
+weights are preserved. That pass retained the covered-body mask and source blend.
 
 The prior reviewed pair shared four embedded images: skin 2K JPEG, eyes 256 JPEG,
 cotton normal 512 JPEG and roughness 256 export. Skin keeps its measured
@@ -115,6 +115,14 @@ onto the finished face, with a small normal clearance; unfitted strips are
 omitted as a whole instead of leaving disconnected dark segments. All five hair
 slots and bald behavior remain available.
 
+The layered-hair refinement adds eight broad swept ridges to the fitted scalp,
+an irregular edge and style-specific hairlines. Crew retains a short fringe;
+Spikes has a longer asymmetric fringe. Slick and Mohawk roots overlap the scalp
+instead of sitting above it as a separate crest, and Long has wider forward
+face-framing locks. Existing face/brow geometry, the hair UV mapping scheme,
+opaque materials and Head-only skinning are retained; no new map or renderer
+is introduced.
+
 The gi has slimmer upper sleeves, flatter shoulder reinforcement and directional
 compression folds instead of complete padded rings. Sleeve rest-body clearance is
 checked during export, but does not establish collision-free animated contact.
@@ -127,6 +135,14 @@ Small dorsal knuckle and tendon relief is sculpted into existing hand vertices.
 It adds no geometry or maps and leaves palm contact surfaces, wrist seams,
 topology, UVs and weights unchanged. The rest-mesh safety check measured a
 maximum 2.283 mm displacement; skinned poses still require visual review.
+
+The covered-skin mask no longer exempts every rest-pose vertex above 1.49 m:
+that height also includes the upper arms in the source T pose. The existing
+head/neck, hands/feet and V-shaped chest-opening masks are retained. The source
+comparison removes 259 covered vertices and 213 quads while preserving all
+10,072 explicitly exposed vertices, surviving positions, UV corners, skin
+weights and faces. Boundary normals are recalculated. This targets sleeve
+intrusions without enlarging the garment; animated contact still needs review.
 
 Original skin/eye photographs, the source blend, the 65-bone rest skeleton,
 inverse binds and motion channels remain unchanged. Exported geometry and

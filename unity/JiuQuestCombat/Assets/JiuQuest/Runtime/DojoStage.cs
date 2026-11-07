@@ -72,7 +72,7 @@ namespace JiuQuest.Combat
             var moss = Material("Alpine moss verge", new Color(.21f, .30f, .22f), .025f);
             distantMaterials.UnionWith(new[] { farRock, nearRock, snow, pine, moss });
             // Shared maps keep surface detail independent of material/draw count.
-            // With full mip chains these nine RGBA maps occupy about 1.84 MB.
+            // With full mip chains these eleven RGBA maps occupy about 2.27 MB.
             var slate = SurfaceMaps(SummitSurface.Slate, 256);
             var cedar = SurfaceMaps(SummitSurface.Cedar, 256);
             var weave = SurfaceMaps(SummitSurface.Tatami, 128);
@@ -80,6 +80,13 @@ namespace JiuQuest.Combat
             ApplySurface(stone, slate); ApplySurface(stoneLight, slate); ApplySurface(dark, slate);
             ApplySurface(timber, cedar); ApplySurface(matA, weave); ApplySurface(matB, weave);
             ApplySurface(gold, bronze);
+            // Broad stratified rock and bough paint stay readable at background
+            // distance. Reuse each map across its material family, without more draws.
+            var alpine = SurfaceMaps(SummitSurface.Alpine, 256);
+            ApplySurface(farRock, alpine); ApplySurface(nearRock, alpine);
+            var boughPaint = SurfaceMaps(SummitSurface.Pine, 128);
+            boughPaint.Color.wrapMode = TextureWrapMode.Clamp;
+            ApplySurface(pine, boughPaint);
             matA.SetTextureOffset("_BaseMap", new Vector2(.5f, .5f));
             matB.SetTextureOffset("_BaseMap", new Vector2(.5f, .5f));
             moss.SetTexture("_BaseMap", slate.Color);
@@ -315,7 +322,7 @@ namespace JiuQuest.Combat
             return material;
         }
 
-        enum SummitSurface { Slate, Cedar, Tatami, Bronze, Banner }
+        enum SummitSurface { Slate, Cedar, Tatami, Bronze, Banner, Alpine, Pine }
 
         struct StageSurfaceMaps
         {
@@ -386,6 +393,27 @@ namespace JiuQuest.Combat
                         color = Color.Lerp(new Color(.92f, .70f, .39f), new Color(.24f, .43f, .39f), patina * .78f);
                         color *= .87f + grain * .13f;
                         metal[y * size + x] = new Color(Mathf.Lerp(.85f, .12f, patina), 0, 0, Mathf.Lerp(.78f, .28f, patina));
+                    }
+                    else if (surface == SummitSurface.Alpine)
+                    {
+                        // Layered mineral bands and incised channels, deliberately
+                        // broader than nearby masonry grain to survive distant mip levels.
+                        float strata = Mathf.Sin(Mathf.PI * 2 * (v * 5 + u * 2) + broad * 2.6f) * .5f + .5f;
+                        float channel = 1 - SmoothBand(.035f, .16f,
+                            Mathf.Abs(Mathf.Sin(Mathf.PI * 2 * u * 3 + broad * 1.7f + medium * .5f)));
+                        float mineral = SmoothBand(.58f, .82f, medium);
+                        float value = .66f + broad * .22f + strata * .11f - channel * .15f;
+                        color = new Color(value + mineral * .045f, value + mineral * .025f, value + .025f);
+                    }
+                    else if (surface == SummitSurface.Pine)
+                    {
+                        // The solid bough UVs run root-to-tip. A dark central spine,
+                        // lighter growing tips and diagonal needle groups replace flat tiers.
+                        float edge = Mathf.Abs(u - .5f) * 2;
+                        float spine = 1 - SmoothBand(.025f, .16f, edge);
+                        float needles = Mathf.Sin((v * 9 - edge * 3) * Mathf.PI * 2) * .5f + .5f;
+                        float value = .60f + v * .20f + edge * .11f + broad * .10f + needles * .065f - spine * .12f;
+                        color = new Color(value * .88f, value, value * .93f);
                     }
                     else
                     {
@@ -590,7 +618,7 @@ namespace JiuQuest.Combat
                     float angle = center + (member - 2.5f) * .055f + Mathf.Sin(seed * 7) * .045f;
                     float radius = 14.5f + (seed * 13 % 9);
                     var position = ShelfPoint(angle, radius) - Vector3.up * .03f;
-                    float scale = .56f + (seed * 7 % 7) * .11f;
+                    float scale = .56f + (seed * 5 % 9) * .065f;
                     float width = scale * (.78f + (seed % 4) * .12f);
                     var rotation = Quaternion.Euler(Mathf.Sin(seed) * 2, seed * 71, Mathf.Cos(seed * 3) * 2);
                     var proportions = new Vector3(width, scale, width);
@@ -846,7 +874,9 @@ namespace JiuQuest.Combat
                     vertices.Add(Vector3.Lerp(elbow, tip, .65f) + side * .83f);
                     vertices.Add(elbow + side * .80f);
                     vertices.Add(elbow + Vector3.up * (.17f - layer * .009f));
-                    for (int point = 0; point < 7; point++) uv.Add(new Vector2(vertices[start + point].x, vertices[start + point].z));
+                    uv.AddRange(new[] { new Vector2(.5f, 0), new Vector2(.12f, .38f),
+                        new Vector2(0, .72f), new Vector2(.5f, 1), new Vector2(1, .75f),
+                        new Vector2(.88f, .38f), new Vector2(.5f, .48f) });
                     for (int edge = 0; edge < 6; edge++)
                         triangles.AddRange(new[] { start + 6, start + (edge + 1) % 6, start + edge });
                     for (int edge = 1; edge < 5; edge++)

@@ -54,7 +54,11 @@ def hide_covered_body(body):
         neck=sum(g.weight for g in vertex.groups if groups[g.group] in {'neck_01','Head'})
         v_width=.016+.061*max(0,min(1,(p.z-1.205)/.30))
         chest=p.z>1.19 and p.z<1.52 and p.y<-.055 and abs(p.x)<v_width
-        if terminal>.10 or neck>.06 or p.z>1.49 or chest:visible.add(vertex.index)
+        # In the rest T-pose, upper arms also reach above z=1.49. A blanket
+        # height exemption retained covered deltoid/elbow skin, which could
+        # intrude through the bent sleeve. Keep the exposed anatomical regions
+        # by their existing bone influence and lapel-opening mask instead.
+        if terminal>.10 or neck>.06 or chest:visible.add(vertex.index)
     mesh=bmesh.new();mesh.from_mesh(body.data);mesh.verts.ensure_lookup_table()
     delete=[face for face in mesh.faces if not any(v.index in visible for v in face.verts)]
     bmesh.ops.delete(mesh,geom=delete,context='FACES')
