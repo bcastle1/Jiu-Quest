@@ -28,13 +28,14 @@ def face_detail_offset(co):
     mask *= smoothstep(-.145, -.120, y) * (1. - smoothstep(-.060, -.035, y))
     mask *= smoothstep(1.550, 1.565, z) * (1. - smoothstep(1.667, 1.678, z))
 
-    # Recover a little jaw width and chin projection rather than enlarging the
-    # whole head. A shallow lower-cheek recess separates cheekbone and jaw.
+    # A broader mandibular plane and projected chin give the reference's adult
+    # athletic profile. Keep neck/collar fit fixed; a lower-cheek recess makes
+    # the jaw readable without enlarging the head or adding a muscle shell.
     jaw = math.exp(-((abs(x)-.046)/.025)**4 - ((z-1.583)/.018)**2)
     chin = math.exp(-(x/.028)**4 - ((z-1.576)/.013)**2)
     lower_cheek = math.exp(-((abs(x)-.039)/.023)**2 - ((z-1.607)/.014)**2)
-    dx = .0032 * math.tanh(x/.018) * jaw
-    dy = -.0034 * chin + .0013 * lower_cheek
+    dx = .0046 * math.tanh(x/.018) * jaw
+    dy = -.0041 * chin + .0017 * lower_cheek
     dz = -.0014 * chin
 
     # Modest bridge/tip and supraorbital relief give the profile real volume.
@@ -44,8 +45,8 @@ def face_detail_offset(co):
     nose_tip = math.exp(-(x/.009)**2 - ((z-1.616)/.012)**2)
     brow = math.exp(-((abs(x)-.031)/.026)**4 - ((z-1.661)/.011)**2)
     orbit = math.exp(-((abs(x)-.0314)/.026)**4 - ((z-1.6434)/.024)**4)
-    dy -= .0028 * bridge + .0017 * nose_tip + .0020 * brow
-    dz -= .085 * (z-1.6434) * orbit
+    dy -= .0028 * bridge + .0017 * nose_tip + .0025 * brow
+    dz -= .120 * (z-1.6434) * orbit
     offset = Vector((dx, dy, dz)) * mask
     # Explicit bound also applies if the local shaping fields are retuned.
     if offset.length > .006:
