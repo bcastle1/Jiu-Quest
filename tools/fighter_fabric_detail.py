@@ -25,10 +25,13 @@ def fold_height(panel, u, v):
         # not form horizontal rings around the shoulder or a padded chest.
         for anchor, lean, amplitude in ((.12, .19, .0048), (.36, -.13, .0035),
                                          (.64, .15, .0041), (.87, -.18, .0051)):
-            center = anchor + lean * (v - .35) + .009 * math.sin(v * 8.)
+            # A tied waist pinches each fold to a narrow origin; the cloth
+            # opens into wider, curved valleys toward chest and jacket skirt.
+            center = anchor + lean * (v - .35) + .030 * math.sin((v - .35) * 5.)
             distance = (u - center + .5) % 1. - .5
-            value += ridge(distance, .018 + .014 * abs(v - .35), amplitude)
-        return value * window * 1.35
+            width = .012 + .052 * abs(v - .35)
+            value += ridge(distance, width, amplitude)
+        return .0115 * math.tanh(value * window * 1.35 / .0115)
     if panel == 'sleeve':
         window = smooth(.28, .37, v) * (1. - smooth(.89, .97, v))
         compression = .12 + .88 * max(0., math.cos(angle - math.pi * .5)) ** 4
@@ -42,6 +45,11 @@ def fold_height(panel, u, v):
         # folds fade into the turned hem instead of changing the wrist fit.
         value += ridge(v - .44 - .15 * math.cos(angle), .032, .0034) * max(0., -math.cos(angle)) ** 3
         value += ridge(v - .86 - .020 * math.sin(angle * 2), .022, .0034) * (.25 + .75 * math.cos(angle) ** 2)
+        # A short crease branches from the inside elbow, fading across the
+        # circumference. It interrupts the regular three-fold spacing without
+        # encircling the sleeve or moving its wrist and shoulder openings.
+        elbow_fan = max(0., math.cos(angle - math.pi * .5)) ** 8
+        value += ridge(v - .565 - .095 * math.sin(angle - math.pi * .5), .014, -.0026) * elbow_fan
         # Smoothly bound overlapping elbow/cuff creases to 11.5 mm. A soft
         # limit retains continuous normals instead of flattening a clipped peak.
         return .0115 * math.tanh(value * window * 1.55 / .0115)
@@ -55,6 +63,13 @@ def fold_height(panel, u, v):
             value += ridge(v - center - slant * math.sin(angle), width, amplitude) * (.14 + .86 * front)
         value += ridge(v - .71 - .09 * math.sin(angle), .036, .0042) * max(0., -math.sin(angle)) ** 2
         value += ridge(v - .17 - .027 * math.cos(angle), .020, .0037) * (.25 + .75 * front)
+        # Two tapered diagonal pulls above the knee meet the longer hanging
+        # drapes. The central kneecap stays broad instead of becoming quilted.
+        thigh_window = smooth(.53, .61, v) * (1. - smooth(.77, .85, v))
+        for anchor, lean in ((.37, .20), (.63, -.17)):
+            center = anchor + lean * (v - .68)
+            distance = (u - center + .5) % 1. - .5
+            value += ridge(distance, .018 + .050 * abs(v - .68), .0031) * thigh_window
         # Longer hanging channels between hip and cuff give the trouser leg
         # weight. Unequal directions avoid a pressed dress-trouser centerline;
         # only the side/back panels receive these drapes, leaving the front

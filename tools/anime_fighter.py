@@ -33,24 +33,27 @@ def face_detail_offset(co):
     x, y, z = co
     mask = front_face_mask(co)
 
-    # A broader mandibular plane and projected chin give the reference's adult
-    # athletic profile. Keep neck/collar fit fixed; a lower-cheek recess makes
-    # the jaw readable without enlarging the head or adding a muscle shell.
+    # Measured source landmarks: the nasal tip is near z=1.604 and the
+    # mouth near z=1.575. Earlier projection at 1.576 inflated the lips while
+    # calling them the chin. Keep the true lower chin/neck below 1.550 fixed.
     jaw = math.exp(-((abs(x)-.046)/.025)**4 - ((z-1.583)/.018)**2)
-    chin = math.exp(-(x/.028)**4 - ((z-1.576)/.013)**2)
-    lower_cheek = math.exp(-((abs(x)-.039)/.023)**2 - ((z-1.607)/.014)**2)
+    cheekbone = math.exp(-((abs(x)-.044)/.023)**4 - ((z-1.623)/.012)**2)
+    buccal = math.exp(-((abs(x)-.040)/.022)**2 - ((z-1.594)/.018)**2)
+    lip = math.exp(-(x/.026)**4 - ((z-1.576)/.010)**2)
+    mouth_corner = math.exp(-((abs(x)-.023)/.012)**2 - ((z-1.575)/.011)**2)
     dx = .0046 * math.tanh(x/.018) * jaw
-    dy = -.0041 * chin + .0017 * lower_cheek
-    dz = -.0014 * chin
+    dx += .0016 * math.tanh(x/.012) * mouth_corner
+    dy = .0017 * buccal - .0013 * cheekbone + .0008 * lip
+    dz = 0.
 
-    # Modest bridge/tip and supraorbital relief give the profile real volume.
-    # The eye opening is slightly less round; eyeballs and lids share this same
-    # continuous field so the change is not a separate floating facial overlay.
-    bridge = math.exp(-(x/.011)**2 - ((z-1.636)/.024)**2)
-    nose_tip = math.exp(-(x/.009)**2 - ((z-1.616)/.012)**2)
+    # Shape the actual bridge and tip rather than extending the upper nose.
+    # The subtle cheekbone/recess pair establishes broader facial planes;
+    # existing eyelid geometry supplies the eye edge without drawn-on liner.
+    bridge = math.exp(-(x/.011)**2 - ((z-1.628)/.020)**2)
+    nose_tip = math.exp(-(x/.010)**2 - ((z-1.605)/.010)**2)
     brow = math.exp(-((abs(x)-.031)/.026)**4 - ((z-1.661)/.011)**2)
     orbit = math.exp(-((abs(x)-.0314)/.026)**4 - ((z-1.6434)/.024)**4)
-    dy -= .0028 * bridge + .0017 * nose_tip + .0025 * brow
+    dy -= .0018 * bridge + .0017 * nose_tip + .0025 * brow
     dz -= .120 * (z-1.6434) * orbit
     offset = Vector((dx, dy, dz)) * mask
     # The measured mandibular corners sit behind the anterior-face mask.
@@ -88,12 +91,12 @@ def face_warp(co, facial_detail=True):
     cheek *= 1. - smoothstep(-.030, .015, y)
     x += side * (.0028 - .0020*refinement) * cheek
     y -= (.0024 - .0018*refinement) * cheek
-    # Shallow bridge/chin planes give the adult face a readable side profile.
-    # The same continuous field reaches every facial mesh, with no raster edit.
+    # Retain the earlier base profile outside the compact face region and
+    # on hair. Inside it, remove the old lip-area projection labeled as chin.
     front = 1. - smoothstep(-.065, -.025, y)
     bridge = math.exp(-(x/.012)**2 - ((z-1.630)/.027)**2) * front
     chin = math.exp(-(x/.026)**4 - ((z-1.578)/.014)**2) * front
-    y -= .0022 * bridge + .0012 * chin
+    y -= .0022 * bridge + .0012 * chin * (1. - refinement)
     y = .0174 + (y-.0174) * (1.0 + .018*head)
     z = 1.5998 + (z-1.5998) * (1.0 + .018*head)
     result = Vector((x, y, z))
@@ -315,7 +318,7 @@ def hair_mesh(name, rig, style, surface=None):
 
 
 def eyebrows_mesh(name,rig,body):
-    """Fit continuous ink strips to the already-warped face, not a flat bridge."""
+    """Fit tapered natural brow strips to the final face; no eyeliner overlay."""
     vertices,faces=[],[]
     surface = BVHTree.FromPolygons([v.co.copy() for v in body.data.vertices],
                                    [list(p.vertices) for p in body.data.polygons])
@@ -357,12 +360,11 @@ def eyebrows_mesh(name,rig,body):
             faces.append((a,a+1,b+1,b) if side==1 else (b,b+1,a+1,a))
 
     for side in (-1,1):
-        # A flatter, tapered brow and a fine upper-lid edge preserve an adult
-        # expression. Both are still curved surface-fitted strips in 3D.
-        ribbon(side, [(.012,1.658,.0014),(.026,1.6633,.00215),
-                      (.041,1.6643,.00175),(.058,1.661,.00050)])
-        ribbon(side, [(.014,1.646,.00045),(.022,1.6507,.00065),(.032,1.6515,.00075),
-                      (.043,1.6498,.00060),(.052,1.647,.00035)])
+        # A lower, flatter brow follows the supraorbital plane with a tapered
+        # outer tail. The source already has modeled and textured eyelids;
+        # an extra dark upper-lid ribbon made the eyes read as outlined cartoons.
+        ribbon(side, [(.014,1.6583,.00085),(.026,1.6602,.00140),
+                      (.040,1.6612,.00115),(.055,1.6594,.00030)])
 
     mesh=bpy.data.meshes.new(name+'Mesh');mesh.from_pydata(vertices,[],faces);mesh.update()
     obj=bpy.data.objects.new(name,mesh);bpy.context.scene.collection.objects.link(obj)
