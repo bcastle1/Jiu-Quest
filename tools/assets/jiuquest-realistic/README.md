@@ -125,10 +125,21 @@ face-framing locks. Existing face/brow geometry, the hair UV mapping scheme,
 opaque materials and Head-only skinning are retained; no new map or renderer
 is introduced.
 
-The gi has slimmer upper sleeves, flatter shoulder reinforcement and directional
-compression folds instead of complete padded rings. Sleeve rest-body clearance is
+The latest reference pass narrows the lower hair cap, raises the side hairline
+around the ears and shapes the nape. Seven overlapping closed rear locks replace
+the exposed bowl-like silhouette with swept layers. Face, eye and eyebrow meshes
+remain unchanged. Hair still uses the same opaque map and Head-only weighting.
+
+The gi has slimmer upper sleeves and directional compression folds instead of
+complete padded rings. The separate shoulder reinforcement shells are removed;
+shallow sewn lines sit on the sleeve surface. Lapels taper toward the tied waist,
+the unbelted hem hangs slightly, and knee reinforcement stays nearly flush.
+The cloth construction atlas replaces heavy panel borders with fine stitching;
+its layout, neutral tint reference and cotton normal/roughness maps are retained.
+The recipe-derived hair filename changes, but its image payload is unchanged.
+Sleeve rest-body clearance is
 checked during export, but does not establish collision-free animated contact.
-The existing cloth UV islands, shared maps, color and stripe controls remain.
+The existing cloth UV islands, color and stripe controls remain.
 The exported cloth normal scale is reduced to keep the weave from reading as
 padding. Its linked roughness map remains authoritative. Hair uses a restrained
 runtime specular response so its painted planes do not sparkle like plastic.

@@ -41,27 +41,35 @@ def _crest(u, v, cx, cy, scale):
 
 
 def cloth_value(panel, u, v):
-    """Broad construction reads at phone size; fine weave is secondary."""
+    """Cotton construction and fine stitching without painted padded panels."""
     weave = .014 * math.sin(u * math.tau * 90) * math.sin(v * math.tau * 108)
     value = .91 + weave + .018 * math.sin(v * math.tau * 3 + .4 * math.sin(u * math.tau))
     if panel == 'torso':
         side = max(_line(u, .24, .075), _line(u, .76, .075))
         seams = max(_line(u, .16, .007), _line(u, .84, .007))
         yoke = .82 - .14 * abs(u - .5)
-        value -= .075 * side + .24 * seams + .18 * _line(v, yoke, .012)
+        value -= .045 * side + .11 * seams + .065 * _line(v, yoke, .006)
+        # A sparse thread beside the yoke reads as sewn fabric. Broad dark
+        # bands made the shoulder appear inflated regardless of its geometry.
+        yoke_stitches = .25 + .75 * max(0., math.cos(u * math.tau * 70)) ** 6
+        value += .035 * _line(v, yoke - .010, .003) * yoke_stitches
         value -= .11 * _line(v, .055, .035) + .15 * _line(v, .10, .006)
         stitches = (.35 + .65 * max(0., math.cos(v * math.tau * 43)) ** 3)
         value += .065 * max(_line(u, .175, .004), _line(u, .825, .004)) * stitches
         value -= .40 * max(_crest(u, v, .09, .68, .052), _crest(u, v, .50, .65, .082))
     elif panel == 'sleeve':
         panel_edge = (abs(u - .5) / .37) ** 4 + (abs(v - .61) / .24) ** 4
-        value -= .07 * math.exp(-panel_edge * 2) + .20 * _line(panel_edge, 1., .12)
-        value -= .12 * _line(v, .30, .012) + .15 * _line(v, .93, .035)
+        stitch = .25 + .75 * max(0., math.cos((u + v * .65) * math.tau * 60)) ** 6
+        value -= .018 * math.exp(-panel_edge * 2) + .045 * _line(panel_edge, 1., .065)
+        value += .035 * _line(panel_edge, .90, .035) * stitch
+        value -= .045 * _line(v, .30, .006) + .10 * _line(v, .93, .025)
         value += .065 * _line(v, .905, .005) * (.5 + .5 * math.cos(u * math.tau * 40))
     elif panel == 'pants':
         knee = (abs(u - .5) / .24) ** 4 + (abs(v - .49) / .18) ** 4
-        value -= .055 * math.exp(-knee * 2) + .23 * _line(knee, 1., .13)
-        value -= .16 * max(_line(u, .17, .012), _line(u, .83, .012))
+        stitch = .25 + .75 * max(0., math.cos((u + v * .8) * math.tau * 64)) ** 6
+        value -= .018 * math.exp(-knee * 2) + .055 * _line(knee, 1., .065)
+        value += .038 * _line(knee, .90, .035) * stitch
+        value -= .085 * max(_line(u, .17, .006), _line(u, .83, .006))
         value -= .12 * _line(v, .06, .035) + .16 * _line(v, .105, .006)
         value += .055 * _line(v, .12, .004) * (.5 + .5 * math.cos(u * math.tau * 48))
     else:

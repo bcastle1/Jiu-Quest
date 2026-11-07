@@ -111,31 +111,42 @@ def hair_mesh(name, rig, style, surface=None):
         top=start+(len(points)-1)*segments
         face(tuple(top+j for j in range(segments)), cap_v=1., smooth=False)
 
-    # Broad offset ridges break up the spherical shell without adding hair
-    # cards or tiny spikes. The same fitted cap is the root surface for every
-    # lock, with a shallow irregular edge instead of a straight helmet rim.
+    def scalp_anchor(point, clearance=.0045):
+        """Keep rear lock roots close to the same scalp used by the under-cap."""
+        co = Vector(point)
+        if surface is not None:
+            location, normal, _, _ = surface.find_nearest(co)
+            if location is not None and location.z > 1.62 and (co-location).dot(normal) < clearance:
+                co = location + normal * clearance
+        return tuple(co)
+
+    # The close-fitting under-cap supports overlapping solid locks. The sides
+    # lift around the ears while the center nape falls lower, avoiding a level
+    # bowl rim. Visible volume belongs to the locks, not a swollen scalp shell.
     around, rows = 32, 8
     for row in range(rows+1):
         for j in range(around):
             a=math.tau*j/around
             front=max(0.0, -math.sin(a))
-            edge_wave=.032*math.cos(5*a+.35) + .016*math.sin(3*a)
+            rear=max(0.0, math.sin(a))
+            edge_wave=.042*math.cos(5*a+.35) + .023*math.sin(3*a)
             front_trim=.74 if style=='Crew' else .64 if style in ('Slick','Mohawk') else .56
-            bottom=1.91-front_trim*front + edge_wave
+            bottom=1.78 + .22*rear*rear - front_trim*front + edge_wave
             theta=.035+(bottom-.035)*row/rows
-            co = Vector((.089*math.sin(theta)*math.cos(a),
-                         .008+.110*math.sin(theta)*math.sin(a),
+            lower=smoothstep(.72, 1.76, theta)
+            co = Vector((.089*(1.-.055*lower)*math.sin(theta)*math.cos(a),
+                         .008+.110*(1.-.060*rear*lower)*math.sin(theta)*math.sin(a),
                          1.670+.102*math.cos(theta)))
             if surface is not None:
                 location, normal, _, _ = surface.find_nearest(co)
                 if location is not None and location.z > 1.62 and (co-location).dot(normal) < .0032:
                     co = location + normal * .0032
-            # Eight wide, gently swept ridges produce discrete hair planes.
-            # Relief is outward-only, retaining the checked skin clearance.
+            # Shallow root ridges stay below the authored rear layers. Relief
+            # remains outward-only after the scalp-clearance correction.
             phase=(j-row*.28)/4.
             ridge=1.-abs(2.*(phase-math.floor(phase)) - 1.)
             outward=Vector((co[0]/.089,(co[1]-.008)/.110,(co[2]-1.670)/.102)).normalized()
-            relief=(.0012+.0058*ridge)*math.sin(theta)**1.3
+            relief=(.0008+.0024*ridge)*math.sin(theta)**1.3
             co += outward*relief
             vertices.append(tuple(co))
             vertex_uvs.append((j / around, .18 + .64 * (1. - row / rows)))
@@ -143,6 +154,22 @@ def hair_mesh(name, rig, style, surface=None):
         for j in range(around):
             a=row*around+j;b=row*around+(j+1)%around
             face((a,a+around,b+around,b))
+
+    # Seven broad, staggered rear locks turn the exposed back of the old cap
+    # into a swept layered silhouette. Each lock is a closed six-sided wedge,
+    # not an alpha card; the existing root-to-tip atlas and Head weights apply.
+    # Long hair's shorter rear layers meet its existing tied tail naturally.
+    for i, x in enumerate((-.058, -.039, -.020, 0., .019, .038, .056)):
+        edge=abs(x)/.058
+        sweep=.010 + .004*math.sin(i*1.7)
+        nape=1.642 + edge*.017 + (.027 if style=='Long' else 0.)
+        nape += .004*math.sin(i*2.1)
+        points=[(x,.029,1.755-edge*.011),
+                (x+sweep*.35,.083,1.739-edge*.013),
+                (x+sweep*.72,.112,1.692+edge*.006),
+                (x+sweep,.100,nape)]
+        tube([scalp_anchor(point) for point in points],
+             [.017,.019,.013,.0007], [.013,.015,.010,.0008])
 
     if style in ('Crew', 'Spikes'):
         # Keep the broad middle of each swept lock above the cap. Previously

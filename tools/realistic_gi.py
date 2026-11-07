@@ -144,19 +144,23 @@ def build_realistic_gi(body, armature, root, materials, prefix):
     bone_head = lambda name: bones[name].head_local.copy()
     pelvis = bone_head('pelvis')
     shoulder_z = bone_head('upperarm_l').z
+    armhole_x = min(abs(bone_head('upperarm_l').x), abs(bone_head('upperarm_r').x))
     neck_z = bone_head('neck_01').z + 0.040
     waist_z = pelvis.z + 0.105
     hem_z = pelvis.z - 0.115
     center_y = 0.018
     # The full body is still present here. Fit the narrowed sleeves to their
     # rest surface before covered skin is removed by realistic_fighter. Keep
-    # the established torso envelope and buried armhole overlap unchanged.
+    # the buried armhole overlap; the upper torso and sleeves share the same
+    # bounded 6 mm skin clearance after shaping the cloth envelope.
     body_points = [vertex.co.copy() for vertex in body.data.vertices]
     body_faces = [tuple(face.vertices) for face in body.data.polygons]
     body_surface = BVHTree.FromPolygons(body_points, body_faces)
     clearance_report = {'fighter': prefix, 'sampleQueries': 0,
                         'correctedSamples': 0, 'maxCorrectionMeters': 0.,
-                        'maxCorrectionRegion': None, 'limitMeters': .025}
+                        'maxCorrectionRegion': None, 'limitMeters': .025,
+                        'torsoArmholeBoundaryMeters': armhole_x,
+                        'torsoArmholeFadeMeters': .045}
 
     def clear_body(point, coverage, region):
         clearance_report['sampleQueries'] += 1
@@ -198,9 +202,11 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         crown_z = shoulder_z + .035
         if z < crown_z:
             t = (z - waist_z) / (crown_z - waist_z)
-            return mix(.195, .246, t), mix(.13, .151, t)
+            # Ease remains below the arms, but the upper chest no longer grows
+            # into a broad inflated yoke immediately below the neckline.
+            return mix(.195, .236, t), mix(.13, .140, t)
         t = smooth((z - crown_z) / (neck_z - crown_z))
-        return mix(.246, .073, t), mix(.151, .072, t)
+        return mix(.236, .073, t), mix(.140, .072, t)
 
     for name in ('gi_top', 'gi_pants', 'belt'):
         cotton_material(materials[name], normal_strength=.15 if name == 'belt' else .16)
@@ -229,8 +235,23 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         diagonal = .76 - .18 * abs(math.cos(theta))
         folds -= .0032 * math.exp(-((t - diagonal) / .042) ** 2) * side
         folds += .0016 * math.exp(-((t - diagonal + .045) / .055) ** 2) * side
-        point = Vector(((rx + folds) * math.sin(theta), center_y - (ry + folds) * math.cos(theta), z))
-        return point, (u * 5.5, t * 3.8), torso_weights(z)
+        # A small unbelted skirt drop breaks the rigid cylindrical hem. The
+        # waist and opening stay fixed, preserving belt and exposed-chest fit.
+        skirt = (1. - smooth(t / .24)) * (.004 + .004 * math.cos(theta) ** 2)
+        point = Vector(((rx + folds) * math.sin(theta), center_y - (ry + folds) * math.cos(theta), z - skirt))
+        # Keep the reviewed neckline/V opening width; only the narrowed upper
+        # torso away from that exposed chest boundary needs projection.
+        crown_z = shoulder_z + .035
+        upper_fit = smooth((z - waist_z - .045) / .15) * (1. - smooth((z - crown_z) / (neck_z - crown_z)))
+        opening_fit = smooth((abs(point.x) - edge_x - .024) / .045)
+        # The side of this grid is deliberately buried under the sleeve. Its
+        # nearest body surface can be the underside of the T-pose upper arm,
+        # whose downward normal would pull the jacket into the armhole. Limit
+        # torso fitting to chest/back inside the actual shoulder joints and
+        # fade before that junction; sleeve fitting still covers the arms.
+        armhole_fit = 1. - smooth((abs(point.x) - armhole_x + .045) / .045)
+        point = clear_body(point, upper_fit * opening_fit * armhole_fit, 'torso')
+        return point, (u * 5.5, t * 3.8), torso_weights(point.z)
     jacket.grid(42, 72, torso, detail=lambda t, u: panel_uv('torso', u, t))
 
     # Raised hems are part of the skinned jacket, not rigid attachment bars.
@@ -247,21 +268,26 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             z = mix(neck_z, waist_z - .04, t)
             x = side * (.066 * (z - v_bottom) / (neck_z - v_bottom))
             rx, ry = torso_radius(z)
-            y = center_y - ry * math.sqrt(max(.05, 1. - (x / rx) ** 2)) - .011
-            width = .046
+            # Collar width and roll taper into the tied waist, rather than
+            # behaving as two uniformly raised rigid rails down the chest.
+            width = .043 + .007 * math.sin(t * math.pi) - .005 * smooth((t - .73) / .27)
             across = (u - .5) * width
-            # A broad rolled face and two shallow edge channels reveal cotton
-            # construction without adding a contrasting material or hard trim.
-            roll = .005 * math.sin(u * math.pi) ** .85
-            channel = .0012 * (math.exp(-((u - .16) / .045) ** 2)
+            lapel_x = x + across
+            y = center_y - ry * math.sqrt(max(.05, 1. - (lapel_x / rx) ** 2)) - .007
+            # The left panel overlaps the right below the V; a shallow bend
+            # follows cloth tension toward the knot without closing the neck.
+            overlap = .002 * smooth((t - .60) / .28) * (1. if side > 0 else 0.)
+            drape = .0025 * math.sin(t * math.pi) * math.sin(u * math.pi)
+            roll = .0033 * math.sin(u * math.pi) ** .85
+            channel = .0007 * (math.exp(-((u - .16) / .045) ** 2)
                               + math.exp(-((u - .84) / .045) ** 2))
-            point = Vector((x + across, y - roll + channel, z + across * side * .31))
+            point = Vector((lapel_x, y - roll - drape - overlap + channel, z + across * side * .31))
             return point, (u * .45, t * 3.6), torso_weights(z)
         jacket.grid(24, 9, lapel, reverse=True, detail=lambda t, u: panel_uv('trim', u, t))
         for seam_u in (.10, .90):
             def lapel_seam(t, u, seam_u=seam_u, sample=lapel):
                 point, uv, weights = sample(t, seam_u + (u - .5) * .045)
-                point.y -= .0013 + .0008 * math.sin(u * math.pi)
+                point.y -= .0009 + .0005 * math.sin(u * math.pi)
                 return point, uv, weights
             jacket.grid(24, 2, lapel_seam, reverse=True,
                         detail=lambda t, u, seam_u=seam_u: panel_uv('trim', seam_u + (u - .5) * .045, t))
@@ -277,23 +303,31 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             start = shoulder - (wrist - shoulder).normalized() * .155
             center = start.lerp(wrist, t * .97)
             angle = u * TAU
-            radius = mix(.085, .056, t) + .002 * math.sin(t * math.pi)
+            radius = mix(.082, .056, t) + .001 * math.sin(t * math.pi)
             radius *= mix(.40, 1., smooth(t / .21))
-            fold = .0008 * math.sin(angle * 7 + t * 10)
+            fold = .0006 * math.sin(angle * 5 + t * 8)
             elbow_t = (elbow - start).length / (wrist - start).length
             front = max(0., math.sin(angle) * (1. if suffix == 'l' else -1.)) ** 2
             underarm = max(0., -math.cos(angle)) ** 3
             # Offset compression creases, rather than complete rippled rings,
             # make the elbow read as folded cotton instead of a padded tube.
             crease = elbow_t - .045 + .028 * math.cos(angle)
-            fold -= .0038 * math.exp(-((t - crease) / .038) ** 2) * (.25 + .75 * front)
-            fold += .0022 * math.exp(-((t - crease - .045) / .043) ** 2) * (.25 + .75 * front)
-            fold -= .0023 * math.exp(-((t - .32 - .035 * math.sin(angle)) / .052) ** 2) * underarm
+            fold -= .0045 * math.exp(-((t - crease) / .044) ** 2) * (.15 + .85 * front)
+            fold += .0032 * math.exp(-((t - crease - .055) / .055) ** 2) * (.15 + .85 * front)
+            fold -= .0030 * math.exp(-((t - .32 - .065 * math.sin(angle)) / .060) ** 2) * underarm
+            # Shoulder construction is sewn into this surface. There is no
+            # second floating reinforcement shell to silhouette as armor.
+            raglan = .29 + .075 * math.sin(angle)
+            fold -= .0010 * math.exp(-((t - raglan) / .018) ** 2) * max(0., math.cos(angle))
             # A narrow underarm seam and the existing turned cuff provide
             # construction detail using the same sleeve grid and UV islands.
             fold -= .0012 * math.exp(-((math.cos(angle) + 1.) / .10) ** 2) * smooth(t / .3)
             fold += .0020 * math.exp(-((t - .965) / .028) ** 2)
-            oval = mix(1.075, 1.025, smooth(t))
+            oval = mix(1.035, 1.025, smooth(t))
+            # Loose cotton hangs slightly below the arm instead of describing
+            # a perfectly centered padded tube; fade out before the wrist.
+            hang = .005 * math.sin(t * math.pi) ** 2 * (1. - smooth((t - .72) / .22))
+            center -= basis_a * hang
             point = center + (basis_a * math.cos(angle) + basis_b * math.sin(angle) * oval) * (radius + fold)
             point = clear_body(point, smooth((t - .20) / .14), 'sleeve_' + suffix)
             low = smooth((t - elbow_t + .11) / .22)
@@ -311,21 +345,6 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             point += (point - center).normalized() * (.0015 + .0018 * math.sin(t * math.pi))
             return point, uv, weights
         jacket.grid(3, 28, cuff, detail=lambda t, u: panel_uv('sleeve', u, mix(.944, .989, t)))
-
-        # Reinforcement follows the shoulder surface and shares its body-derived
-        # weights. It is joined before the jacket's single armature modifier.
-        def shoulder_panel(t, u, sample=sleeve, shoulder=shoulder, wrist=wrist):
-            sleeve_t = mix(.25, .44, t)
-            angle_u = mix(-.145, .145, u)
-            point, uv, weights = sample(sleeve_t, angle_u)
-            start = shoulder - (wrist - shoulder).normalized() * .155
-            center = start.lerp(wrist, sleeve_t * .97)
-            # A flat stitched reinforcement tapers into the sleeve. Raising its
-            # center previously created a separate rounded shoulder pad.
-            edge = math.sin(t * math.pi) * math.sin(u * math.pi)
-            point += (point - center).normalized() * (.0007 + .0005 * edge)
-            return point, uv, weights
-        jacket.grid(8, 10, shoulder_panel, detail=lambda t, u: panel_uv('trim', u, t))
 
     belt = ClothMesh()
     def belt_wrap(t, u):
@@ -420,15 +439,23 @@ def fitted_trousers(body, armature, material, prefix, waist_z):
         lower_blend = smooth((.94-p.z)/.13)
         if length > .0001:
             angle = math.atan2(delta.y,delta.x)
-            desired = mix(.107,.070,t) + .0017*math.sin(t*39+angle*3)
+            # Keep loose trouser ease, but exchange repeated circular ripples
+            # for broad directional drape and localized bend compression.
+            desired = mix(.107, .070, t) - .002 * math.cos(angle * 2)
+            desired += .0013 * math.sin(angle * 3 + t * 8)
             knee_z = armature.data.bones['calf_' + side].head_local.z
             knee_t = (hip.z - knee_z) / (hip.z - ankle.z)
-            # Broad compression folds and a softly raised front knee panel are
-            # sculpted into the existing trouser vertices, not floating pads.
-            desired += .0040 * math.sin(t * 24 + angle * 2) * math.exp(-((t - knee_t) / .12) ** 2)
-            front = max(0., -math.sin(angle)) ** 5
+            front = max(0., -math.sin(angle)) ** 3
+            knee_crease = knee_t + .028 * math.cos(angle)
+            desired -= .0035 * math.exp(-((t - knee_crease) / .044) ** 2) * (.25 + .75 * front)
+            desired += .0030 * math.exp(-((t - knee_crease - .055) / .060) ** 2) * (.25 + .75 * front)
+            # The same knee fabric remains reinforced, but its geometry is
+            # nearly flush instead of a raised rounded protective pad.
             panel = 1. - smooth((abs(p.z - knee_z) - .055) / .035)
-            desired += .0035 * panel * front
+            desired += .0010 * panel * front
+            # One oblique shin fold dies away toward both side seams.
+            shin = knee_t + .24 + .035 * math.cos(angle)
+            desired += .0025 * math.exp(-((t - shin) / .045) ** 2) * front
             cuff_t = (hip.z - .155) / (hip.z - ankle.z)
             desired += .0030 * math.exp(-((t - cuff_t) / .018) ** 2)
             inflated = center + delta.normalized()*max(length+.009,desired)
