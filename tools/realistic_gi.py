@@ -2,7 +2,8 @@
 
 Jacket panels are authored separately; trousers reshape the fitted pelvis mesh
 to preserve a continuous crotch and knee skinning while adding garment ease.
-The cotton normal/roughness maps are CC0 ambientCG Fabric042; see assets README.
+Fold normals are original panel-aligned relief; the repeating cotton roughness
+map is CC0 ambientCG Fabric042. See the assets README.
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 from original_surface_maps import panel_uv, ensure_surface_map
+from fighter_fabric_detail import fold_height
 
 TAU = math.tau
 ROOT = Path(__file__).resolve().parent
@@ -147,7 +149,7 @@ def cotton_material(material, *, normal_strength=0.15):
     links.new(panel_texture.outputs['Color'], shader.inputs['Base Color'])
     fabric_coordinates = nodes.new('ShaderNodeUVMap'); fabric_coordinates.uv_map = 'UVMap'
     texture_dir = ROOT / 'assets/jiuquest-gi/Fabric042'
-    normal_path = texture_dir / 'Fabric042_1K-JPG_NormalGL.jpg'
+    normal_path = ensure_surface_map('cloth-normal', ROOT / 'assets/jiuquest-realistic/textures')
     rough_path = texture_dir / 'Fabric042_1K-JPG_Roughness.jpg'
     if not normal_path.exists() or not rough_path.exists():
         raise FileNotFoundError('The approved cotton texture maps are missing')
@@ -156,9 +158,11 @@ def cotton_material(material, *, normal_strength=0.15):
         image.colorspace_settings.name = 'Non-Color'
         node = nodes.new('ShaderNodeTexImage'); node.name = label; node.image = image
         node.extension = 'REPEAT'
-        links.new(fabric_coordinates.outputs['UV'], node.inputs['Vector'])
+        coordinates = panel_coordinates if label == 'Cotton normal' else fabric_coordinates
+        links.new(coordinates.outputs['UV'], node.inputs['Vector'])
         if label == 'Cotton normal':
             normal = nodes.new('ShaderNodeNormalMap')
+            normal.uv_map = 'JQ_PanelUV'
             normal.inputs['Strength'].default_value = normal_strength
             links.new(node.outputs['Color'], normal.inputs['Color'])
             links.new(normal.outputs['Normal'], shader.inputs['Normal'])
@@ -238,7 +242,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         return mix(.224, .073, t), mix(.135, .072, t)
 
     for name in ('gi_top', 'gi_pants', 'belt'):
-        cotton_material(materials[name], normal_strength=.15 if name == 'belt' else .16)
+        cotton_material(materials[name], normal_strength=.35 if name == 'belt' else 1.30)
 
     jacket = ClothMesh()
     v_bottom = 1.205
@@ -267,6 +271,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         diagonal = .76 - .18 * abs(math.cos(theta))
         folds -= .0032 * math.exp(-((t - diagonal) / .042) ** 2) * side
         folds += .0016 * math.exp(-((t - diagonal + .045) / .055) ** 2) * side
+        folds += fold_height('torso', u, t)
         # A small unbelted skirt drop breaks the rigid cylindrical hem. The
         # waist and opening stay fixed, preserving belt and exposed-chest fit.
         skirt = (1. - smooth(t / .24)) * (.004 + .004 * math.cos(theta) ** 2)
@@ -338,7 +343,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             rx, ry = torso_radius(z)
             # Collar width and roll taper into the tied waist, rather than
             # behaving as two uniformly raised rigid rails down the chest.
-            width = .043 + .007 * math.sin(t * math.pi) - .005 * smooth((t - .73) / .27)
+            width = .050 + .009 * math.sin(t * math.pi) - .005 * smooth((t - .73) / .27)
             across = (u - .5) * width
             lapel_x = x + across
             y = center_y - ry * math.sqrt(max(.05, 1. - (lapel_x / rx) ** 2)) - .007
@@ -346,7 +351,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             # follows the chest toward the knot, not a uniformly inflated rail.
             overlap = .002 * smooth((t - .60) / .28) * (1. if side > 0 else 0.)
             drape = .0018 * math.sin(t * math.pi) * math.sin(u * math.pi)
-            roll = .0023 * math.sin(u * math.pi) ** 1.4
+            roll = .0033 * math.sin(u * math.pi) ** 1.4
             # Stitch channels belong to this collar surface. Independent thin
             # solidified ribbons had free ends at the shoulder and could pull
             # apart from their supporting panel under different skin weights.
@@ -368,7 +373,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             start = shoulder - (wrist - shoulder).normalized() * .155
             center = start.lerp(wrist, t * .97)
             angle = u * TAU
-            radius = mix(.082, .056, t) + .001 * math.sin(t * math.pi)
+            radius = mix(.091, .069, t) + .001 * math.sin(t * math.pi)
             radius *= mix(.40, 1., smooth(t / .21))
             # Keep the buried shoulder join, but reduce the rounded outer
             # upper sleeve so the gi follows the deltoid without a padded cap.
@@ -401,6 +406,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             fold -= .0024 * max(0., math.cos(angle - seam_angle)) ** 14 * fold_window
             fold += .0009 * max(0., math.cos(angle - seam_angle - .28)) ** 18 * fold_window
             fold += .0013 * math.exp(-((t - .965) / .028) ** 2)
+            fold += fold_height('sleeve', u, t)
             oval = mix(1.035, 1.025, smooth(t))
             # Loose cotton hangs slightly below the arm instead of describing
             # a perfectly centered padded tube; fade out before the wrist.
@@ -416,7 +422,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
                 upper = smooth(t / .31)
                 weights = {'spine_03': (1. - upper) * .80, 'clavicle_' + suffix: .20 * (1. - upper), 'upperarm_' + suffix: upper}
             return point, (u * 2., t * 4.2), weights
-        jacket.grid(32, 28, sleeve, detail=lambda t, u: panel_uv('sleeve', u, t), periodic=True)
+        jacket.grid(48, 36, sleeve, detail=lambda t, u: panel_uv('sleeve', u, t), periodic=True)
         def cuff(t, u, sample=sleeve, shoulder=shoulder, wrist=wrist):
             sleeve_t = mix(.944, .989, t)
             point, uv, weights = sample(sleeve_t, u)
@@ -446,7 +452,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
     belt.grid(20, 3, knot, detail=lambda t, u: panel_uv('trim', u, t))
 
     print('JiuQuest gi rest-clearance: ' + json.dumps(clearance_report))
-    jacket_obj = jacket.create(prefix + '_GiJacket', armature, materials['gi_top'], .0035)
+    jacket_obj = jacket.create(prefix + '_GiJacket', armature, materials['gi_top'], .0045)
     transfer_cloth_weights(jacket_obj, body)
     pants_obj = fitted_trousers(body, armature, materials['gi_pants'], prefix, waist_z)
     belt_obj = belt.create(prefix + '_Belt', armature, materials['belt'], .004)
@@ -521,7 +527,7 @@ def fitted_trousers(body, armature, material, prefix, waist_z):
             angle = math.atan2(delta.y,delta.x)
             # Keep loose trouser ease, but exchange repeated circular ripples
             # for broad directional drape and localized bend compression.
-            desired = mix(.107, .070, t) - .002 * math.cos(angle * 2)
+            desired = mix(.121, .086, t) - .002 * math.cos(angle * 2)
             desired += .0013 * math.sin(angle * 3 + t * 8)
             knee_z = armature.data.bones['calf_' + side].head_local.z
             knee_t = (hip.z - knee_z) / (hip.z - ankle.z)
@@ -538,6 +544,9 @@ def fitted_trousers(body, armature, material, prefix, waist_z):
             desired += .0025 * math.exp(-((t - shin) / .045) ** 2) * front
             cuff_t = (hip.z - .155) / (hip.z - ankle.z)
             desired += .0030 * math.exp(-((t - cuff_t) / .018) ** 2)
+            panel_u = (math.atan2(delta.x, -delta.y) / TAU + .5) % 1.
+            panel_v = (p.z - .129) / (waist_z + .025 - .129)
+            desired += fold_height('pants', panel_u, panel_v)
             inflated = center + delta.normalized()*max(length+.009,desired)
             p.x = mix(p.x,inflated.x,lower_blend)
             p.y = mix(p.y,inflated.y,lower_blend)

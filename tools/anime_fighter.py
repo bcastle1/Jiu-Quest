@@ -60,15 +60,15 @@ def face_warp(co, facial_detail=True):
     cx, cy, cz = side * .0314, -.077, 1.6434
     eye = math.exp(-((x-cx)/.029)**4 - ((z-cz)/.028)**4)
     eye *= 1.0 - smoothstep(-.049, -.020, y)
-    x = cx + (x-cx) * (1.0 + .18*eye)
+    x = cx + (x-cx) * (1.0 + .08*eye)
     # A narrower adult eye and slightly raised outer corner replace the rounder
     # expression. Apply the identical warp to the face, eyeballs and lid ink.
-    z = cz + (z-cz) * (1.0 + .08*eye)
-    z += .0022 * min(1., max(-1., (abs(x) - abs(cx)) / .022)) * eye
+    z = cz + (z-cz) * (1.0 + .035*eye)
+    z += .0011 * min(1., max(-1., (abs(x) - abs(cx)) / .022)) * eye
     # A modest larger cranium and tapered jaw keep an adult athletic silhouette.
     head = smoothstep(1.515, 1.605, z)
     jaw = math.exp(-((z-1.589)/.026)**2) * (1-smoothstep(-.025, .025, y))
-    x *= (1.0 + .045*head) * (1.0 - .10*jaw)
+    x *= (1.0 + .018*head) * (1.0 - .045*jaw)
     cheek = math.exp(-((abs(x) - .047) / .024) ** 2 - ((z - 1.615) / .023) ** 2)
     cheek *= 1. - smoothstep(-.030, .015, y)
     x += side * .0028 * cheek
@@ -79,8 +79,8 @@ def face_warp(co, facial_detail=True):
     bridge = math.exp(-(x/.012)**2 - ((z-1.630)/.027)**2) * front
     chin = math.exp(-(x/.026)**4 - ((z-1.578)/.014)**2) * front
     y -= .0022 * bridge + .0012 * chin
-    y = .0174 + (y-.0174) * (1.0 + .045*head)
-    z = 1.5998 + (z-1.5998) * (1.0 + .045*head)
+    y = .0174 + (y-.0174) * (1.0 + .018*head)
+    z = 1.5998 + (z-1.5998) * (1.0 + .018*head)
     result = Vector((x, y, z))
     return result + face_detail_offset(co) if facial_detail else result
 
@@ -349,10 +349,9 @@ def eyebrows_mesh(name,rig,body):
 
 
 def stylize_anime(loaded, rig, prefix, make_material):
-    """Replace scalp hair and reshape all facial meshes in the same rest space."""
+    """Fit adult facial planes and the full authored hair silhouettes."""
     for key in ('Realistic_HairCrew','Realistic_HairSlick','Realistic_HairLong'):
-        old=loaded[key]
-        bpy.data.objects.remove(old,do_unlink=True)
+        bpy.data.objects.remove(loaded[key],do_unlink=True)
     bpy.data.objects.remove(loaded['Realistic_Eyebrows'],do_unlink=True)
     # White factor + neutral atlas lets the runtime apply selected hair color once.
     hair_material=make_material(prefix+'_Hair',(1,1,1,1),roughness=.66)

@@ -76,7 +76,7 @@ namespace JiuQuest.Combat.Tests
             Assert.That(material.shader.name, Is.Not.EqualTo(CombatMaterialGenerator.FighterShaderName));
         }
 
-        [TestCase("Skin_Ref_AA7755", .80f)]
+        [TestCase("Skin_Ref_AA7755", .94f)]
         [TestCase("Skin", 1f)]
         [TestCase("Skin_Eyes_Ref_AA7755", 1f)]
         [TestCase("Iris_Ref_557799", 1f)]
@@ -117,6 +117,28 @@ namespace JiuQuest.Combat.Tests
                     "An untextured material must not sample shader-default surface maps.");
         }
 
+        [TestCase("GiTop", true)]
+        [TestCase("GiPants_Ref_E0E4E8", true)]
+        [TestCase("Belt", true)]
+        [TestCase("BeltStripe", true)]
+        [TestCase("Skin", false)]
+        [TestCase("Hair", false)]
+        [TestCase("Eyes", false)]
+        [TestCase("Eyebrows", false)]
+        [TestCase("Patch", false)]
+        public void CottonScatterStaysOnFabricThroughCosmeticChanges(string slot, bool fabric)
+        {
+            var material = Generate("JQ_Attacker_" + slot);
+            float sheen = material.GetFloat(CombatMaterialGenerator.FabricSheen);
+            if (fabric) Assert.That(sheen, Is.InRange(.01f, .2f));
+            else Assert.That(sheen, Is.Zero, "Cotton scatter must not change facial features or hair.");
+            var original = CombatMaterialAppearance.BaseColor(material);
+            CombatMaterialAppearance.ApplyTint(material, original, material.name,
+                new FighterAppearance { giTop = "#112a58", giPants = "#151922", hairColor = "#11131c", skinTone = "#a86b4d", belt = "blue" }, true);
+            Assert.That(material.GetFloat(CombatMaterialGenerator.FabricSheen), Is.EqualTo(sheen));
+            Assert.That(material.passCount, Is.EqualTo(2), "Fabric scatter shares the existing color pass.");
+        }
+
         [Test]
         public void CloneAndRetintPreserveMapsTransformsRoughnessAndHairCutout()
         {
@@ -143,6 +165,7 @@ namespace JiuQuest.Combat.Tests
             Assert.That(clone.GetFloat(MaterialProperty.RoughnessFactor), Is.EqualTo(.68f));
             Assert.That(clone.GetFloat(CombatMaterialGenerator.SpecularStrength), Is.EqualTo(source.GetFloat(CombatMaterialGenerator.SpecularStrength)));
             Assert.That(clone.GetFloat(CombatMaterialGenerator.RimStrength), Is.EqualTo(source.GetFloat(CombatMaterialGenerator.RimStrength)));
+            Assert.That(clone.GetFloat(CombatMaterialGenerator.FabricSheen), Is.EqualTo(source.GetFloat(CombatMaterialGenerator.FabricSheen)));
             Assert.That(clone.renderQueue, Is.EqualTo((int)RenderQueue.AlphaTest));
             Assert.That(clone.GetFloat(MaterialProperty.AlphaCutoff), Is.EqualTo(.43f));
             Assert.That(clone.IsKeywordEnabled("_ALPHATEST_ON"), Is.True);

@@ -8,6 +8,7 @@ import hashlib
 import math
 import struct
 import zlib
+from fighter_fabric_detail import fold_height, panel_normal
 
 
 PANELS = {'torso': (0, 0), 'sleeve': (1, 0), 'pants': (0, 1), 'trim': (1, 1)}
@@ -98,8 +99,9 @@ def _png(width, height, sample):
         rows.append(0)
         v = 1. - (y + .5) / height
         for x in range(width):
-            value = round(255 * sample((x + .5) / width, v))
-            rows.extend((value, value, value))
+            sampled = sample((x + .5) / width, v)
+            values = sampled if isinstance(sampled, tuple) else (sampled,) * 3
+            rows.extend(round(255 * min(1., max(0., value))) for value in values)
     def chunk(kind, data):
         return struct.pack('!I', len(data)) + kind + data + struct.pack('!I', zlib.crc32(kind + data) & 0xffffffff)
     return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('!2I5B', width, height, 8, 2, 0, 0, 0))
@@ -108,20 +110,26 @@ def _png(width, height, sample):
 
 def ensure_surface_map(kind, destination):
     """Content-addressed recipe names prevent reuse of stale exported texture derivatives."""
-    if kind not in ('cloth', 'hair'):
+    if kind not in ('cloth', 'cloth-normal', 'hair'):
         raise ValueError('Unknown original fighter map: ' + kind)
-    digest = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:12]
-    size = 512 if kind == 'cloth' else 256
+    recipe = Path(__file__).read_bytes() + Path(__file__).with_name('fighter_fabric_detail.py').read_bytes()
+    digest = hashlib.sha256(recipe).hexdigest()[:12]
+    size = 1024 if kind in ('cloth', 'cloth-normal') else 256
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
     output = destination / ('jq-original-' + kind + '-' + digest + '-' + str(size) + '.png')
     if not output.exists():
-        if kind == 'cloth':
+        if kind in ('cloth', 'cloth-normal'):
             def sample(u, v):
                 x, y = min(1, int(u * 2)), min(1, int(v * 2))
                 panel = next(name for name, tile in PANELS.items() if tile == (x, y))
-                return cloth_value(panel, min(1., max(0., (u - x * .5 - .008) / .484)),
-                                   min(1., max(0., (v - y * .5 - .008) / .484)))
+                pu = min(1., max(0., (u - x * .5 - .008) / .484))
+                pv = min(1., max(0., (v - y * .5 - .008) / .484))
+                if kind == 'cloth-normal': return panel_normal(panel, pu, pv)
+                # A little occlusion inside a fold, without painted highlights
+                # that would remain fixed when the athlete turns under a light.
+                cavity = min(.035, max(0., -fold_height(panel, pu, pv)) * 12.)
+                return cloth_value(panel, pu, pv) - cavity
         else:
             sample = hair_value
         output.write_bytes(_png(size, size, sample))

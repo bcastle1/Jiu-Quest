@@ -1,0 +1,44 @@
+"""Safety contracts for the fitted fold recipe; no Blender dependency."""
+import math
+import unittest
+from fighter_fabric_detail import fold_height, panel_normal
+
+
+class FabricDetailTests(unittest.TestCase):
+    def test_folds_preserve_openings_and_remain_bounded(self):
+        for panel in ('torso', 'sleeve', 'pants'):
+            heights = []
+            for i in range(65):
+                u = i / 64
+                self.assertEqual(fold_height(panel, u, 0), 0)
+                self.assertEqual(fold_height(panel, u, 1), 0)
+                for j in range(65):
+                    height = fold_height(panel, u, j / 64)
+                    self.assertTrue(math.isfinite(height))
+                    self.assertLess(abs(height), .012, (panel, u, j / 64))
+                    heights.append(height)
+            self.assertGreater(max(heights) - min(heights), .003, panel)
+
+    def test_angular_seams_do_not_split_fold_shape_or_relief(self):
+        for panel in ('torso', 'sleeve', 'pants', 'trim'):
+            for j in range(65):
+                v = j / 64
+                self.assertAlmostEqual(fold_height(panel, 0, v), fold_height(panel, 1, v), places=10)
+                a, b = panel_normal(panel, 0, v), panel_normal(panel, 1, v)
+                for left, right in zip(a, b): self.assertAlmostEqual(left, right, places=8)
+
+    def test_exported_rgb_normals_are_finite_unit_vectors(self):
+        for panel in ('torso', 'sleeve', 'pants', 'trim'):
+            relief = []
+            for i in range(33):
+                for j in range(33):
+                    rgb = panel_normal(panel, i / 32, j / 32)
+                    self.assertTrue(all(math.isfinite(value) and 0 <= value <= 1 for value in rgb))
+                    xyz = tuple(value * 2 - 1 for value in rgb)
+                    self.assertAlmostEqual(sum(value * value for value in xyz), 1., places=8)
+                    self.assertGreater(xyz[2], 0., 'Fold relief must not invert the visible cloth normal.')
+                    relief.append(abs(xyz[0]) + abs(xyz[1]))
+            self.assertGreater(max(relief), .03, panel)
+
+
+if __name__ == '__main__': unittest.main()

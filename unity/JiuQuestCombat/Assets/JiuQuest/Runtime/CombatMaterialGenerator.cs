@@ -18,6 +18,7 @@ namespace JiuQuest.Combat
         public static readonly int RimStrength = Shader.PropertyToID("_RimStrength");
         public static readonly int NormalDetailStrength = Shader.PropertyToID("_NormalDetailStrength");
         public static readonly int SurfaceMaps = Shader.PropertyToID("_SurfaceMaps");
+        public static readonly int FabricSheen = Shader.PropertyToID("_FabricSheen");
 
         public CombatMaterialGenerator()
             : this(GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset) { }
@@ -56,10 +57,16 @@ namespace JiuQuest.Combat
             bool skin = !facialDetail && slot.IndexOf("Skin", StringComparison.OrdinalIgnoreCase) >= 0;
             bool hair = !facialDetail && slot.IndexOf("Hair", StringComparison.OrdinalIgnoreCase) >= 0;
             bool hasReference = slot.IndexOf("_Ref_", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool fabric = slot.IndexOf("GiTop", StringComparison.OrdinalIgnoreCase) >= 0
+                || slot.IndexOf("GiPants", StringComparison.OrdinalIgnoreCase) >= 0
+                || slot.IndexOf("Belt", StringComparison.OrdinalIgnoreCase) >= 0;
+            // Cotton fibers scatter a little light at grazing angles. Keep
+            // this response off skin, eyes, hair and embroidered detail slots.
+            material.SetFloat(FabricSheen, fabric && !facialDetail && !skin && !hair ? .12f : 0f);
             // Retain most authored facial texture for a grounded 3D athlete,
             // with a small reduction in photographic mottling at phone size.
             // Cosmetic reference-color tinting stays independent of this blend.
-            material.SetFloat(DetailStrength, skin && hasReference ? .80f : 1f);
+            material.SetFloat(DetailStrength, skin && hasReference ? .94f : 1f);
             material.SetVector(DetailBaseColor, CombatMaterialAppearance.ReferenceColor(slot));
             material.SetFloat(InkStrength, facialDetail ? .01f : skin ? .025f : hair ? .07f : .025f);
             // Weights modulate URP's dielectric F0, not an additive white gloss.
