@@ -78,6 +78,8 @@ An approved merge to main triggers the existing GitHub Pages production workflow
 
 After approval and deployment, verify the deployed release.json, real Unity rendering on jiuquest.com, supported Training/Arena outcomes, athlete identity, persistence after reload, and the snapshot fallback. Roll back to the previous approved commit through Pages if those checks fail; never delete saved player progress as a rollback step.
 
+The athletic-fit pass lowers the gi shoulder crown and tapers the outer upper sleeves while retaining the buried armhole overlap and roomy cuffs. Shallow chest tension follows the cotton surface. Bounded skin shaping adds neck/lower-jaw, exposed chest and distal forearm definition without moving joints, palms or animation keys. Covered shoulder skin outside the 80 mm neck column below 1.59 m is hidden beneath the jacket, preserving the head, actual neck column, chest opening, hands and feet. This removes covered-skin poke-through in the sampled slimmer shoulder poses; sampled rendering still does not establish collision-free motion.
+
 ## Verification boundaries
 
 Automated checks cover paired GLB structure, curriculum mapping, combat role/outcome correctness, saved-progress behavior, lifecycle and failure handling, portrait/landscape framing, source provenance, archive corruption/path rejection, real-player loading, playback controls and phone-width layouts. Browser reports and screenshots are in ignored tmp/browser and the corresponding CI artifact.

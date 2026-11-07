@@ -58,12 +58,74 @@ def hide_covered_body(body):
         # height exemption retained covered deltoid/elbow skin, which could
         # intrude through the bent sleeve. Keep the exposed anatomical regions
         # by their existing bone influence and lapel-opening mask instead.
-        if terminal>.10 or neck>.06 or chest:visible.add(vertex.index)
+        # Low neck weights extend onto the covered shoulder. Retaining that
+        # patch makes it poke through a properly sloped gi crown when bending.
+        # Keep the neck column and the entire head, plus the open chest.
+        # The 80 mm half-width includes the neck surface and its new definition;
+        # wider low-neck-weight trapezius skin remains under the jacket.
+        actual_neck = neck>.06 and (p.z>1.59 or abs(p.x)<.080)
+        if terminal>.10 or actual_neck or chest:visible.add(vertex.index)
     mesh=bmesh.new();mesh.from_mesh(body.data);mesh.verts.ensure_lookup_table()
     delete=[face for face in mesh.faces if not any(v.index in visible for v in face.verts)]
     bmesh.ops.delete(mesh,geom=delete,context='FACES')
     bmesh.ops.delete(mesh,geom=[v for v in mesh.verts if not v.link_faces],context='VERTS')
     mesh.to_mesh(body.data);mesh.free();body.data.update()
+
+def refine_grappler_definition(body, rig):
+    """Bounded neck/lower-jaw, chest and distal forearm definition on the rig.
+
+    Shape existing skin vertices only. The upper neck band also broadens the
+    lower jaw slightly. Preserve palms, wrists, joints and animation.
+    """
+    from mathutils import Vector
+
+    def smooth(lo, hi, value):
+        t = min(1., max(0., (value - lo) / (hi - lo)))
+        return t * t * (3. - 2. * t)
+
+    neck = rig.data.bones['neck_01'].head_local
+    head = rig.data.bones['Head'].head_local
+    groups = {group.index: group.name for group in body.vertex_groups}
+    forearms = [(rig.data.bones['lowerarm_' + side], rig.data.bones['hand_' + side])
+                for side in ('l', 'r')]
+    for vertex in body.data.vertices:
+        p = vertex.co.copy()
+        delta = Vector()
+        # A wider neck/lower-jaw transition and two restrained front muscle
+        # planes. Fade above the collar without raising the shoulders.
+        neck_band = smooth(neck.z + .039, neck.z + .052, p.z) * (1. - smooth(head.z - .018, head.z - .003, p.z))
+        if abs(p.x) < .075 and neck_band > 0.:
+            delta.x += max(-.0030, min(.0030, p.x * .075)) * neck_band
+            front = smooth(.015, .055, neck.y - p.y)
+            along = max(0., min(1., (p.z - neck.z - .035) / .055))
+            ridge_x = .018 + .029 * along
+            relief = .0018 * math.exp(-((abs(p.x) - ridge_x) / .009) ** 2)
+            delta.y -= relief * neck_band * front
+        # Shallow pectoral planes frame the exposed sternum in the gi opening.
+        chest = smooth(1.25, 1.30, p.z) * (1. - smooth(1.45, 1.49, p.z))
+        if abs(p.x) < .080 and p.y < -.055 and chest > 0.:
+            front = smooth(.055, .095, -p.y)
+            pec = .0042 * math.exp(-((p.z - 1.385) / .065) ** 2) * math.exp(-((abs(p.x) - .041) / .031) ** 2)
+            sternum = .0010 * math.exp(-(p.x / .012) ** 2)
+            delta.y -= (pec - sternum) * chest * front
+        # Only the exposed distal forearm above the wrist: preserve palm
+        # contact, wrist circumference and all finger geometry.
+        named = {groups[group.group]: group.weight for group in vertex.groups}
+        for lower, hand in forearms:
+            axis = (hand.head_local - lower.head_local).normalized()
+            along = (p - lower.head_local).dot(axis) / lower.length
+            forearm = smooth(.57, .72, along) * (1. - smooth(.90, .98, along))
+            if forearm <= 0. or named.get(lower.name, 0.) < .1:
+                continue
+            radial = p - (lower.head_local + axis * ((p - lower.head_local).dot(axis)))
+            if radial.length > 1e-6:
+                dorsal = smooth(-.006, .025, radial.z)
+                delta += radial.normalized() * (.0022 * forearm * dorsal)
+        if delta.length > .0045:
+            delta *= .0045 / delta.length
+        vertex.co += delta
+    body.data.update()
+
 
 def refine_hand_surfaces(body, rig):
     """Shape fuller finger sides, palm backs and restrained dorsal landmarks.
@@ -254,6 +316,7 @@ def make_realistic_fighter(role,colors,g):
     materials={key:g.make_material(prefix+'_'+name,colors[key],roughness=.75) for key,name in [('gi_top','GiTop'),('gi_pants','GiPants'),('belt','Belt'),('stripe','BeltStripe')]}
     build_realistic_gi(body,rig,root,materials,prefix)
     hide_covered_body(body)
+    refine_grappler_definition(body,rig)
     refine_hand_surfaces(body,rig)
     stylize_anime(loaded,rig,prefix,g.make_material)
     for material in materials.values():

@@ -227,14 +227,14 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         if z < waist_z:
             t = (z - hem_z) / (waist_z - hem_z)
             return mix(.235, .195, t), mix(.155, .13, t)
-        crown_z = shoulder_z + .035
+        crown_z = shoulder_z + .015
         if z < crown_z:
             t = (z - waist_z) / (crown_z - waist_z)
-            # Ease remains below the arms, but the upper chest no longer grows
-            # into a broad inflated yoke immediately below the neckline.
-            return mix(.195, .236, t), mix(.13, .140, t)
+            # A sloping shoulder follows the athlete instead of forming a
+            # horizontal padded yoke around the neck.
+            return mix(.195, .224, t), mix(.13, .135, t)
         t = smooth((z - crown_z) / (neck_z - crown_z))
-        return mix(.236, .073, t), mix(.140, .072, t)
+        return mix(.224, .073, t), mix(.135, .072, t)
 
     for name in ('gi_top', 'gi_pants', 'belt'):
         cotton_material(materials[name], normal_strength=.15 if name == 'belt' else .16)
@@ -269,7 +269,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         point = Vector(((rx + folds) * math.sin(theta), center_y - (ry + folds) * math.cos(theta), z - skirt))
         # Keep the reviewed neckline/V opening width; only the narrowed upper
         # torso away from that exposed chest boundary needs projection.
-        crown_z = shoulder_z + .035
+        crown_z = shoulder_z + .015
         upper_fit = smooth((z - waist_z - .045) / .15) * (1. - smooth((z - crown_z) / (neck_z - crown_z)))
         opening_fit = smooth((abs(point.x) - edge_x - .024) / .045)
         # The side of this grid is deliberately buried under the sleeve. Its
@@ -279,6 +279,13 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         # fade before that junction; sleeve fitting still covers the arms.
         armhole_fit = 1. - smooth((abs(point.x) - armhole_x + .045) / .045)
         point = clear_body(point, upper_fit * opening_fit * armhole_fit, 'torso')
+        # Broad cotton tension over the chest suggests an athletic build.
+        # Keep the relief below the armholes and away from the open lapels;
+        # there is no separate muscle shell or inflated shoulder reinforcement.
+        chest_plane = math.exp(-((z - bone_head('spine_03').z - .070) / .075) ** 2)
+        chest_plane *= math.exp(-((abs(point.x) - .100) / .060) ** 2)
+        chest_plane *= max(0., math.cos(theta)) ** 3 * opening_fit
+        point.y -= .0045 * chest_plane
         return point, (u * 5.5, t * 3.8), torso_weights(point.z)
     jacket.grid(42, 72, torso, detail=lambda t, u: panel_uv('torso', u, t))
 
@@ -330,6 +337,10 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             angle = u * TAU
             radius = mix(.082, .056, t) + .001 * math.sin(t * math.pi)
             radius *= mix(.40, 1., smooth(t / .21))
+            # Keep the buried shoulder join, but reduce the rounded outer
+            # upper sleeve so the gi follows the deltoid without a padded cap.
+            shoulder_fit = smooth((t - .23) / .11) * (1. - smooth((t - .46) / .20))
+            radius -= .008 * shoulder_fit
             fold = .0006 * math.sin(angle * 5 + t * 8)
             elbow_t = (elbow - start).length / (wrist - start).length
             front = max(0., math.sin(angle) * (1. if suffix == 'l' else -1.)) ** 2
@@ -361,6 +372,8 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             hang = .005 * math.sin(t * math.pi) ** 2 * (1. - smooth((t - .72) / .22))
             center -= basis_a * hang
             point = center + (basis_a * math.cos(angle) + basis_b * math.sin(angle) * oval) * (radius + fold)
+            # Settle the top surface without shrinking the underarm overlap.
+            point -= basis_a * (.003 * shoulder_fit * max(0., math.cos(angle)) ** 2)
             point = clear_body(point, smooth((t - .20) / .14), 'sleeve_' + suffix)
             low = smooth((t - elbow_t + .11) / .22)
             weights = {'upperarm_' + suffix: 1. - low, 'lowerarm_' + suffix: low}

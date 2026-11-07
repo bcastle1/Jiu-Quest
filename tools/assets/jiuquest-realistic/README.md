@@ -204,3 +204,16 @@ Sleeve and cuff grids now weld their coincident longitudinal endpoints before
 Solidify, after assigning deform groups. Per-loop UV coordinates stay split at
 the texture seam. This removes duplicated internal wall faces and gives the
 seam continuous surface normals without enlarging the outer garment.
+
+The athletic-fit pass lowers the jacket crown by 20 mm and narrows its upper
+envelope. Upper sleeves lose up to 8 mm of radius with a 3 mm top-only drop,
+fading before the buried armhole and cuffs. The existing clearance bounds stay
+in force. Broad chest relief remains part of the fabric surface.
+
+Existing skin vertices receive bounded neck/lower-jaw, pectoral and distal
+forearm definition. Joint lengths, wrist and palm contact regions, source UVs,
+weights and all animation keys remain unchanged. The covered-body mask also
+removes covered shoulder skin outside the 80 mm neck column below 1.59 m;
+the head, actual neck column, open chest, hands and feet retain visibility.
+Export verification checks that retained skin vertices keep their UV/weight
+correspondence and that surviving triangles preserve their winding.
