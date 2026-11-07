@@ -17,6 +17,7 @@ Shader "JiuQuest/Anime Fighter"
         _SpecularStrength ("Dielectric highlight weight", Range(0,1)) = 0.30
         _RimStrength ("Soft edge light", Range(0,1)) = 0.018
         _NormalDetailStrength ("Surface relief", Range(0,1)) = 0.42
+        _FabricSheen ("Cotton grazing scatter", Range(0,0.2)) = 0
         [HideInInspector] _SurfaceMaps ("Authored normal, roughness, occlusion", Vector) = (0,0,0,0)
         // Imported maps and transforms retain their glTF meaning; the art style
         // changes their lighting response, not their source data.
@@ -81,6 +82,7 @@ Shader "JiuQuest/Anime Fighter"
             float _SpecularStrength;
             float _RimStrength;
             float _NormalDetailStrength;
+            float _FabricSheen;
         CBUFFER_END
 
         float2 SurfaceUV(float2 uv0, float2 uv1, float channel, float4 scaleOffset, float4 rotation)
@@ -232,6 +234,11 @@ Shader "JiuQuest/Anime Fighter"
                 // flattening direct shadows or changing any cosmetic swatch.
                 half3 color = brdf.diffuse * sky * occlusion * .82h;
                 color += LightingPhysicallyBased(brdf, key, normalWS, viewWS) * .90h;
+                // A restrained fiber response uses the existing light, source
+                // color, occlusion and cast shadow; it never adds an emissive rim.
+                half fiber = _FabricSheen * pow(1.0h - saturate(dot(normalWS, viewWS)), 3.0h);
+                fiber *= saturate(dot(normalWS, key.direction)) * key.shadowAttenuation * key.distanceAttenuation;
+                color += sqrt(max(albedo, 0.0h)) * key.color * fiber * occlusion * (1.0h - saturate(metallic));
 
                 // The same two existing fill lights reveal folds with the same
                 // continuous BRDF. No extra lights, map reads or render passes.

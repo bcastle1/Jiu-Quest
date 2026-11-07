@@ -207,44 +207,20 @@ namespace JiuQuest.Combat
 
         void StudioWord(string word, Vector3 center, float cell, Material material)
         {
-            // Original raised geometric lettering needs no font atlas or shader.
-            // Horizontal runs are merged to keep this small architectural detail cheap.
+            // Continuous original strokes replace the old pixel-grid lettering.
+            // They share the wall batches and need no font or texture download.
             float width = (word.Length * 6 - 1) * cell;
             for (int letter = 0; letter < word.Length; letter++)
             {
-                string[] glyph = StudioGlyph(word[letter]);
-                for (int row = 0; row < 7; row++)
-                    for (int column = 0; column < 5;)
+                foreach (var path in StudioLettering.Paths(word[letter]))
+                    for (int point = 1; point < path.Length; point++)
                     {
-                        if (glyph[row][column] == '0') { column++; continue; }
-                        int start = column;
-                        while (column < 5 && glyph[row][column] == '1') column++;
-                        int count = column - start;
-                        Box("Raised studio lettering", center + new Vector3(-width * .5f + (letter * 6 + start + count * .5f) * cell,
-                            (3 - row) * cell, 0), new Vector3(count * cell * .96f, cell * .86f, .022f), material);
+                        var delta = path[point] - path[point - 1];
+                        var midpoint = (path[point] + path[point - 1]) * .5f;
+                        Box("Raised studio lettering", center + new Vector3(-width * .5f + (letter * 6 + midpoint.x) * cell,
+                            (midpoint.y - 3.5f) * cell, 0), new Vector3((delta.magnitude + .22f) * cell, .62f * cell, .022f), material,
+                            Quaternion.Euler(0, 0, Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg));
                     }
-            }
-        }
-
-        static string[] StudioGlyph(char letter)
-        {
-            switch (letter)
-            {
-                case 'J': return new[] { "11111", "00010", "00010", "00010", "10010", "10010", "01100" };
-                case 'I': return new[] { "11111", "00100", "00100", "00100", "00100", "00100", "11111" };
-                case 'U': return new[] { "10001", "10001", "10001", "10001", "10001", "10001", "01110" };
-                case 'Q': return new[] { "01110", "10001", "10001", "10001", "10101", "10010", "01101" };
-                case 'E': return new[] { "11111", "10000", "10000", "11110", "10000", "10000", "11111" };
-                case 'S': return new[] { "01111", "10000", "10000", "01110", "00001", "00001", "11110" };
-                case 'T': return new[] { "11111", "00100", "00100", "00100", "00100", "00100", "00100" };
-                case 'R': return new[] { "11110", "10001", "10001", "11110", "10100", "10010", "10001" };
-                case 'A': return new[] { "01110", "10001", "10001", "11111", "10001", "10001", "10001" };
-                case 'N': return new[] { "10001", "11001", "11001", "10101", "10011", "10011", "10001" };
-                case 'G': return new[] { "01111", "10000", "10000", "10111", "10001", "10001", "01111" };
-                case 'P': return new[] { "11110", "10001", "10001", "11110", "10000", "10000", "10000" };
-                case 'L': return new[] { "10000", "10000", "10000", "10000", "10000", "10000", "11111" };
-                case '-': return new[] { "00000", "00000", "00000", "11111", "00000", "00000", "00000" };
-                default: return new[] { "00000", "00000", "00000", "00000", "00000", "00000", "00000" };
             }
         }
 
@@ -359,7 +335,7 @@ namespace JiuQuest.Combat
             lookAt = framingBounds.center;
             // Refit at the interpolated angle too: even a camera transition cannot crop a limb.
             float distance = CombatFraming.Distance(framingBounds, cameraOrientation, sceneCamera.fieldOfView,
-                Mathf.Max(.1f, sceneCamera.aspect), compactViewport ? .9f : .85f);
+                Mathf.Max(.1f, sceneCamera.aspect), preset == "focus" ? .92f : compactViewport ? .9f : .85f);
             sceneCamera.transform.SetPositionAndRotation(lookAt + cameraOrientation * new Vector3(0, 0, -distance), cameraOrientation);
             UpdateStudioWalls();
         }

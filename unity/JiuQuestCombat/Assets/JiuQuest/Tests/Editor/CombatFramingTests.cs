@@ -45,9 +45,11 @@ namespace JiuQuest.Combat.Tests
             Assert.That(Quaternion.Angle(next, target), Is.GreaterThan(1));
         }
 
-        [TestCase(.46f)]
-        [TestCase(1.6f)]
-        public void EveryEasedTransitionFrameStillFitsTheWholeMotionEnvelope(float aspect)
+        [TestCase(.46f, .9f)]
+        [TestCase(1.6f, .9f)]
+        [TestCase(.46f, .92f)]
+        [TestCase(1.6f, .92f)]
+        public void EveryEasedTransitionFrameStillFitsTheWholeMotionEnvelope(float aspect, float occupancy)
         {
             var bounds = new Bounds(new Vector3(.4f, .95f, -.2f), new Vector3(2.7f, 2, 2.1f));
             var orientation = Quaternion.Euler(65, -120, 0);
@@ -55,14 +57,14 @@ namespace JiuQuest.Combat.Tests
             for (int frame = 0; frame < 120; frame++)
             {
                 orientation = CombatFraming.EaseOrientation(orientation, target, 1f / 60);
-                float distance = CombatFraming.Distance(bounds, orientation, 44, aspect, .9f);
+                float distance = CombatFraming.Distance(bounds, orientation, 44, aspect, occupancy);
                 foreach (var corner in CombatFraming.Corners(bounds))
                 {
                     var point = Quaternion.Inverse(orientation) * (corner - bounds.center) + Vector3.forward * distance;
                     float halfHeight = point.z * Mathf.Tan(22 * Mathf.Deg2Rad);
                     Assert.That(point.z, Is.GreaterThan(.08f));
-                    Assert.That(Mathf.Abs(point.y) / halfHeight, Is.LessThanOrEqualTo(.9001f));
-                    Assert.That(Mathf.Abs(point.x) / (halfHeight * aspect), Is.LessThanOrEqualTo(.9001f));
+                    Assert.That(Mathf.Abs(point.y) / halfHeight, Is.LessThanOrEqualTo(occupancy + .0001f));
+                    Assert.That(Mathf.Abs(point.x) / (halfHeight * aspect), Is.LessThanOrEqualTo(occupancy + .0001f));
                 }
             }
         }
