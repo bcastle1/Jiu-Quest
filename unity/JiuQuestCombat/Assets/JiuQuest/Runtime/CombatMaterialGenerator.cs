@@ -64,9 +64,11 @@ namespace JiuQuest.Combat
             material.SetFloat(InkStrength, facialDetail ? .01f : skin ? .025f : hair ? .07f : .025f);
             // Weights modulate URP's dielectric F0, not an additive white gloss.
             // The imported roughness still determines each highlight's width.
-            material.SetFloat(SpecularStrength, eye ? 1f : brows ? .04f : skin ? .60f : hair ? .72f : .30f);
+            material.SetFloat(SpecularStrength, eye ? 1f : brows ? .04f : skin ? .52f : hair ? .68f : .22f);
             material.SetFloat(RimStrength, eye ? 0f : skin ? .015f : hair ? .035f : .018f);
-            material.SetFloat(NormalDetailStrength, skin ? .18f : hair ? .30f : .82f);
+            // Keep the stitched geometry and authored maps, but avoid turning
+            // the fine cotton weave into hard, crumpled highlights at mat distance.
+            material.SetFloat(NormalDetailStrength, skin ? .16f : hair ? .28f : .52f);
             var normal = gltfMaterial.NormalTexture;
             var roughness = gltfMaterial.PbrMetallicRoughness?.MetallicRoughnessTexture;
             var occlusion = gltfMaterial.OcclusionTexture;

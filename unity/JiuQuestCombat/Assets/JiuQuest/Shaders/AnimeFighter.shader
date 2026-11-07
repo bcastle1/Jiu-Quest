@@ -228,7 +228,9 @@ Shader "JiuQuest/Anime Fighter"
                 // authored metals retain their full metallic BRDF response.
                 brdf.specular *= lerp(saturate(_SpecularStrength), 1.0h, saturate(metallic));
                 half3 sky = max(SampleSH(normalWS), 0.0h);
-                half3 color = brdf.diffuse * sky * occlusion * .65h;
+                // Broad studio bounce reveals faces and dark kits without
+                // flattening direct shadows or changing any cosmetic swatch.
+                half3 color = brdf.diffuse * sky * occlusion * .82h;
                 color += LightingPhysicallyBased(brdf, key, normalWS, viewWS) * .90h;
 
                 // The same two existing fill lights reveal folds with the same
