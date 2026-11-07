@@ -1,11 +1,11 @@
 {
   "format": 1,
   "player": "player.bundle.gz",
-  "bytes": 9898524,
-  "sha256": "a1b52e809885fd5c152d983ce937d57a67a31e2c0fb3d44dad5ff0f2e3e566dc",
-  "sourceFingerprint": "a9c9f7d0f63b558348c6e8894dddb16ce5280bf03749c15260bb740585fd719b",
+  "bytes": 9898531,
+  "sha256": "76d91289b70ca0ed4a8c7ae0bedeb3f67bb7cad6a013cabe8b9aed2b20a077e4",
+  "sourceFingerprint": "02b7625bf4084d14c4f6876be567931b85f865ce9c2562a783b026a71f7ba43e",
   "unityVersion": "6000.3.28f1",
-  "generatedUtc": "2026-11-07T21:41:03.0915430Z",
+  "generatedUtc": "2026-11-07T22:08:04.4344094Z",
   "compression": "gzip-with-decompression-fallback",
   "files": [
     {
@@ -14,9 +14,9 @@
       "sha256": "3ff18fe9d185e93b06e7b016dea4686d8940be03f7f65f657c19f6491465ae9c"
     },
     {
-      "path": "Build/3d02f44a21fa8b756e89cd1f20e9095d.data.unityweb",
-      "bytes": 2194648,
-      "sha256": "12ac47327e90bd11910a3c32b89f6a77c09bb490b27b281f04bfbc83bcfb2d74"
+      "path": "Build/3195883b6e0b60518e69268212a7b869.data.unityweb",
+      "bytes": 2194562,
+      "sha256": "c4e5bf736361f4ad51109bc610bb1979e0deb00ce14ccfb850d81611d5e8bb70"
     },
     {
       "path": "Build/3d1ec3f8221db15339661894d86b581e.framework.js.unityweb",
@@ -31,104 +31,104 @@
     {
       "path": "build-manifest.json",
       "bytes": 1012,
-      "sha256": "63140711c8622d5aa074cd90180dc2cde8d23205493b41cc7d6ff098e0f7575d"
+      "sha256": "60fc21b0f4b600360d3103dfe7ba9b989a6afcd1f3d31b3c9c488df866941d45"
     },
     {
       "path": "build-privacy-check.json",
       "bytes": 137,
-      "sha256": "ba978cdb3815f55443274ab01427b9a9944e5a46cc69aa1c9e39bae95a8bbfc3"
+      "sha256": "119f35c7dc5450474a59f55f87b8c16d90f1f694cdbd39f8ba385670b611ad09"
     },
     {
       "path": "build-source.json",
       "bytes": 16438,
-      "sha256": "b5e048e490e754ae005a1b46fb4abffb0cd35d8c2e86fd2e45e6556c5fe6b0c4"
+      "sha256": "daff327871ae0b333cb7059c22f7e436673d373fcce964f271136ee0f4acc498"
     }
   ],
   "clips": [
     {
       "path": "standing_stance.glb",
-      "bytes": 8564444,
-      "sha256": "e67ae91c8750f0d11dbec6e83311f58b6500ed4bad80c31add524bc10e6177d9"
+      "bytes": 8564448,
+      "sha256": "08884ba1e36354de2cb14eec14380f10746ee4994c5de5d190de064795ca9c72"
     },
     {
       "path": "grip_fighting.glb",
-      "bytes": 8583116,
-      "sha256": "b4acbdefa01cf4d9492c43138c1a02f15c3e75a3c2218a35027348d2b6a3e6ee"
+      "bytes": 8583120,
+      "sha256": "65e40b015368a8d83d711f9d807775f2beec9379e67e6ab7203c69004794058f"
     },
     {
       "path": "single_leg.glb",
-      "bytes": 8529144,
-      "sha256": "e679feca3c6dd84bc16809897c30823caeea175ab823b61d3e10a5a0c44378ad"
+      "bytes": 8529148,
+      "sha256": "c354e41fe9b2bdc43a5d394407675d79912f64b02f01799573bdf77fbae2fc21"
     },
     {
       "path": "double_leg.glb",
-      "bytes": 8561296,
-      "sha256": "56ed25581e0d5e0e44369ea9b0b76099f05fb3960d4f73c866832db63f044598"
+      "bytes": 8561300,
+      "sha256": "f39157fe2fc7bb82f14cbf57b69ad2aade586d380a20d05d102f9c3cd2034422"
     },
     {
       "path": "guard_pull.glb",
-      "bytes": 8513104,
-      "sha256": "3eb74e3388264b9595a4b2bcc60717c7d0c6a6d6f06cc7f6392d6a9b646fb3a7"
+      "bytes": 8513108,
+      "sha256": "f8f46851b9dc37193938af92274383671251c6a12e4b173b0a0c68402068c1c8"
     },
     {
       "path": "closed_guard.glb",
       "bytes": 8524468,
-      "sha256": "4ba90759438621af8175f14240405fb47036038a3efb2756bdaca7269deb496d"
+      "sha256": "4195dc18322b1fb7d089664d3cb78ef8a715d22c319b81ae94f226ae9a21c559"
     },
     {
       "path": "guard_pass.glb",
-      "bytes": 8520812,
-      "sha256": "7dba9a44111cb37673aa04c019daa5889c8b2a5e2fdbb0c1a1da6a94a16b5ef6"
+      "bytes": 8520820,
+      "sha256": "7dbe7d9d9c91b1dbabf8b4ce6d55b3690b214286165205e91c2829a46f82aab0"
     },
     {
       "path": "side_control.glb",
-      "bytes": 8516532,
-      "sha256": "334376274138f2108cb34cc289afef3b979add65781ae512f1e75111a688a45d"
+      "bytes": 8516528,
+      "sha256": "5f0b852c5fce8c86267bd887b541720f33d78a820d8326b00ea5fd80ad5a445f"
     },
     {
       "path": "mount.glb",
       "bytes": 8524940,
-      "sha256": "e2e81e3f97efb21c406ca89509df3e1195e8de1dcfa461a682cbb07017f0f0fd"
+      "sha256": "4abc19838b2f3ddae2e5219c8469fd627af32045fcb9387cc283d32779f1c137"
     },
     {
       "path": "back_control.glb",
       "bytes": 8484512,
-      "sha256": "03b0efbffc58ac3c2f5063f0d7b87ede026fe81f779bc609f13a95ff856e18e1"
+      "sha256": "59d48df9efbb5ebeb5b8c9d74aee70ef5a92e992b3903704f97ff7f1c506218f"
     },
     {
       "path": "armbar.glb",
-      "bytes": 8527344,
-      "sha256": "c0c75dc2846b039e8d08ab5062794e48bd2888e152f033ee36d808c58494402a"
+      "bytes": 8527348,
+      "sha256": "d387975af66f96efc04072ffbd0a5f072e7fc6ba167ef52a14baaa527753c637"
     },
     {
       "path": "triangle_choke.glb",
-      "bytes": 8559220,
-      "sha256": "a2912f06dd57ecf2b7939a081b7bda2efbdb77b36e756ba1a6e5b9a806310656"
+      "bytes": 8559224,
+      "sha256": "fe29af450a6d02f63dce330c274a089aba09c637b99df517656abc7d1066687a"
     },
     {
       "path": "rear_naked_choke.glb",
-      "bytes": 8489876,
-      "sha256": "09bc2ee52aeb2f5c74fbe39fdb24dccd89ee7be48a30178f0428b05fa77d9b50"
+      "bytes": 8489884,
+      "sha256": "4a64f24c5528bf567d2ad0a3263b6d9f78b54a1efef1b7bd624305d359a6cc9e"
     },
     {
       "path": "tap_out.glb",
-      "bytes": 8511612,
-      "sha256": "4d59e8043f389761d85eb290b4d0e5f5b1ba6b7e7895de7a51a535962f9de70b"
+      "bytes": 8511616,
+      "sha256": "f5fbf4d023b602a963ffdd4c3a09ea617defa9cbff9d171eec6853b114f60f5a"
     },
     {
       "path": "reset_neutral.glb",
-      "bytes": 8559580,
-      "sha256": "abc0c918872bfa26e2c890ee9514fc0790b06daf0fbf936f6b23f41d47084391"
+      "bytes": 8559576,
+      "sha256": "e193168f0d2589ba96da5a82b3266c7fef42eea231cae180f78d937b97502fc9"
     },
     {
       "path": "trap_roll_escape.glb",
-      "bytes": 8572244,
-      "sha256": "26afd0c48a6aef559a389380726b4177a3eb8f1d1583aa12e607a43bd34bdca6"
+      "bytes": 8572248,
+      "sha256": "7e16f44b438f5748f454dd3f3f6fdf1a1dd92255eb2d2e85a7fe52fdd6a35433"
     },
     {
       "path": "manifest.json",
-      "bytes": 5424,
-      "sha256": "84cd3a29a24f6ea2362ae97e4e782096d3a13c33114a97f22a18dc14fd4dbdae"
+      "bytes": 5423,
+      "sha256": "afeb0ccbe51fa3cfcf786bb3617e0abfa2d0adf9e95b386f0c81bb7ff20f0bed"
     }
   ]
 }
