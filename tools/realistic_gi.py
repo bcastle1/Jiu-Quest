@@ -274,24 +274,21 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             across = (u - .5) * width
             lapel_x = x + across
             y = center_y - ry * math.sqrt(max(.05, 1. - (lapel_x / rx) ** 2)) - .007
-            # The left panel overlaps the right below the V; a shallow bend
-            # follows cloth tension toward the knot without closing the neck.
+            # The left panel overlaps the right below the V. A shallow turn
+            # follows the chest toward the knot, not a uniformly inflated rail.
             overlap = .002 * smooth((t - .60) / .28) * (1. if side > 0 else 0.)
-            drape = .0025 * math.sin(t * math.pi) * math.sin(u * math.pi)
-            roll = .0033 * math.sin(u * math.pi) ** .85
-            channel = .0007 * (math.exp(-((u - .16) / .045) ** 2)
-                              + math.exp(-((u - .84) / .045) ** 2))
-            point = Vector((lapel_x, y - roll - drape - overlap + channel, z + across * side * .31))
+            drape = .0018 * math.sin(t * math.pi) * math.sin(u * math.pi)
+            roll = .0023 * math.sin(u * math.pi) ** 1.4
+            # Stitch channels belong to this collar surface. Independent thin
+            # solidified ribbons had free ends at the shoulder and could pull
+            # apart from their supporting panel under different skin weights.
+            channel = .0006 * (math.exp(-((u - .16) / .065) ** 2)
+                              + math.exp(-((u - .84) / .065) ** 2))
+            turn = .0030 * math.sin(t * math.pi) * (u - .5)
+            point = Vector((lapel_x, y - roll - drape - overlap + channel,
+                            z + across * side * .31 - turn))
             return point, (u * .45, t * 3.6), torso_weights(z)
         jacket.grid(24, 9, lapel, reverse=True, detail=lambda t, u: panel_uv('trim', u, t))
-        for seam_u in (.10, .90):
-            def lapel_seam(t, u, seam_u=seam_u, sample=lapel):
-                point, uv, weights = sample(t, seam_u + (u - .5) * .045)
-                point.y -= .0009 + .0005 * math.sin(u * math.pi)
-                return point, uv, weights
-            jacket.grid(24, 2, lapel_seam, reverse=True,
-                        detail=lambda t, u, seam_u=seam_u: panel_uv('trim', seam_u + (u - .5) * .045, t))
-
     # Sleeves follow the actual upper/lower-arm rest axis, with roomy cuffs.
     for suffix in ('l', 'r'):
         shoulder, elbow, wrist = (bone_head(n + '_' + suffix) for n in ('upperarm', 'lowerarm', 'hand'))
@@ -322,7 +319,14 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             # A narrow underarm seam and the existing turned cuff provide
             # construction detail using the same sleeve grid and UV islands.
             fold -= .0012 * math.exp(-((math.cos(angle) + 1.) / .10) ** 2) * smooth(t / .3)
-            fold += .0020 * math.exp(-((t - .965) / .028) ** 2)
+            # A restrained longitudinal fold runs beside the sewn sleeve seam.
+            # It fades before both the armhole and cuff, interrupting the round
+            # tube without adding a patch, a full compression ring or more bulk.
+            fold_window = smooth((t - .28) / .13) * (1. - smooth((t - .80) / .13))
+            seam_angle = .62 * (1. if suffix == 'l' else -1.)
+            fold -= .0024 * max(0., math.cos(angle - seam_angle)) ** 14 * fold_window
+            fold += .0009 * max(0., math.cos(angle - seam_angle - .28)) ** 18 * fold_window
+            fold += .0013 * math.exp(-((t - .965) / .028) ** 2)
             oval = mix(1.035, 1.025, smooth(t))
             # Loose cotton hangs slightly below the arm instead of describing
             # a perfectly centered padded tube; fade out before the wrist.
@@ -342,7 +346,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             point, uv, weights = sample(sleeve_t, u)
             start = shoulder - (wrist - shoulder).normalized() * .155
             center = start.lerp(wrist, sleeve_t * .97)
-            point += (point - center).normalized() * (.0015 + .0018 * math.sin(t * math.pi))
+            point += (point - center).normalized() * (.0012 + .0013 * math.sin(t * math.pi))
             return point, uv, weights
         jacket.grid(3, 28, cuff, detail=lambda t, u: panel_uv('sleeve', u, mix(.944, .989, t)))
 

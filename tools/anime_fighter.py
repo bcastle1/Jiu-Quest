@@ -17,7 +17,43 @@ def smoothstep(low, high, value):
     return t * t * (3.0 - 2.0 * t)
 
 
-def face_warp(co):
+def face_detail_offset(co):
+    """Small adult facial planes, with exactly zero change outside the face."""
+    x, y, z = co
+    # Compact source-space support protects neck, ears and scalp exactly. The
+    # shared offset also reaches eyes and fitted lid anchors, not just the skin.
+    if abs(x) >= .074 or y <= -.145 or y >= -.035 or z <= 1.550 or z >= 1.678:
+        return Vector((0., 0., 0.))
+    mask = (1. - smoothstep(.058, .074, abs(x)))
+    mask *= smoothstep(-.145, -.120, y) * (1. - smoothstep(-.060, -.035, y))
+    mask *= smoothstep(1.550, 1.565, z) * (1. - smoothstep(1.667, 1.678, z))
+
+    # Recover a little jaw width and chin projection rather than enlarging the
+    # whole head. A shallow lower-cheek recess separates cheekbone and jaw.
+    jaw = math.exp(-((abs(x)-.046)/.025)**4 - ((z-1.583)/.018)**2)
+    chin = math.exp(-(x/.028)**4 - ((z-1.576)/.013)**2)
+    lower_cheek = math.exp(-((abs(x)-.039)/.023)**2 - ((z-1.607)/.014)**2)
+    dx = .0032 * math.tanh(x/.018) * jaw
+    dy = -.0034 * chin + .0013 * lower_cheek
+    dz = -.0014 * chin
+
+    # Modest bridge/tip and supraorbital relief give the profile real volume.
+    # The eye opening is slightly less round; eyeballs and lids share this same
+    # continuous field so the change is not a separate floating facial overlay.
+    bridge = math.exp(-(x/.011)**2 - ((z-1.636)/.024)**2)
+    nose_tip = math.exp(-(x/.009)**2 - ((z-1.616)/.012)**2)
+    brow = math.exp(-((abs(x)-.031)/.026)**4 - ((z-1.661)/.011)**2)
+    orbit = math.exp(-((abs(x)-.0314)/.026)**4 - ((z-1.6434)/.024)**4)
+    dy -= .0028 * bridge + .0017 * nose_tip + .0020 * brow
+    dz -= .085 * (z-1.6434) * orbit
+    offset = Vector((dx, dy, dz)) * mask
+    # Explicit bound also applies if the local shaping fields are retuned.
+    if offset.length > .006:
+        offset *= .006 / offset.length
+    return offset
+
+
+def face_warp(co, facial_detail=True):
     x, y, z = co
     # Widen the eyes and their sockets together, fading into the cheek planes.
     side = 1 if x >= 0 else -1
@@ -45,7 +81,8 @@ def face_warp(co):
     y -= .0022 * bridge + .0012 * chin
     y = .0174 + (y-.0174) * (1.0 + .045*head)
     z = 1.5998 + (z-1.5998) * (1.0 + .045*head)
-    return Vector((x, y, z))
+    result = Vector((x, y, z))
+    return result + face_detail_offset(co) if facial_detail else result
 
 
 def hair_mesh(name, rig, style, surface=None):
@@ -297,10 +334,12 @@ def eyebrows_mesh(name,rig,body):
             faces.append((a,a+1,b+1,b) if side==1 else (b,b+1,a+1,a))
 
     for side in (-1,1):
-        ribbon(side, [(.012,1.658,.0015),(.026,1.664,.0025),
-                      (.041,1.665,.0020),(.058,1.661,.00055)])
-        ribbon(side, [(.014,1.646,.00045),(.022,1.651,.00070),(.032,1.652,.00080),
-                      (.043,1.650,.00065),(.052,1.647,.00035)])
+        # A flatter, tapered brow and a fine upper-lid edge preserve an adult
+        # expression. Both are still curved surface-fitted strips in 3D.
+        ribbon(side, [(.012,1.658,.0014),(.026,1.6633,.00215),
+                      (.041,1.6643,.00175),(.058,1.661,.00050)])
+        ribbon(side, [(.014,1.646,.00045),(.022,1.6507,.00065),(.032,1.6515,.00075),
+                      (.043,1.6498,.00060),(.052,1.647,.00035)])
 
     mesh=bpy.data.meshes.new(name+'Mesh');mesh.from_pydata(vertices,[],faces);mesh.update()
     obj=bpy.data.objects.new(name,mesh);bpy.context.scene.collection.objects.link(obj)
@@ -334,7 +373,9 @@ def stylize_anime(loaded, rig, prefix, make_material):
         if not any(token in obj.name for token in ('Body','Eyes','Hair')):continue
         for vertex in obj.data.vertices:
             p=vertex.co.copy()
-            vertex.co=face_warp(p)
+            # Hair can enter the facial support region. Preserve its exact
+            # previous attachment/shape while skin, eyes and lids share detail.
+            vertex.co=face_warp(p, facial_detail='Hair' not in obj.name)
         obj.data.update()
     # Project on the final face surface. Warping sparse projected strips later
     # makes their edges diverge from the skin between vertices.

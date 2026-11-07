@@ -149,6 +149,20 @@ It adds no geometry or maps and leaves palm contact surfaces, wrist seams,
 topology, UVs and weights unchanged. The rest-mesh safety check measured a
 maximum 2.283 mm displacement; skinned poses still require visual review.
 
+The following detail pass adds compact adult face shaping around the jaw,
+chin, cheeks, bridge and brow. Its new offset is exactly zero outside the
+bounded front-face region and capped at 6 mm. Skin, eyes and fitted lid anchors
+share the offset; hair keeps the exact previous warp. Brows taper toward their
+outer ends. This modifies solid geometry without adding maps or expressions.
+
+Finger sides and palm backs receive bounded fullness on the existing mesh;
+the additional hand offset is capped at 2.1 mm. The original underside/contact
+vertices and the 35 mm wrist exclusion remain fixed. Finger bone lengths,
+joint centers, skin weights and UVs are retained. The latest lapels use shallow
+integrated stitching instead of four separate raised ribbons, with restrained
+longitudinal sleeve folds and cuff edges. These rest-mesh checks do not prove
+collision-free contact across every animated frame.
+
 The covered-skin mask no longer exempts every rest-pose vertex above 1.49 m:
 that height also includes the upper arms in the source T pose. The existing
 head/neck, hands/feet and V-shaped chest-opening masks are retained. The source
