@@ -54,8 +54,8 @@ namespace JiuQuest.Combat
             environment = new GameObject("JiuQuest Studio").transform;
             environment.SetParent(transform, false);
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(.52f, .54f, .58f);
-            RenderSettings.ambientEquatorColor = new Color(.42f, .44f, .48f);
+            RenderSettings.ambientSkyColor = new Color(.57f, .59f, .62f);
+            RenderSettings.ambientEquatorColor = new Color(.48f, .50f, .53f);
             RenderSettings.ambientGroundColor = new Color(.24f, .27f, .32f);
             RenderSettings.fog = false;
             RenderSettings.fogColor = new Color(.70f, .72f, .74f);
@@ -100,9 +100,9 @@ namespace JiuQuest.Combat
 
             // One neutral overhead shadow light keeps faces and white gis
             // readable. Wall cutaways never alter the athletes' lighting.
-            keyLight = Light("Studio overhead key", new Vector3(64, -32, 0), new Color(1, .97f, .92f), 1.08f, true);
-            Light("Studio soft fill", new Vector3(35, 132, 0), new Color(.87f, .92f, 1), .28f, false);
-            Light("Studio warm rim", new Vector3(42, 210, 0), new Color(1, .91f, .81f), .30f, false);
+            keyLight = Light("Studio overhead key", new Vector3(52, -32, 0), new Color(1, .97f, .94f), .96f, true);
+            Light("Studio soft fill", new Vector3(30, 132, 0), new Color(.91f, .95f, 1), .42f, false);
+            Light("Studio warm rim", new Vector3(42, 210, 0), new Color(1, .94f, .87f), .26f, false);
             sceneCamera = new GameObject("Combat Camera").AddComponent<Camera>();
             sceneCamera.transform.SetParent(environment, false);
             sceneCamera.tag = "MainCamera";
@@ -470,10 +470,10 @@ namespace JiuQuest.Combat
                     {
                         float weave = Mathf.Sin(u * Mathf.PI * 64) * Mathf.Sin(v * Mathf.PI * 64);
                         float edge = Mathf.Min(Mathf.Min(u, 1 - u), Mathf.Min(v, 1 - v));
-                        float edgeWear = 1 - SmoothBand(.012f, .060f, edge);
-                        float value = .80f + broad * .14f + weave * .045f - edgeWear * .10f;
+                        float edgeWear = 1 - SmoothBand(.006f, .027f, edge);
+                        float value = .84f + broad * .075f + weave * .020f - edgeWear * .055f;
                         color = new Color(value, value + .015f, value + .020f);
-                        height = .5f + weave * .032f - edgeWear * .020f;
+                        height = .5f + weave * .018f - edgeWear * .010f;
                     }
                     else if (surface == SummitSurface.Bronze)
                     {

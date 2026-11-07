@@ -24,7 +24,7 @@ export default function UnityCombatPreview() {
   const settled = createArenaState(selected.position, performerSide);
   return <main className="unity-preview-page">
     <div className="unity-preview-top"><span className="unity-preview-brand"><span className="unity-dojo-mark" aria-hidden="true">JQ</span>JIUQUEST</span><a href="/">Return to JiuQuest <span aria-hidden="true">↗</span></a></div>
-    <header className="unity-preview-intro"><div><span className="unity-eyebrow">THE SUMMIT DOJO</span><h1>Master the exchange.</h1><p>A mountain sanctuary. Two athletes. Every movement matters.</p></div><span className="unity-preview-mode">COMBAT LAB<span>Explore · Replay · Refine</span></span></header>
+    <header className="unity-preview-intro"><div><span className="unity-eyebrow">JIUQUEST STUDIO</span><h1>Master the exchange.</h1><p>One mat. Two athletes. Every movement matters.</p></div><span className="unity-preview-mode">COMBAT LAB<span>Explore · Replay · Refine</span></span></header>
     <div className="unity-preview-technique"><label htmlFor="unity-preview-technique">Choose a technique</label><select id="unity-preview-technique" aria-label="Technique" value={moveId} onChange={(event) => setMoveId(event.target.value)}>{UNITY_PREVIEWS.map((move) => <option key={move.id} value={move.id}>{move.name}</option>)}</select><span>{UNITY_PREVIEWS.length} animated exchanges</span></div>
     <div className="unity-preview-grid">
       <UnityGrapplingStage moveId={moveId} moveLabel={selected.name} performerSide={performerSide} fighter={fighter} opponent={opponent} fallback={<GrapplingSnapshotStage state={settled} fighter={fighter} opponent={opponent} compact />} />
