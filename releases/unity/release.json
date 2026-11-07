@@ -1,11 +1,11 @@
 {
   "format": 1,
   "player": "player.bundle.gz",
-  "bytes": 9893509,
-  "sha256": "2e0f2ffeed99fc5856c54a8ef4f6d91b31f3857074d332e310d51b7a90e7105b",
-  "sourceFingerprint": "a0f2b373caf02e5708c696d539e38f3c74dd48edbe88442e5ff705f30b7a831f",
+  "bytes": 9893520,
+  "sha256": "a77b1cf3fd59f503887f2861918a8da6ea6b590d75cbc1ef83a56f766d154ef9",
+  "sourceFingerprint": "6efea83424fd862689e92bc3856498a98cc6495a00579281d1d5e2c6ee1fe0ed",
   "unityVersion": "6000.3.28f1",
-  "generatedUtc": "2026-11-07T16:56:18.5519610Z",
+  "generatedUtc": "2026-11-07T17:06:28.9347664Z",
   "compression": "gzip-with-decompression-fallback",
   "files": [
     {
@@ -14,9 +14,9 @@
       "sha256": "83c05160fc59dd530f1df0906dd8d19b5826acd8d16391ec3cbf6b85568b4af9"
     },
     {
-      "path": "Build/782e30378d0a7f4b813cfe30772875db.data.unityweb",
+      "path": "Build/a6c488d9493c552045eb4ff4d510eda1.data.unityweb",
       "bytes": 2193084,
-      "sha256": "a14afbfc8f28591fc3935707fb9554e81e6d45e7997159ad3e0ad51a7a893b80"
+      "sha256": "f1a8c2eec60970b5f86bc5d111471a7ece69e161e925a8cf76946468aaee4260"
     },
     {
       "path": "Build/f8fa314e9d2d4bd7d33152453e2d5c88.framework.js.unityweb",
@@ -31,17 +31,17 @@
     {
       "path": "build-manifest.json",
       "bytes": 1012,
-      "sha256": "80b746305051dc853e9aa44190797ae28cef5f302659d185b1f0f2bbe58e3838"
+      "sha256": "23c166da691716cb6407e85b97507991840794ec71298a761e77928652ae2a2a"
     },
     {
       "path": "build-privacy-check.json",
       "bytes": 137,
-      "sha256": "02bfcbb29ec822598d3c95e46ac229ec0701a67c0625e6c7eef0834c8aaa0e77"
+      "sha256": "e661dc7389d85ce23b5e84e3d10156bd076acd330604d2792bab4d579932237e"
     },
     {
       "path": "build-source.json",
       "bytes": 15704,
-      "sha256": "6c2a0df4726c5d532263da44c5346cb446985512829199f6307c9a2f8a35246f"
+      "sha256": "4142da6a2ebe8fb94bd06d7cdbf9c4881719b5558b3098ece2490642de959c95"
     }
   ],
   "clips": [
@@ -62,8 +62,8 @@
     },
     {
       "path": "double_leg.glb",
-      "bytes": 6913128,
-      "sha256": "c4837ae8759635e4a68de99c84b4f504075e85535396ae191e35198d24d6d412"
+      "bytes": 6913124,
+      "sha256": "b65b3cee671382216eb89699efac930fead41839ae7c26c44555500794134910"
     },
     {
       "path": "guard_pull.glb",

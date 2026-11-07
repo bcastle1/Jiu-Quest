@@ -82,6 +82,8 @@ The athletic-fit pass lowers the gi shoulder crown and tapers the outer upper sl
 
 The shoulder/back tailoring pass replaces excess depth in the rear jacket oval with a bounded fit over the actual shoulder blades. Rear-facing body rays retain fabric ease and fade before the neckline and armhole; front/lapel construction is untouched. Sleeve-cap taper now follows the shoulder joint's actual location instead of beginning farther down the sleeve. The existing body and muscle geometry remain fixed. This improves the silhouette while retaining fully 3D skinning, fabric maps and the established grappling motion. Small collar intersections remain visible in some sampled poses.
 
+The double-leg defender now follows a pelvis-relative ankle and knee-pole arc during the fall, avoiding the excessive mid-flight knee fold produced by a straight world-space path. Toe direction and sole roll follow the solved leg plane after the guard-settle blend. The initial paired pose and leg lengths stay fixed; the other fifteen exported clips are unchanged by this landing correction. Regression checks sample between exported keys to reject excessive folding, reversed toes and abrupt foot rotation. These are visual-motion checks, not certification of BJJ technique.
+
 ## Verification boundaries
 
 Automated checks cover paired GLB structure, curriculum mapping, combat role/outcome correctness, saved-progress behavior, lifecycle and failure handling, portrait/landscape framing, source provenance, archive corruption/path rejection, real-player loading, playback controls and phone-width layouts. Browser reports and screenshots are in ignored tmp/browser and the corresponding CI artifact.

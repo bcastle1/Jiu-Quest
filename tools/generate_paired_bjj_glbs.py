@@ -865,6 +865,21 @@ def pose_double_leg(performer: dict, opponent: dict, progress: float) -> None:
             Vector((.28 - sign * .065, .35, .70 + .025 * sign)), drive)
         knee = Vector((sign * .28, .19, .53)).lerp(
             Vector((.28 + sign * .46, .29, .46)), drive)
+        if drive:
+            # Carry the legs around the falling pelvis. A straight world-space
+            # ankle path cuts through the hip and forces an abrupt deep fold.
+            hip_start, hip_end = Vector((0, .37, .94)), Vector((.28, .47, .20))
+            falling = Quaternion((1, 0, 0), -math.pi * .5 * drive)
+            landed = Quaternion((1, 0, 0), -math.pi * .5)
+            hips = hip_start.lerp(hip_end, drive)
+            def falling_arc(start, end):
+                local = (Vector(start) - hip_start).lerp(
+                    landed.inverted() @ (Vector(end) - hip_end), drive)
+                return hips + falling @ local
+            ankle = falling_arc((sign * .22, .40 + sign * .07, .085),
+                                (.28 - sign * .065, .35, .70 + .025 * sign))
+            knee = falling_arc((sign * .28, .19, .53),
+                               (.28 + sign * .46, .29, .46))
         toes = ankle + Vector((0, lerp(-.16, .07, drive), -.045))
         contact_leg(opponent, side, ankle, knee, toes)
     for side, sign in (("l", -1), ("r", 1)):
@@ -907,6 +922,33 @@ def pose_double_leg(performer: dict, opponent: dict, progress: float) -> None:
             blend_pose(fighter, a, b, settle)
         bpy.context.view_layer.update()
         keep_pair_above_mat((performer, opponent))
+
+    if drive:
+        # Match toe direction and sole roll to each solved knee's hinge plane.
+        # Apply after settling so top_guard_pose cannot restore reversed toes.
+        # The zero-drive pose stays exact: standing idle also uses this entry.
+        armature = opponent["armature"]
+        inverse = armature.matrix_world.inverted().to_3x3()
+        for side in ("l", "r"):
+            hip = bone_world_point(opponent, "thigh_" + side)
+            knee = bone_world_point(opponent, "calf_" + side)
+            ankle = bone_world_point(opponent, "foot_" + side)
+            upper, shin = (knee - hip).normalized(), (ankle - knee).normalized()
+            forward = (upper - shin * upper.dot(shin)).normalized()
+            forward = (forward + .15 * shin).normalized()
+            up = (-shin + forward * shin.dot(forward)).normalized()
+            def frame(direction, normal):
+                direction.normalize()
+                normal = (normal - direction * normal.dot(direction)).normalized()
+                return Matrix((direction.cross(normal), direction, normal)).transposed()
+            bone = armature.pose.bones["foot_" + side]
+            rest = frame((bone.bone.tail_local - bone.bone.head_local).normalized(),
+                         Vector((0, 0, 1)))
+            target = frame(inverse @ forward, inverse @ up) @ rest.transposed()
+            target = (target @ bone.bone.matrix_local.to_3x3()).to_quaternion()
+            rotation = bone.matrix.to_quaternion().slerp(target, smooth(drive / .25))
+            bone.matrix = Matrix.LocRotScale(bone.head.copy(), rotation, bone.matrix.to_scale())
+            bpy.context.view_layer.update()
 
 
 def pose_rear_naked_choke(performer: dict, opponent: dict, progress: float) -> None:
