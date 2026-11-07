@@ -3,16 +3,45 @@ import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFile, mkdir, stat, writeFile, rename } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
+import { arch, cpus, platform, release, totalmem } from 'node:os';
 import { chromium } from 'playwright';
 import { installUnityStartupTelemetry } from './unity_startup_telemetry.mjs';
 
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser');
 await mkdir(artifacts, { recursive: true });
-const checks = [], images = [], moves = [], errors = [], assetFailures = [], dimensions = [], pauses = [];
+const checks = [], images = [], moves = [], errors = [], consoleErrors = [], expectedConsoleErrors = [], renderQualityLogs = [], assetFailures = [], dimensions = [], pauses = [];
 const startedAtUtc = new Date().toISOString(), startedAt = Date.now(), checkpoints = [];
+const pageContexts = new WeakMap();
+let contextSequence = 0;
 let browser, server, page, manifest, networkMeasurement, speedMeasurement, trainingLifecycle;
 let expectedMissingManifest = false;
 const browserOptions = { headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) };
+const environment = { platform: platform(), osRelease: release(), architecture: arch(), node: process.version,
+  cpuModel: cpus()[0]?.model ?? null, logicalCpuCount: cpus().length, totalMemoryBytes: totalmem(),
+  browserChannel: process.env.JIUQUEST_BROWSER_CHANNEL || 'playwright-chromium', browserVersions: [], renderers: [] };
+
+async function recordRenderer(phase, requireObservedRuntime = false) {
+  // Normal probes run after rendered readiness. Failure probes additionally
+  // require an observed live runtime; never create or presume a GPU/renderer.
+  const renderer = await bounded(page.evaluate((requireObservedRuntime) => {
+    // On failure the player may not have created its graphics context yet.
+    // Do not create one merely to collect diagnostics.
+    if (requireObservedRuntime && !window.__unityLifecycle?.some(runtime => Number.isFinite(runtime.createdAt) && !runtime.quitStarted))
+      return { available: false, reason: 'No observed live Unity runtime; existing context was not queried' };
+    const canvas = document.querySelector('.unity-canvas');
+    const gl = canvas?.getContext('webgl2');
+    if (!gl) return { available: false, reason: 'Existing WebGL2 context unavailable' };
+    const debug = gl.getExtension('WEBGL_debug_renderer_info');
+    return { available: true, vendor: gl.getParameter(gl.VENDOR), renderer: gl.getParameter(gl.RENDERER),
+      version: gl.getParameter(gl.VERSION), shadingLanguage: gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+      unmaskedVendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : null,
+      unmaskedRenderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
+      drawingBuffer: { width: gl.drawingBufferWidth, height: gl.drawingBufferHeight }, userAgent: navigator.userAgent };
+  }, requireObservedRuntime), 10000, 'Renderer diagnostics');
+  const entry = { phase, context: pageContexts.get(page), atUtc: new Date().toISOString(), ...renderer };
+  environment.renderers.push(entry);
+  return entry;
+}
 
 async function bounded(promise, timeoutMs, label) {
   let timer;
@@ -26,7 +55,7 @@ async function bounded(promise, timeoutMs, label) {
 function evidence(extra = {}) {
   return { startedAtUtc, checkedAtUtc: new Date().toISOString(), elapsedMs: Date.now() - startedAt, manifest, checkpoints,
     checks, moves, images, dimensions, pauses, trainingLifecycle, speedMeasurement, networkMeasurement,
-    pageErrors: errors, assetFailures, ...extra };
+    pageErrors: errors, consoleErrors, expectedConsoleErrors, renderQualityLogs, assetFailures, environment, ...extra };
 }
 
 async function checkpoint(stage, detail = {}) {
@@ -73,6 +102,7 @@ async function staticSite() {
 
 async function context(options = {}) {
   const next = await browser.newContext(options);
+  const contextIdentity = { id: ++contextSequence, createdPhase: checkpoints.at(-1)?.stage ?? 'starting' };
   await next.addInitScript(installUnityStartupTelemetry, { moveId: 'double_leg' });
   await next.addInitScript(() => {
     window.__unityEvents = [];
@@ -113,7 +143,23 @@ async function context(options = {}) {
     Storage.prototype.setItem = function (key, value) { if (key.startsWith('jiuquest:')) window.__progressWrites.push(key); return original.call(this, key, value); };
   });
   page = await next.newPage();
+  pageContexts.set(page, contextIdentity);
   page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', message => {
+    const text = message.text(), qualityDiagnostic = text.startsWith('JiuQuest render quality: ');
+    if (message.type() !== 'error' && !qualityDiagnostic) return;
+    const entry = { text, type: message.type(), location: message.location(), atUtc: new Date().toISOString(),
+      phase: checkpoints.at(-1)?.stage ?? 'starting', context: contextIdentity };
+    // Keep the actual C# diagnostic independent of JavaScript renderer identity.
+    // Recording a profile does not select it or alter the rendered-ready gate.
+    if (qualityDiagnostic) renderQualityLogs.push(entry);
+    if (message.type() !== 'error') return;
+    // Only the explicit unavailable-build test may log its manifest's 404.
+    // Unity runtime errors can be console messages rather than pageerror events.
+    if (expectedMissingManifest && entry.location.url.endsWith('/unity/build-manifest.json')
+        && /Failed to load resource.*404/.test(entry.text)) expectedConsoleErrors.push(entry);
+    else consoleErrors.push(entry);
+  });
   page.on('response', (response) => {
     if (expectedMissingManifest && response.status() === 404 && response.url().endsWith('/unity/build-manifest.json')) return;
     if (response.status() >= 400 && /\/unity\//.test(response.url())) assetFailures.push({ url: response.url(), status: response.status() });
@@ -133,7 +179,7 @@ async function ready() {
 }
 
 async function select(name, value) {
-  if (['Performing athlete', 'Gi colors'].includes(name)) {
+  if (['Performing athlete', 'Gi colors', 'Your hairstyle'].includes(name)) {
     const detail = page.locator('.unity-preview-options details');
     if (await detail.getAttribute('open') === null) await detail.locator('summary').click();
   }
@@ -150,6 +196,12 @@ async function camera(value) {
   const since = await count(); await button.click(); await state(since);
   assert.equal(await button.getAttribute('aria-pressed'), 'true');
   await page.waitForTimeout(350); // Let the deliberately eased camera reach its preset before pixel evidence.
+}
+
+async function selectedCamera(label) {
+  const group = page.getByRole('group', { name: 'Camera view' });
+  assert.equal(await group.getByRole('button', { name: label, exact: true }).getAttribute('aria-pressed'), 'true');
+  assert.equal(await group.locator('button[aria-pressed="true"]').count(), 1);
 }
 
 async function pause() {
@@ -182,10 +234,19 @@ async function seek(progress) {
     assert.ok(Math.abs(observed.progress - progress) < 0.005);
     return;
   }
+  const previousValue = await slider.inputValue();
   const since = await count();
   if (progress === 0) await slider.press('Home');
   else if (progress === 1) await slider.press('End');
   else { const box = await slider.boundingBox(); await slider.click({ position: { x: box.width * progress, y: box.height / 2 } }); }
+  // At quarter positions the native thumb inset can exceed five range units.
+  // Clicking that same track position again emits no change event. Verify the
+  // already-rendered paused state against the existing pointer seek tolerance.
+  if (await slider.inputValue() === previousValue) {
+    const current = await pause();
+    assert.ok(Math.abs(current.progress - progress) < 0.05, `Unchanged seek ${progress} is at ${current.progress}`);
+    return;
+  }
   const observed = await state(since, { playing: false });
   assert.ok(Math.abs(observed.progress - progress) < 0.05, `Seek ${progress} returned ${observed.progress}`);
 }
@@ -218,6 +279,7 @@ try {
   await checkpoint('starting');
   const base = process.env.JIUQUEST_PREVIEW_URL?.replace(/\/$/, '') || await staticSite();
   browser = await chromium.launch(browserOptions);
+  environment.browserVersions.push({ phase: 'inventory', version: browser.version() });
   // Inventory is deliberately paused, including on slow CI software rendering.
   // Separate transport checks below start and stop the actual playing runtime.
   const desktop = await context({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
@@ -226,8 +288,52 @@ try {
   manifest = await manifestResponse.json();
   assert.equal(manifest.protocolVersion, 1); assert.equal(manifest.supportedMoves.length, 16);
   await page.goto(`${base}/?preview=unity`); await ready(); await pause();
+  await selectedCamera('Side');
+  await recordRenderer('inventory');
   await checkpoint('desktop:ready');
   const firstSession = await page.evaluate(() => window.__unityEvents.find((event) => event.type === 'ready').instanceId);
+  // Reduced-motion startup must freeze the whole scene, including ambient wind.
+  // Inspect the rendered canvas, not only the transport's playing flag.
+  await select('Technique', 'standing_stance'); await pause();
+  await seek(0);
+  const stillStance = await capture('stance-paused-start');
+  await page.waitForTimeout(650);
+  const heldStance = await capture('stance-paused-held');
+  assert.equal(heldStance.sha256, stillStance.sha256, 'Paused fighters and scenery must remain visually still.');
+  await seek(0.25);
+  const shiftedStance = await capture('stance-weight-shift');
+  assert.notEqual(shiftedStance.sha256, stillStance.sha256, 'Seeking the standing loop must change the actual rendered pose.');
+  checks.push('Standing weight shift renders while paused fighters and ambient scenery remain visually still.');
+  // The website opens side-on, while a deliberate view selection belongs to
+  // this mounted stage and survives technique, appearance and replay changes.
+  await camera('front');
+  const selectedFront = await capture('stance-front-selected');
+  assert.notEqual(selectedFront.sha256, shiftedStance.sha256, 'Choosing Front must visibly change the default Side presentation.');
+  await select('Technique', 'grip_fighting'); await selectedCamera('Front');
+  await select('Gi colors', 'night'); await selectedCamera('Front');
+  const replayFromFront = await count();
+  await page.getByRole('button', { name: 'Replay', exact: true }).click();
+  await state(replayFromFront, { moveId: 'grip_fighting', playing: true }); await pause(); await selectedCamera('Front');
+  await select('Technique', 'standing_stance'); await select('Gi colors', 'classic'); await seek(0.25); await selectedCamera('Front');
+  checks.push('Side is the default website view; a selected Front view changes rendered pixels and persists through technique, appearance and replay.');
+  await camera('focus');
+  const hairstyles = [];
+  for (const style of ['shadow spikes', 'short fade', 'slicked back', 'long hair', 'mohawk', 'bald']) {
+    await select('Your hairstyle', style); await pause(); await seek(0.25);
+    hairstyles.push(await capture(`hair-${style.replaceAll(' ', '-')}`));
+  }
+  assert.equal(new Set(hairstyles.map(image => image.sha256)).size, hairstyles.length,
+    'Each hairstyle must visibly change the paused rendered athlete.');
+  await select('Your hairstyle', 'shadow spikes');
+  const colorways = [];
+  for (const kit of ['classic', 'night', 'summit']) {
+    await select('Gi colors', kit); await pause(); await seek(0.25);
+    colorways.push(await capture(`textured-gi-${kit}`));
+  }
+  assert.equal(new Set(colorways.map(image => image.sha256)).size, colorways.length,
+    'Textured clothing must retain all three distinct selectable colorways.');
+  await select('Gi colors', 'classic'); await camera('front');
+  checks.push('All six hairstyles and three textured clothing colorways produce distinct paused renders.');
   for (const moveId of manifest.supportedMoves) {
     await checkpoint('clip:starting', { moveId });
     await select('Technique', moveId); await pause(); await seek(0.5);
@@ -272,6 +378,7 @@ try {
   checks.push('Standalone playback does not write saved progression.');
   await checkpoint('training:starting');
   await page.goto(base); await page.getByRole('button', { name: 'Training', exact: true }).click(); await ready();
+  await selectedCamera('Side');
   assert.equal(new URL(page.url()).searchParams.has('engine'), false);
   const priorTrainingInstance = await page.evaluate(() => window.__unityEvents.findLast((event) => event.type === 'ready').instanceId);
   await page.getByRole('button', { name: /Kimura Armlock/ }).click(); await page.getByRole('region', { name: 'Unity preview unavailable' }).waitFor();
@@ -285,6 +392,7 @@ try {
     && window.__unityEvents.some((event) => event.type === 'state' && event.instanceId !== prior && event.moveId === 'rear_naked_choke'), priorTrainingInstance, { timeout: 95000 });
   await ready();
   assert.equal(await page.evaluate(() => new Set(window.__unityEvents.filter((event) => event.type === 'ready').map((event) => event.instanceId)).size), 2);
+  await selectedCamera('Side');
   trainingLifecycle = await page.evaluate(() => window.__unityLifecycle);
   assert.equal(trainingLifecycle.length, 2);
   assert.equal(trainingLifecycle[0].quitCompleted, true);
@@ -299,6 +407,7 @@ try {
     await checkpoint('mobile:starting', { viewport });
     const phone = await context({ viewport, isMobile: true, hasTouch: true, deviceScaleFactor: 1, reducedMotion: 'reduce' });
     await page.goto(`${base}/?preview=unity`); await ready(); await state(0, { moveId: 'double_leg', playing: false });
+    await selectedCamera('Side');
     assert.equal(await page.evaluate(() => window.__unityEvents.some((event) => event.type === 'state' && event.playing)), false);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     const stage = await page.locator('.unity-viewport').boundingBox(); dimensions.push({ viewport, stage });
@@ -357,6 +466,7 @@ try {
   await checkpoint('cold-network:browser-closed');
   await checkpoint('cold-network:browser-launching');
   browser = await chromium.launch(browserOptions);
+  environment.browserVersions.push({ phase: 'cold-network', version: browser.version() });
   await checkpoint('cold-network:browser-launched');
   await checkpoint('cold-network:starting');
   const cold = await context({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1, reducedMotion: 'reduce' });
@@ -383,6 +493,7 @@ try {
     controllerElapsedMs, navigationCommandDelayMs: telemetry.startup.navigationTimeOrigin - began,
     automationDelayMs: controllerElapsedMs - (telemetry.startup.renderedReadyMs ?? 0) - (telemetry.startup.navigationTimeOrigin - began),
     ...telemetry, physicalPhone: false };
+  await recordRenderer('cold-network-after-measurement');
   await checkpoint('cold-network:measured');
   assert.equal(telemetry.stage, 'ready');
   assert.equal(telemetry.startup.error, null);
@@ -405,17 +516,18 @@ try {
   await closeContext(failed, 'missing-build-fallback');
   checks.push('Missing-build fallback changes to snapshots in-place, preserves saved progression/document state, and retains other URL settings.');
   assert.deepEqual(errors, []);
+  assert.deepEqual(consoleErrors, [], 'Unexpected browser or Unity console errors');
   assert.deepEqual(assetFailures, []);
   await checkpoint('verification:passed');
   report = evidence({ status: 'passed', scope: 'Actual Unity WebGL in desktop Chromium with mobile viewport/network emulation, not a physical-device performance benchmark. Only the final negative test mocks a 404 manifest.' });
   console.log(JSON.stringify({ checks, moveCount: moves.length, dimensions, speedMeasurement, networkMeasurement, artifacts }, null, 2));
 } catch (error) {
-  report = evidence({ status: 'failed', failure: error.stack || String(error) });
+  const failurePhase = checkpoints.at(-1)?.stage ?? 'starting';
+  report = evidence({ status: 'failed', failure: error.stack || String(error), failurePhase, failureContext: pageContexts.get(page) });
   // Persist the original failure before querying a possibly unresponsive page.
   await writeFile(resolve(artifacts, 'report.json'), JSON.stringify(report, null, 2));
   if (page && !page.isClosed()) {
     const diagnostics = await Promise.allSettled([
-      bounded(page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }), 12000, 'Failure screenshot'),
       bounded(page.evaluate(() => ({
         url: location.href, observedAtMs: performance.now(), navigationTimeOrigin: performance.timeOrigin,
         documentVisibility: document.visibilityState,
@@ -423,6 +535,8 @@ try {
         stageText: document.querySelector('.unity-stage')?.innerText,
         visibleTransport: [...document.querySelectorAll('button[aria-label="Play animation"],button[aria-label="Pause animation"]')].map((button) => ({ label: button.getAttribute('aria-label'), disabled: button.disabled })),
         recentUnityEvents: window.__unityEvents?.slice(-20), unityLifecycle: window.__unityLifecycle,
+        latestReady: window.__unityEvents?.findLast(event => event.type === 'ready') ?? null,
+        latestState: window.__unityEvents?.findLast(event => event.type === 'state' || event.type === 'completed') ?? null,
         startup: window.__unityStartupTelemetry,
         resources: performance.getEntriesByType('resource').map((entry) => ({ ...entry.toJSON(), name: new URL(entry.name).pathname })),
         navigation: performance.getEntriesByType('navigation').map((entry) => ({ ...entry.toJSON(), name: new URL(entry.name).pathname })),
@@ -433,10 +547,23 @@ try {
           opacity: getComputedStyle(canvas).opacity,
           checkVisibility: canvas.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true }),
         })),
-      })), 5000, 'Failure diagnostics'),
+      })), 10000, 'Failure diagnostics'),
+      recordRenderer(`failure:${failurePhase}`, true),
     ]);
-    report.diagnostics = diagnostics[1].status === 'fulfilled' ? diagnostics[1].value : { unavailable: String(diagnostics[1].reason) };
+    report.diagnostics = diagnostics[0].status === 'fulfilled' ? diagnostics[0].value : { unavailable: String(diagnostics[0].reason) };
+    report.failureRenderer = diagnostics[1].status === 'fulfilled' ? diagnostics[1].value : { unavailable: String(diagnostics[1].reason) };
     report.diagnosticErrors = diagnostics.filter((result) => result.status === 'rejected').map((result) => String(result.reason));
+    if (failurePhase.startsWith('cold-network:')) {
+      report.failedColdStartup = { observedAfterFailure: true, renderedStartupGateMs: 90000, controllerWaitMs: 95000,
+        startup: report.diagnostics.startup ?? null, stage: report.diagnostics.stage ?? null,
+        latestReady: report.diagnostics.latestReady ?? null, latestState: report.diagnostics.latestState ?? null,
+        observedAtMs: report.diagnostics.observedAtMs ?? null };
+    }
+    // Save lightweight telemetry before a screenshot can occupy a slow renderer.
+    // Diagnostic failures must never replace the original test failure.
+    await writeFile(resolve(artifacts, 'report.json'), JSON.stringify(report, null, 2)).catch(failure => report.diagnosticErrors.push(`Diagnostic evidence save: ${failure}`));
+    await bounded(page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }), 12000, 'Failure screenshot')
+      .catch(failure => report.diagnosticErrors.push(String(failure)));
   }
   console.error(error); process.exitCode = 1;
 } finally {

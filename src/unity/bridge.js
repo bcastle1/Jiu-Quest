@@ -1,6 +1,7 @@
 export const UNITY_PROTOCOL_VERSION = 1;
 export const UNITY_EVENT = 'jiuquest:unity';
 export const UNITY_CAMERAS = ['front', 'focus', 'side', 'overhead', 'orbit'];
+export const UNITY_DEFAULT_CAMERA = 'side';
 export const UNITY_SPEEDS = [0.25, 0.5, 1];
 
 // Explicit technique matches only. A generic armbar or pass is not a named entry.

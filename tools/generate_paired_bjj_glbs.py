@@ -52,6 +52,11 @@ MOVE_DURATIONS = {
 }
 
 CONTACT_SAMPLED_MOVES = {"trap_roll_escape", "double_leg", "triangle_choke", "rear_naked_choke", "standing_stance"}
+READY_HAND_MOVES = {"standing_stance", "grip_fighting", "reset_neutral"}
+FINGER_BONES = tuple(f"{digit}_{segment:02d}_{side}"
+                     for side in ("l", "r")
+                     for digit in ("thumb", "index", "middle", "ring", "pinky")
+                     for segment in (1, 2, 3))
 
 ANIMATED_BONES = (
     "pelvis",
@@ -860,6 +865,21 @@ def pose_double_leg(performer: dict, opponent: dict, progress: float) -> None:
             Vector((.28 - sign * .065, .35, .70 + .025 * sign)), drive)
         knee = Vector((sign * .28, .19, .53)).lerp(
             Vector((.28 + sign * .46, .29, .46)), drive)
+        if drive:
+            # Carry the legs around the falling pelvis. A straight world-space
+            # ankle path cuts through the hip and forces an abrupt deep fold.
+            hip_start, hip_end = Vector((0, .37, .94)), Vector((.28, .47, .20))
+            falling = Quaternion((1, 0, 0), -math.pi * .5 * drive)
+            landed = Quaternion((1, 0, 0), -math.pi * .5)
+            hips = hip_start.lerp(hip_end, drive)
+            def falling_arc(start, end):
+                local = (Vector(start) - hip_start).lerp(
+                    landed.inverted() @ (Vector(end) - hip_end), drive)
+                return hips + falling @ local
+            ankle = falling_arc((sign * .22, .40 + sign * .07, .085),
+                                (.28 - sign * .065, .35, .70 + .025 * sign))
+            knee = falling_arc((sign * .28, .19, .53),
+                               (.28 + sign * .46, .29, .46))
         toes = ankle + Vector((0, lerp(-.16, .07, drive), -.045))
         contact_leg(opponent, side, ankle, knee, toes)
     for side, sign in (("l", -1), ("r", 1)):
@@ -902,6 +922,33 @@ def pose_double_leg(performer: dict, opponent: dict, progress: float) -> None:
             blend_pose(fighter, a, b, settle)
         bpy.context.view_layer.update()
         keep_pair_above_mat((performer, opponent))
+
+    if drive:
+        # Match toe direction and sole roll to each solved knee's hinge plane.
+        # Apply after settling so top_guard_pose cannot restore reversed toes.
+        # The zero-drive pose stays exact: standing idle also uses this entry.
+        armature = opponent["armature"]
+        inverse = armature.matrix_world.inverted().to_3x3()
+        for side in ("l", "r"):
+            hip = bone_world_point(opponent, "thigh_" + side)
+            knee = bone_world_point(opponent, "calf_" + side)
+            ankle = bone_world_point(opponent, "foot_" + side)
+            upper, shin = (knee - hip).normalized(), (ankle - knee).normalized()
+            forward = (upper - shin * upper.dot(shin)).normalized()
+            forward = (forward + .15 * shin).normalized()
+            up = (-shin + forward * shin.dot(forward)).normalized()
+            def frame(direction, normal):
+                direction.normalize()
+                normal = (normal - direction * normal.dot(direction)).normalized()
+                return Matrix((direction.cross(normal), direction, normal)).transposed()
+            bone = armature.pose.bones["foot_" + side]
+            rest = frame((bone.bone.tail_local - bone.bone.head_local).normalized(),
+                         Vector((0, 0, 1)))
+            target = frame(inverse @ forward, inverse @ up) @ rest.transposed()
+            target = (target @ bone.bone.matrix_local.to_3x3()).to_quaternion()
+            rotation = bone.matrix.to_quaternion().slerp(target, smooth(drive / .25))
+            bone.matrix = Matrix.LocRotScale(bone.head.copy(), rotation, bone.matrix.to_scale())
+            bpy.context.view_layer.update()
 
 
 def pose_rear_naked_choke(performer: dict, opponent: dict, progress: float) -> None:
@@ -980,6 +1027,79 @@ def pose_triangle_choke(performer: dict, opponent: dict, progress: float) -> Non
     keep_pair_above_mat((performer, opponent))
 
 
+def pose_standing_stance(attacker: dict, defender: dict, progress: float) -> None:
+    """Small looping weight shifts with the original neutral foot contacts.
+
+    This is an idle presentation change, not a new BJJ technique. Capture the
+    neutral world-space contacts before moving the pelvis, then solve each leg
+    back onto them. A little knee flex keeps the originally almost straight
+    defender leg reachable throughout the sway without stretching or foot slide.
+    """
+    pose_double_leg(attacker, defender, 0)
+    cycle = clamp(progress) * math.tau
+    sway = math.sin(cycle)
+    compression = .014 + .004 * (1. - math.cos(cycle * 2.))
+    for fighter, phase in ((attacker, 1), (defender, -1)):
+        armature = fighter["armature"]
+        contacts = {}
+        for side in ("l", "r"):
+            foot = armature.pose.bones["foot_" + side]
+            contacts[side] = (
+                armature.matrix_world @ foot.matrix,
+                bone_world_point(fighter, "calf_" + side),
+            )
+
+        fighter["root"].location.x += .018 * phase * sway
+        fighter["root"].location.z -= compression
+        spine = armature.pose.bones["spine_02"]
+        spine.rotation_quaternion = spine.rotation_quaternion @ Quaternion(
+            (1, 0, 0), .012 * phase * sway)
+        bpy.context.view_layer.update()
+        for side, (planted_world, knee_pole) in contacts.items():
+            solve_limb(fighter, "thigh_" + side, "calf_" + side,
+                       planted_world.translation, knee_pole)
+            # Preserve the planted foot's world orientation as well as its
+            # ankle position. Swing-only foot aiming would leave a small sole
+            # roll as the thigh turns, visibly rocking a supposedly fixed foot.
+            planted_world.translation = bone_world_point(fighter, "foot_" + side)
+            armature.pose.bones["foot_" + side].matrix = (
+                armature.matrix_world.inverted() @ planted_world)
+            bpy.context.view_layer.update()
+
+
+def relaxed_ready_hands(fighter: dict, key: str, progress: float) -> None:
+    """A loose, staggered finger curl for the three ready-hand presentations.
+
+    Curl toward the anatomical palm (-Z in this rig's rest T pose), converted
+    into each joint's own frame. Mirrored hands therefore use the same rule.
+    Wrists, palm roots, joint lengths and the other technique poses stay fixed.
+    This is presentation motion, not a solved cloth grip or collision response.
+    """
+    phase = 0. if fighter["role"] == "Attacker" else math.pi
+    if key == "standing_stance":
+        amount = 1. + .045 * math.sin(math.tau * clamp(progress) + phase)
+    elif key == "grip_fighting":
+        amount = 1. + .22 * math.sin(math.pi * clamp(progress)) ** 2
+    else:
+        amount = 1.12 - .12 * smooth(progress)
+    rig = fighter["armature"]
+    for side in ("l", "r"):
+        for digit, stagger in (("thumb", 1.), ("index", .88), ("middle", 1.),
+                               ("ring", 1.08), ("pinky", 1.15)):
+            angles = (6., 10., 7.) if digit == "thumb" else (12., 24., 12.)
+            for segment, degrees in enumerate(angles, 1):
+                name = f"{digit}_{segment:02d}_{side}"
+                rest = rig.data.bones[name]
+                direction = (rest.tail_local - rest.head_local).normalized()
+                axis = direction.cross(Vector((0., 0., -1.)))
+                if axis.length < 1e-6:
+                    raise ValueError("Ready-hand curl has no anatomical axis: " + name)
+                local_axis = rest.matrix_local.to_3x3().inverted() @ axis.normalized()
+                rig.pose.bones[name].rotation_quaternion = Quaternion(
+                    local_axis.normalized(), math.radians(degrees) * stagger * amount)
+    bpy.context.view_layer.update()
+
+
 def pose_pair(key: str, attacker: dict, defender: dict, progress: float) -> None:
     reset_fighter(attacker)
     reset_fighter(defender)
@@ -995,14 +1115,7 @@ def pose_pair(key: str, attacker: dict, defender: dict, progress: float) -> None
     elif key == "rear_naked_choke":
         pose_rear_naked_choke(attacker, defender, progress)
     elif key == "standing_stance":
-        # Same neutral entry as the takedown. Feet stay planted; a full-cycle
-        # breathing motion returns exactly to its first pose without a loop pop.
-        pose_double_leg(attacker, defender, 0)
-        for fighter, phase in ((attacker, 1), (defender, -1)):
-            spine = fighter["armature"].pose.bones["spine_02"]
-            spine.rotation_quaternion = spine.rotation_quaternion @ Quaternion((1, 0, 0),
-                .012 * phase * math.sin(progress * math.pi * 2))
-        bpy.context.view_layer.update()
+        pose_standing_stance(attacker, defender, progress)
     elif key == "grip_fighting":
         stance(attacker, lerp(-1.12, -0.42, p), 0.09, 1, 0.22 * p, -0.12 * p, 0.06)
         stance(defender, lerp(1.12, 0.42, p), -0.02, -1, 0.20 * p, 0.12 * p, -0.06)
@@ -1121,6 +1234,10 @@ def pose_pair(key: str, attacker: dict, defender: dict, progress: float) -> None
         stance(attacker, lerp(-0.28, -0.90, p), 0.06, 1, 0.22 * (1.0 - p), 0.0, 0.06)
         stance(defender, lerp(0.28, 0.90, p), 0.02, -1, 0.20 * (1.0 - p), 0.0, -0.06)
 
+    if key in READY_HAND_MOVES:
+        relaxed_ready_hands(attacker, key, progress)
+        relaxed_ready_hands(defender, key, progress)
+
 
 def keyframe_fighter(fighter: dict, frame: int) -> None:
     root = fighter["root"]
@@ -1153,7 +1270,10 @@ def build_move(key: str, duration: float) -> None:
     clear_scene()
     scene = bpy.context.scene
     scene.render.fps = FPS
-    scene.frame_start = 1
+    # Looping stance must have a key at t=0. A frame-1 start exports a 1/FPS
+    # leading hold, interrupting the weight-shift velocity on every loop.
+    # Leave the existing technique timelines unchanged.
+    scene.frame_start = 0 if key == "standing_stance" else 1
     scene.frame_end = max(2, round(duration * FPS))
     scene["JQ_asset_version"] = "3"
     scene["JQ_motion_type"] = "rigged-paired-choreography"
@@ -1189,11 +1309,15 @@ def build_move(key: str, duration: float) -> None:
     )
     attacker["root"].parent = pair
     defender["root"].parent = pair
+    if key in READY_HAND_MOVES:
+        for fighter in (attacker, defender):
+            fighter["pose_bones"].extend(fighter["armature"].pose.bones[name] for name in FINGER_BONES)
 
-    samples = ([frame / (scene.frame_end - 1) for frame in range(scene.frame_end)]
+    frame_span = scene.frame_end - scene.frame_start
+    samples = ([frame / frame_span for frame in range(frame_span + 1)]
                if key in CONTACT_SAMPLED_MOVES else (0.0, 0.14, 0.30, 0.48, 0.66, 0.84, 1.0))
     for progress in samples:
-        frame = 1 + round(progress * (scene.frame_end - 1))
+        frame = scene.frame_start + round(progress * frame_span)
         scene.frame_set(frame)
         pose_pair(key, attacker, defender, progress)
         keyframe_fighter(attacker, frame)
@@ -1201,7 +1325,7 @@ def build_move(key: str, duration: float) -> None:
 
     name_actions(key, attacker)
     name_actions(key, defender)
-    scene.frame_set(1)
+    scene.frame_set(scene.frame_start)
     # The glTF specification requires skinned mesh nodes to be scene roots.
     # Keep authoring under each armature, then detach at export while preserving
     # world transforms; skin joints still drive every mesh through modifiers.

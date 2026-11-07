@@ -56,14 +56,17 @@ namespace JiuQuest.Combat
             bool skin = !facialDetail && slot.IndexOf("Skin", StringComparison.OrdinalIgnoreCase) >= 0;
             bool hair = !facialDetail && slot.IndexOf("Hair", StringComparison.OrdinalIgnoreCase) >= 0;
             bool hasReference = slot.IndexOf("_Ref_", StringComparison.OrdinalIgnoreCase) >= 0;
-            // Keep the illustrated face while restoring enough texture to read its
-            // cheek planes. Cloth, eyes and hair each retain a distinct light response.
-            material.SetFloat(DetailStrength, skin && hasReference ? .48f : 1f);
+            // Retain most authored facial texture for a grounded 3D athlete,
+            // with a small reduction in photographic mottling at phone size.
+            // Cosmetic reference-color tinting stays independent of this blend.
+            material.SetFloat(DetailStrength, skin && hasReference ? .80f : 1f);
             material.SetVector(DetailBaseColor, CombatMaterialAppearance.ReferenceColor(slot));
-            material.SetFloat(InkStrength, facialDetail ? .06f : skin ? .13f : hair ? .20f : .22f);
-            material.SetFloat(SpecularStrength, eye ? .40f : brows ? .012f : skin ? .06f : hair ? .10f : .025f);
-            material.SetFloat(RimStrength, eye ? .02f : skin ? .05f : hair ? .10f : .08f);
-            material.SetFloat(NormalDetailStrength, skin ? .18f : hair ? .30f : .42f);
+            material.SetFloat(InkStrength, facialDetail ? .01f : skin ? .025f : hair ? .07f : .025f);
+            // Weights modulate URP's dielectric F0, not an additive white gloss.
+            // The imported roughness still determines each highlight's width.
+            material.SetFloat(SpecularStrength, eye ? 1f : brows ? .04f : skin ? .60f : hair ? .72f : .30f);
+            material.SetFloat(RimStrength, eye ? 0f : skin ? .015f : hair ? .035f : .018f);
+            material.SetFloat(NormalDetailStrength, skin ? .18f : hair ? .30f : .82f);
             var normal = gltfMaterial.NormalTexture;
             var roughness = gltfMaterial.PbrMetallicRoughness?.MetallicRoughnessTexture;
             var occlusion = gltfMaterial.OcclusionTexture;

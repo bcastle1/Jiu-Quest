@@ -59,7 +59,7 @@ namespace JiuQuest.Combat.Tests
         [TestCase("GiTop", .72f)]
         [TestCase("GiPants", .76f)]
         [TestCase("Belt", .64f)]
-        public void CelMaterialsRetainAuthoredSurfaceMetadata(string slot, float roughness)
+        public void FighterMaterialsRetainAuthoredSurfaceMetadata(string slot, float roughness)
         {
             var material = Generate("JQ_Attacker_" + slot, roughness);
             Assert.That(material.shader.name, Is.EqualTo(CombatMaterialGenerator.FighterShaderName));
@@ -76,13 +76,13 @@ namespace JiuQuest.Combat.Tests
             Assert.That(material.shader.name, Is.Not.EqualTo(CombatMaterialGenerator.FighterShaderName));
         }
 
-        [TestCase("Skin_Ref_AA7755", .48f)]
+        [TestCase("Skin_Ref_AA7755", .80f)]
         [TestCase("Skin", 1f)]
         [TestCase("Skin_Eyes_Ref_AA7755", 1f)]
         [TestCase("Iris_Ref_557799", 1f)]
         [TestCase("Brows_Ref_0D0605", 1f)]
         [TestCase("GiTop_Ref_E0E4E8", 1f)]
-        public void SkinSimplificationPreservesFacialInkAndUnreferencedMaps(string slot, float detail)
+        public void SurfaceDetailPreservesFacialFeaturesAndUnreferencedMaps(string slot, float detail)
         {
             var material = Generate("JQ_Attacker_" + slot);
             Assert.That(material.GetFloat(CombatMaterialGenerator.DetailStrength), Is.EqualTo(detail));
