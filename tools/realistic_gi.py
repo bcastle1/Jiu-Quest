@@ -251,6 +251,9 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         theta = mix(edge_angle, TAU - edge_angle, u)
         folds = (.0014 * math.sin(theta * 11 + t * 8)
                  + .0016 * math.sin(theta * 19 - t * 14)) * (1. - .55 * t)
+        # Fine wrinkles soften across the stretched upper chest/back. Broad
+        # fabric tension carries the shape instead of a rippled padded yoke.
+        folds *= 1. - .40 * smooth((t - .58) / .22)
         # A few broad tension folds read at combat distance; fine textile relief
         # remains in the existing cotton map. The belt compresses the waist.
         waist_t = (waist_z - hem_z) / (neck_z - hem_z)
@@ -278,6 +281,16 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         # torso fitting to chest/back inside the actual shoulder joints and
         # fade before that junction; sleeve fitting still covers the arms.
         armhole_fit = 1. - smooth((abs(point.x) - armhole_x + .045) / .045)
+        if z > crown_z:
+            shoulder_t = (z - crown_z) / (neck_z - crown_z)
+            # Start the shoulder slope earlier than a pure smoothstep, whose
+            # flat start creates a shelf. Never widen the upper neckline.
+            early_taper = .55 * max(0., shoulder_t - smooth(shoulder_t))
+            # The lapel exclusion is front-only; the back must also slope.
+            front_opening = mix(1., opening_fit, smooth(math.cos(theta) / .35))
+            taper = early_taper * front_opening * armhole_fit
+            point.x -= (.224 - .073) * taper * math.sin(theta)
+            point.y += (.135 - .072) * taper * math.cos(theta)
         point = clear_body(point, upper_fit * opening_fit * armhole_fit, 'torso')
         # Broad cotton tension over the chest suggests an athletic build.
         # Keep the relief below the armholes and away from the open lapels;
@@ -285,7 +298,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
         chest_plane = math.exp(-((z - bone_head('spine_03').z - .070) / .075) ** 2)
         chest_plane *= math.exp(-((abs(point.x) - .100) / .060) ** 2)
         chest_plane *= max(0., math.cos(theta)) ** 3 * opening_fit
-        point.y -= .0045 * chest_plane
+        point.y -= .0030 * chest_plane
         return point, (u * 5.5, t * 3.8), torso_weights(point.z)
     jacket.grid(42, 72, torso, detail=lambda t, u: panel_uv('torso', u, t))
 
@@ -373,7 +386,7 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             center -= basis_a * hang
             point = center + (basis_a * math.cos(angle) + basis_b * math.sin(angle) * oval) * (radius + fold)
             # Settle the top surface without shrinking the underarm overlap.
-            point -= basis_a * (.003 * shoulder_fit * max(0., math.cos(angle)) ** 2)
+            point -= basis_a * (.005 * shoulder_fit * max(0., math.cos(angle)) ** 2)
             point = clear_body(point, smooth((t - .20) / .14), 'sleeve_' + suffix)
             low = smooth((t - elbow_t + .11) / .22)
             weights = {'upperarm_' + suffix: 1. - low, 'lowerarm_' + suffix: low}

@@ -101,13 +101,17 @@ def refine_grappler_definition(body, rig):
             ridge_x = .018 + .029 * along
             relief = .0018 * math.exp(-((abs(p.x) - ridge_x) / .009) ** 2)
             delta.y -= relief * neck_band * front
-        # Shallow pectoral planes frame the exposed sternum in the gi opening.
+        # Defined pectoral planes and a restrained clavicle contour frame the
+        # exposed sternum. These stay below the shoulder/neck silhouette.
         chest = smooth(1.25, 1.30, p.z) * (1. - smooth(1.45, 1.49, p.z))
         if abs(p.x) < .080 and p.y < -.055 and chest > 0.:
             front = smooth(.055, .095, -p.y)
-            pec = .0042 * math.exp(-((p.z - 1.385) / .065) ** 2) * math.exp(-((abs(p.x) - .041) / .031) ** 2)
+            pec = .0064 * math.exp(-((p.z - 1.405) / .066) ** 2) * math.exp(-((abs(p.x) - .043) / .032) ** 2)
             sternum = .0010 * math.exp(-(p.x / .012) ** 2)
-            delta.y -= (pec - sternum) * chest * front
+            clavicle_z = 1.470 - .13 * abs(p.x)
+            clavicle = .0015 * math.exp(-((p.z - clavicle_z) / .014) ** 2)
+            clavicle *= 1. - math.exp(-(p.x / .014) ** 2)
+            delta.y -= (pec + clavicle - sternum) * chest * front
         # Only the exposed distal forearm above the wrist: preserve palm
         # contact, wrist circumference and all finger geometry.
         named = {groups[group.group]: group.weight for group in vertex.groups}
@@ -120,9 +124,12 @@ def refine_grappler_definition(body, rig):
             radial = p - (lower.head_local + axis * ((p - lower.head_local).dot(axis)))
             if radial.length > 1e-6:
                 dorsal = smooth(-.006, .025, radial.z)
-                delta += radial.normalized() * (.0022 * forearm * dorsal)
-        if delta.length > .0045:
-            delta *= .0045 / delta.length
+                # A long extensor plane gives definition without turning the
+                # forearm into a uniform cylinder or enlarging the wrist.
+                extensor = math.exp(-((radial.y + .010) / .020) ** 2)
+                delta += radial.normalized() * (.0034 * forearm * dorsal * (.55 + .45 * extensor))
+        if delta.length > .0065:
+            delta *= .0065 / delta.length
         vertex.co += delta
     body.data.update()
 

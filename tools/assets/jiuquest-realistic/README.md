@@ -206,9 +206,12 @@ the texture seam. This removes duplicated internal wall faces and gives the
 seam continuous surface normals without enlarging the outer garment.
 
 The athletic-fit pass lowers the jacket crown by 20 mm and narrows its upper
-envelope. Upper sleeves lose up to 8 mm of radius with a 3 mm top-only drop,
+envelope. Upper sleeves lose up to 8 mm of radius with a 5 mm top-only drop,
 fading before the buried armhole and cuffs. The existing clearance bounds stay
-in force. Broad chest relief remains part of the fabric surface.
+in force. Earlier crown-to-neck taper removes some of the broad upper-back
+band while preserving the front opening and buried armhole. Upper torso
+wrinkles are softened by up to 40 percent; chest relief is reduced to 3 mm
+and remains part of the fabric surface.
 
 Existing skin vertices receive bounded neck/lower-jaw, pectoral and distal
 forearm definition. Joint lengths, wrist and palm contact regions, source UVs,
@@ -217,3 +220,9 @@ removes covered shoulder skin outside the 80 mm neck column below 1.59 m;
 the head, actual neck column, open chest, hands and feet retain visibility.
 Export verification checks that retained skin vertices keep their UV/weight
 correspondence and that surviving triangles preserve their winding.
+
+The subsequent definition pass changes only the pectoral, clavicle and distal
+forearm extensor regions of the retained skin. Compared with the prior fit,
+the actual rest mesh moves 170 vertices by at most 2.07 mm; neck, jaw, hand,
+covered-body mask, UVs, weights and rig remain unchanged. Surface-normal
+comparison and animated pose checks guard against local sculpt distortion.
