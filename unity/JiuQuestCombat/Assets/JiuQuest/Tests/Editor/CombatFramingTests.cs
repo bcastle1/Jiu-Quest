@@ -6,6 +6,67 @@ namespace JiuQuest.Combat.Tests
 {
     public class CombatFramingTests
     {
+        [TestCase(15)]
+        [TestCase(30)]
+        [TestCase(60)]
+        [TestCase(144)]
+        [TestCase(240)]
+        public void PresetTransitionsReachExactTargetAndRemainBitStable(int framesPerSecond)
+        {
+            var target = Quaternion.Euler(14, 27, 0);
+            foreach (var start in new[] { Quaternion.Euler(14, 94, 0), Quaternion.Euler(65, -120, 0), Quaternion.Euler(14, 207, 0) })
+            {
+                var orientation = start;
+                for (int frame = 0; frame < framesPerSecond * 2; frame++)
+                    orientation = CombatFraming.EaseOrientation(orientation, target, 1f / framesPerSecond);
+                Assert.That(orientation.x, Is.EqualTo(target.x));
+                Assert.That(orientation.y, Is.EqualTo(target.y));
+                Assert.That(orientation.z, Is.EqualTo(target.z));
+                Assert.That(orientation.w, Is.EqualTo(target.w));
+                for (int frame = 0; frame < framesPerSecond; frame++)
+                {
+                    orientation = CombatFraming.EaseOrientation(orientation, target, 1f / framesPerSecond);
+                    Assert.That(orientation.x, Is.EqualTo(target.x));
+                    Assert.That(orientation.y, Is.EqualTo(target.y));
+                    Assert.That(orientation.z, Is.EqualTo(target.z));
+                    Assert.That(orientation.w, Is.EqualTo(target.w));
+                }
+            }
+        }
+
+        [Test]
+        public void OrbitInputStartsRespondingInTheNextFrameWithoutSnappingLargeChanges()
+        {
+            var current = Quaternion.Euler(25, 27, 0);
+            var target = Quaternion.Euler(30, 52, 0);
+            var next = CombatFraming.EaseOrientation(current, target, 1f / 60);
+            Assert.That(Quaternion.Angle(current, next), Is.GreaterThan(0));
+            Assert.That(Quaternion.Angle(next, target), Is.LessThan(Quaternion.Angle(current, target)));
+            Assert.That(Quaternion.Angle(next, target), Is.GreaterThan(1));
+        }
+
+        [TestCase(.46f)]
+        [TestCase(1.6f)]
+        public void EveryEasedTransitionFrameStillFitsTheWholeMotionEnvelope(float aspect)
+        {
+            var bounds = new Bounds(new Vector3(.4f, .95f, -.2f), new Vector3(2.7f, 2, 2.1f));
+            var orientation = Quaternion.Euler(65, -120, 0);
+            var target = Quaternion.Euler(14, 27, 0);
+            for (int frame = 0; frame < 120; frame++)
+            {
+                orientation = CombatFraming.EaseOrientation(orientation, target, 1f / 60);
+                float distance = CombatFraming.Distance(bounds, orientation, 44, aspect, .9f);
+                foreach (var corner in CombatFraming.Corners(bounds))
+                {
+                    var point = Quaternion.Inverse(orientation) * (corner - bounds.center) + Vector3.forward * distance;
+                    float halfHeight = point.z * Mathf.Tan(22 * Mathf.Deg2Rad);
+                    Assert.That(point.z, Is.GreaterThan(.08f));
+                    Assert.That(Mathf.Abs(point.y) / halfHeight, Is.LessThanOrEqualTo(.9001f));
+                    Assert.That(Mathf.Abs(point.x) / (halfHeight * aspect), Is.LessThanOrEqualTo(.9001f));
+                }
+            }
+        }
+
         [Test]
         public void CloseUpBoundsFollowTranslatedPoseWithSurfaceAllowance()
         {

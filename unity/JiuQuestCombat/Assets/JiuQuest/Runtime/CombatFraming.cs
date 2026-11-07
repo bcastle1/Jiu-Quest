@@ -51,6 +51,15 @@ namespace JiuQuest.Combat
             return preset == "overhead" ? 76 : preset == "orbit" ? orbitElevation : 14;
         }
 
+        public static Quaternion EaseOrientation(Quaternion current, Quaternion target, float elapsedSeconds)
+        {
+            if (!CombatProtocol.Finite(elapsedSeconds) || elapsedSeconds < 0) throw new ArgumentOutOfRangeException(nameof(elapsedSeconds));
+            var eased = Quaternion.Slerp(current, target, 1 - Mathf.Exp(-8 * elapsedSeconds));
+            // Finish sub-pixel travel exactly. Exponential easing alone keeps
+            // changing paused pixels indefinitely and never reaches its target.
+            return Quaternion.Angle(eased, target) <= .05f ? target : eased;
+        }
+
         public static float Distance(Bounds bounds, Quaternion orientation, float verticalFov, float aspect, float occupancy = .86f)
         {
             if (!CombatProtocol.Finite(aspect) || aspect <= 0) throw new ArgumentOutOfRangeException(nameof(aspect));

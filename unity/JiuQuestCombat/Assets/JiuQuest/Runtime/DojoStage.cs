@@ -72,7 +72,7 @@ namespace JiuQuest.Combat
             var moss = Material("Alpine moss verge", new Color(.30f, .37f, .35f), .025f);
             distantMaterials.UnionWith(new[] { farRock, nearRock, snow, pine, moss });
             // Shared maps keep surface detail independent of material/draw count.
-            // With full mip chains these eleven RGBA maps occupy about 2.27 MB.
+            // With full mip chains these thirteen RGBA maps occupy about 2.45 MB.
             var slate = SurfaceMaps(SummitSurface.Slate, 256);
             var cedar = SurfaceMaps(SummitSurface.Cedar, 256);
             var weave = SurfaceMaps(SummitSurface.Tatami, 128);
@@ -84,6 +84,7 @@ namespace JiuQuest.Combat
             // competing with the pair. Each material family shares one map.
             var alpine = SurfaceMaps(SummitSurface.Alpine, 256);
             ApplySurface(farRock, alpine); ApplySurface(nearRock, alpine);
+            ApplySurface(snow, SurfaceMaps(SummitSurface.Snow, 128));
             var boughPaint = SurfaceMaps(SummitSurface.Pine, 128);
             boughPaint.Color.wrapMode = TextureWrapMode.Clamp;
             ApplySurface(pine, boughPaint);
@@ -255,7 +256,7 @@ namespace JiuQuest.Combat
             float yaw = CombatFraming.CameraYaw(moveId, preset, orbitAngle);
             float elevation = CombatFraming.CameraElevation(preset, orbitElevation);
             var targetOrientation = Quaternion.Euler(elevation, yaw, 0);
-            cameraOrientation = immediate ? targetOrientation : Quaternion.Slerp(cameraOrientation, targetOrientation, 1 - Mathf.Exp(-8 * Time.unscaledDeltaTime));
+            cameraOrientation = immediate ? targetOrientation : CombatFraming.EaseOrientation(cameraOrientation, targetOrientation, Time.unscaledDeltaTime);
             var framingBounds = preset == "focus" ? currentPoseBounds : motionBounds;
             lookAt = framingBounds.center;
             // Refit at the interpolated angle too: even a camera transition cannot crop a limb.
@@ -322,7 +323,7 @@ namespace JiuQuest.Combat
             return material;
         }
 
-        enum SummitSurface { Slate, Cedar, Tatami, Bronze, Banner, Alpine, Pine }
+        enum SummitSurface { Slate, Cedar, Tatami, Bronze, Banner, Alpine, Pine, Snow }
 
         struct StageSurfaceMaps
         {
@@ -348,7 +349,8 @@ namespace JiuQuest.Combat
 
         StageSurfaceMaps SurfaceMaps(SummitSurface surface, int size)
         {
-            bool relief = surface == SummitSurface.Slate || surface == SummitSurface.Cedar || surface == SummitSurface.Tatami;
+            bool relief = surface == SummitSurface.Slate || surface == SummitSurface.Cedar || surface == SummitSurface.Tatami
+                || surface == SummitSurface.Snow;
             var colors = new Color32[size * size];
             var heights = relief ? new float[size * size] : null;
             var metal = surface == SummitSurface.Bronze ? new Color32[size * size] : null;
@@ -406,6 +408,18 @@ namespace JiuQuest.Combat
                         float value = .79f + broad * .11f + (strata - .5f) * .045f - channel * .030f;
                         color = new Color(value + mineral * .025f, value + mineral * .018f, value + .015f);
                     }
+                    else if (surface == SummitSurface.Snow)
+                    {
+                        // Soft wind-packed deposits: continuous tiled noise and
+                        // integer-frequency waves preserve wrap seams. Keep color
+                        // contrast low; shallow relief responds to camera/light angle.
+                        float ripple = Mathf.Sin(Mathf.PI * 2 * (u * 3 + v * 5)
+                            + broad * 2.4f + Mathf.Sin(v * Mathf.PI * 2) * .35f) * .5f + .5f;
+                        float deposit = broad * .7f + medium * .3f;
+                        float value = .88f + deposit * .085f + (ripple - .5f) * .014f + (grain - .5f) * .006f;
+                        color = new Color(value * .96f, value * .98f, value);
+                        height = .5f + (broad - .5f) * .060f + (ripple - .5f) * .022f + (medium - .5f) * .008f;
+                    }
                     else if (surface == SummitSurface.Pine)
                     {
                         // The solid bough UVs run root-to-tip. A dark central spine,
@@ -434,7 +448,8 @@ namespace JiuQuest.Combat
             if (relief)
             {
                 var normals = new Color32[size * size];
-                float strength = surface == SummitSurface.Slate ? 2.4f : surface == SummitSurface.Cedar ? 2.0f : 1.8f;
+                float strength = surface == SummitSurface.Slate ? 2.4f : surface == SummitSurface.Cedar ? 2.0f
+                    : surface == SummitSurface.Snow ? 1.5f : 1.8f;
                 for (int y = 0; y < size; y++)
                     for (int x = 0; x < size; x++)
                     {
