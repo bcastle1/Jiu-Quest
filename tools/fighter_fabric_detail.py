@@ -24,6 +24,33 @@ def smooth(lo, hi, value):
     return t * t * (3. - 2. * t)
 
 
+def lapel_crown(u, t):
+    """A broad folded face with tight turned edges, in meters above the collar."""
+    old = .0033 * max(0., math.sin(u * math.pi)) ** 1.4
+    old += .0018 * math.sin(t * math.pi) * math.sin(u * math.pi)
+    window = smooth(.04, .18, t) * (1. - smooth(.76, .97, t))
+    face = smooth(0., .20, u) * (1. - smooth(.80, 1., u))
+    # Flat center and narrow edge turns describe several layers of cotton.
+    # Retain the old section at the neckline and where the belt binds it.
+    return old * (1. - window) + .0068 * face * window
+
+
+def sleeve_panel_section(angle, t):
+    """Area-preserving soft-square sleeve section; original circle at joins."""
+    c, s = math.cos(angle), math.sin(angle)
+    window = smooth(.31, .45, t) * (1. - smooth(.76, .92, t))
+    power = .78
+    exponent = 2. / power
+    area = 4. * math.gamma(1. + 1. / exponent) ** 2 / math.gamma(1. + 2. / exponent)
+    scale = math.sqrt(math.pi / area)
+    # Polar sampling retains the angle used by the fold field and UV island.
+    # Component powers would redistribute the samples and have steep
+    # derivatives at the panel axes.
+    radial = scale / (abs(c) ** exponent + abs(s) ** exponent) ** (1. / exponent)
+    radial = 1. + (radial - 1.) * window
+    return c * radial, s * radial
+
+
 def ridge(distance, width, amplitude):
     # Heavy cotton turns across a broad crown into a narrower crease. A pure
     # Gaussian made every fold look like a soft padded tube at combat distance.

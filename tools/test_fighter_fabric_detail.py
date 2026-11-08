@@ -1,10 +1,34 @@
 """Safety contracts for the fitted fold recipe; no Blender dependency."""
 import math
 import unittest
-from fighter_fabric_detail import fold_height, panel_normal, sleeve_panel_u, cleared_fold_radius
+from fighter_fabric_detail import (fold_height, panel_normal, sleeve_panel_u, cleared_fold_radius,
+                                  lapel_crown, sleeve_panel_section)
 
 
 class FabricDetailTests(unittest.TestCase):
+    def test_lapel_has_flat_folded_face_and_retains_sewn_ends(self):
+        for u in (.25, .5, .75):
+            self.assertAlmostEqual(lapel_crown(u, .5), .0068)
+        for i in range(65):
+            u = i / 64
+            for t in (0., 1.):
+                self.assertAlmostEqual(lapel_crown(u, t), .0033 * math.sin(u * math.pi) ** 1.4)
+            for j in range(65):
+                self.assertTrue(0 <= lapel_crown(u, j / 64) <= .00680001)
+
+    def test_sleeve_panels_preserve_area_joins_and_periodic_seam(self):
+        points = [sleeve_panel_section(i * math.tau / 1024, .58) for i in range(1024)]
+        area = abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(points, points[1:] + points[:1]))) * .5
+        self.assertAlmostEqual(area, math.pi, places=4)
+        for i in range(129):
+            angle = i * math.tau / 128
+            for t in (0., .30, .93, 1.):
+                self.assertEqual(sleeve_panel_section(angle, t), (math.cos(angle), math.sin(angle)))
+            top, side = sleeve_panel_section(angle, .58)
+            self.assertLess(math.hypot(top - math.cos(angle), side - math.sin(angle)), .11)
+        for a, b in zip(sleeve_panel_section(0., .58), sleeve_panel_section(math.tau, .58)):
+            self.assertAlmostEqual(a, b, places=10)
+
     def test_fuller_thigh_keeps_outward_folds_and_inward_clearance(self):
         self.assertAlmostEqual(cleared_fold_radius(.132, .121, .006), .147)
         self.assertAlmostEqual(cleared_fold_radius(.132, .121, -.006), .141)
