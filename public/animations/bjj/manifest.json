@@ -25,7 +25,7 @@
     ],
     "requirement": "Future licensed paired mocap may replace a file only when both roots and the cosmetic slots are preserved.",
     "reservedAttachments": "ChestPatch and Lapel_L/Lapel_R remain named empty nodes. Their rigid decorative meshes are intentionally absent.",
-    "texturedMaterials": "Skin uses a _Ref_RRGGBB sRGB suffix for linear-light cosmetic tint. Eyes retain authored textures. Opaque original hair/brows remain selectable. Six shared embedded images cover skin, eyes, cotton roughness and original cloth color/fold-normal/hair atlases. Cloth color and fold normals use UV1; roughness and hair use UV0.",
+    "texturedMaterials": "Skin uses a _Ref_RRGGBB sRGB suffix for linear-light cosmetic tint. Eyes retain authored textures. Opaque original hair/brows remain selectable. Seven shared embedded images cover skin color and regional roughness, eyes, cotton roughness and original cloth color/fold-normal/hair atlases. Cloth color and fold normals use UV1; roughness and hair use UV0.",
     "hairStyles": [
       "Crew",
       "Long",
@@ -37,7 +37,7 @@
     "skinInfluences": 4,
     "athleteScale": 1
   },
-  "cosmeticRevision": "2026-11-07-orbital-planes-and-heavy-cotton",
+  "cosmeticRevision": "2026-11-07-skin-response-and-cuff-drape",
   "anatomySource": "MPFB / MakeHuman core CC0 adult human on the stable Quaternius 65-bone rest rig. More natural adult facial proportions, original solid hair/brows, roomier BJJ gis, modeled tension folds and panel-aligned surface relief. Paired choreography is unchanged.",
   "animations": {
     "standing_stance": "/animations/bjj/standing_stance.glb",

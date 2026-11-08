@@ -9,6 +9,7 @@ ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'tools/assets/jiuquest-realistic'
 from realistic_gi import build_realistic_gi
 from anime_fighter import stylize_anime
+from skin_surface_detail import attach_skin_roughness
 optimized_images={}
 
 def limit_weights(obj,limit=4):
@@ -317,6 +318,8 @@ def make_realistic_fighter(role,colors,g):
     for key,suffix,slot,rough,alpha in [('Realistic_Body','Body','Skin_Ref_E9B28D',.56,False),('Realistic_Eyes','Eyes','Eyes',.20,False),('Realistic_Eyebrows','Brows','Brows_Ref_0D0605',.80,True),('Realistic_HairCrew','HairCrew','Hair_Ref_4B3C31',.78,True),('Realistic_HairSlick','HairSlick','Hair_Ref_222323',.78,True),('Realistic_HairLong','HairLong','Hair_Ref_543727',.78,True)]:
         obj=loaded[key];image=image_for(obj)
         material=textured_material(prefix+'_'+slot,image,rough,alpha)
+        if key == 'Realistic_Body':
+            attach_skin_roughness(material, body, OUT/'textures')
         obj.name=prefix+'_'+suffix
         obj.data.materials.clear();obj.data.materials.append(material)
         for poly in obj.data.polygons:poly.material_index=0
