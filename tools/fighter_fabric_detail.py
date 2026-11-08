@@ -60,6 +60,25 @@ def ridge(distance, width, amplitude):
     return amplitude * (crown - valley)
 
 
+def collar_tension(u, v):
+    """Short diagonal pulls between the overlap and armhole, clear of seams."""
+    # The opening lies at u=0/1. Unequal fans describe cloth held by the
+    # collar and belt without adding another wrinkle ring around the jacket.
+    side_u = min(u, 1. - u)
+    across = smooth(.015, .045, side_u) * (1. - smooth(.15, .22, side_u))
+    height = smooth(.32, .43, v) * (1. - smooth(.70, .82, v))
+    if across == 0. or height == 0.:
+        return 0.
+    value = 0.
+    rows = ((.405, 1.30, .0036), (.535, 1.05, .0022)) if u < .5 else (
+           (.435, 1.18, .0032),)
+    for index, (origin, slope, amplitude) in enumerate(rows):
+        center = origin + slope * side_u + .018 * math.sin(side_u * 15.)
+        branch = 1. if index == 0 else 1. - smooth(.095, .15, side_u)
+        value += ridge(v - center, .035 + .07 * side_u, amplitude) * branch
+    return value * across * height
+
+
 def fold_height(panel, u, v):
     angle = u * math.tau
     if panel == 'torso':
@@ -78,7 +97,8 @@ def fold_height(panel, u, v):
             width = .018 + .045 * abs(v - .35)
             fade = .86 + .14 * math.cos((v - .35) * 8. + anchor * 5.)
             value += ridge(distance, width, amplitude * fade)
-        return .0115 * math.tanh(value * window * 1.35 / .0115)
+        value = value * window + collar_tension(u, v)
+        return .0115 * math.tanh(value * 1.35 / .0115)
     if panel == 'sleeve':
         window = smooth(.28, .37, v) * (1. - smooth(.89, .97, v))
         compression = .12 + .88 * max(0., math.cos(angle - math.pi * .5)) ** 4

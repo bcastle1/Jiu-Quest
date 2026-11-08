@@ -107,6 +107,36 @@ def adult_structure_offset(co):
     return offset
 
 
+def cheek_plane_offset(co):
+    """Connect the malar plane to the muzzle without changing expression."""
+    x, y, z = co
+    # Rest-mesh landmarks: the lateral cheek is near (.0485,-.0728,1.622),
+    # the lower cheek near (.0437,-.0745,1.590), and the alar crease near
+    # (.0162,-.0939,1.601). Shape between those planes, not the lip contour.
+    # Exact compact height support leaves both eyelids and the mouth fixed.
+    support = front_face_mask(co)
+    support *= smoothstep(.012, .018, abs(x))
+    support *= smoothstep(1.580, 1.588, z) * (1. - smoothstep(1.624, 1.633, z))
+    if support == 0.:
+        return Vector((0., 0., 0.))
+    lateral = smoothstep(.020, .030, abs(x)) * (1. - smoothstep(.052, .067, abs(x)))
+    # A diagonal, broad cheek break follows the zygomatic slope instead of
+    # another round cheek bulge. Recess its underside; preserve the high point.
+    ridge_height = 1.611 + .38 * (abs(x) - .023)
+    underside = math.exp(-((z - (ridge_height - .017)) / .015) ** 4)
+    cheek = lateral * underside
+    offset = Vector((-math.copysign(.0011, x), .0018, 0.)) * cheek
+    # A shallow, widening transition beside the nasal ala separates the
+    # cheek from the upper muzzle. It fades above the mouth corner and does
+    # not paint a dark line, inflate the lip, or pull the mouth into a frown.
+    crease_x = .0165 + .28 * (1.604 - z)
+    crease_width = .0045 + .10 * max(0., 1.604 - z)
+    crease = math.exp(-((abs(x) - crease_x) / crease_width) ** 2)
+    crease *= 1. - smoothstep(1.601, 1.609, z)
+    offset.y += .0009 * crease
+    return offset * support
+
+
 def face_warp(co, facial_detail=True):
     x, y, z = co
     refinement = front_face_mask(co) if facial_detail else 0.
@@ -148,6 +178,7 @@ def face_warp(co, facial_detail=True):
     if delta.length > .006:
         result = co + delta * (.006 / delta.length)
     result += adult_structure_offset(co)
+    result += cheek_plane_offset(co)
     delta = result - co
     if delta.length > .010:
         result = co + delta * (.010 / delta.length)

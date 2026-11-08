@@ -2,10 +2,26 @@
 import math
 import unittest
 from fighter_fabric_detail import (fold_height, panel_normal, sleeve_panel_u, cleared_fold_radius,
-                                  lapel_crown, sleeve_panel_section)
+                                  lapel_crown, sleeve_panel_section, collar_tension)
 
 
 class FabricDetailTests(unittest.TestCase):
+    def test_collar_pulls_fade_before_opening_back_hem_and_neck(self):
+        for i in range(129):
+            value = i / 128
+            for u in (0., .015, .22, .5, .78, .985, 1.):
+                self.assertAlmostEqual(collar_tension(u, value), 0., places=12)
+            for v in (0., .32, .82, 1.):
+                self.assertEqual(collar_tension(value, v), 0.)
+            for j in range(129):
+                self.assertLess(abs(collar_tension(value, j / 128)), .004)
+        # Neither mesh nor texture may acquire a sharp step at the protected
+        # opening or armhole boundary when the finite-difference normal samples it.
+        for u in (.015, .22, .78, .985):
+            for v in (.45, .55, .65, .75):
+                self.assertLess(abs(collar_tension(u + 1e-5, v) -
+                                    collar_tension(u - 1e-5, v)), 1e-8)
+
     def test_lapel_has_flat_folded_face_and_retains_sewn_ends(self):
         for u in (.25, .5, .75):
             self.assertAlmostEqual(lapel_crown(u, .5), .0068)
