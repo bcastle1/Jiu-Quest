@@ -16,7 +16,8 @@ from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 from original_surface_maps import panel_uv, ensure_surface_map
-from fighter_fabric_detail import fold_height, sleeve_panel_u, cleared_fold_radius
+from fighter_fabric_detail import (fold_height, sleeve_panel_u, cleared_fold_radius,
+                                  lapel_crown, sleeve_panel_section)
 
 TAU = math.tau
 ROOT = Path(__file__).resolve().parent
@@ -350,18 +351,17 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             # The left panel overlaps the right below the V. A shallow turn
             # follows the chest toward the knot, not a uniformly inflated rail.
             overlap = .002 * smooth((t - .60) / .28) * (1. if side > 0 else 0.)
-            drape = .0018 * math.sin(t * math.pi) * math.sin(u * math.pi)
-            roll = .0033 * math.sin(u * math.pi) ** 1.4
+            roll = lapel_crown(u, t)
             # Stitch channels belong to this collar surface. Independent thin
             # solidified ribbons had free ends at the shoulder and could pull
             # apart from their supporting panel under different skin weights.
             channel = .0006 * (math.exp(-((u - .16) / .065) ** 2)
                               + math.exp(-((u - .84) / .065) ** 2))
             turn = .0030 * math.sin(t * math.pi) * (u - .5)
-            point = Vector((lapel_x, y - roll - drape - overlap + channel,
+            point = Vector((lapel_x, y - roll - overlap + channel,
                             z + across * side * .31 - turn))
             return point, (u * .45, t * 3.6), torso_weights(z)
-        jacket.grid(24, 9, lapel, reverse=True, detail=lambda t, u: panel_uv('trim', u, t))
+        jacket.grid(24, 12, lapel, reverse=True, detail=lambda t, u: panel_uv('trim', u, t))
     # Sleeves follow the actual upper/lower-arm rest axis, with roomy cuffs.
     for suffix in ('l', 'r'):
         shoulder, elbow, wrist = (bone_head(n + '_' + suffix) for n in ('upperarm', 'lowerarm', 'hand'))
@@ -414,18 +414,20 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             # a perfectly centered padded tube; fade out before the wrist.
             hang = .005 * math.sin(t * math.pi) ** 2 * (1. - smooth((t - .72) / .22))
             center -= basis_a * hang
-            point = center + (basis_a * math.cos(angle) + basis_b * math.sin(angle) * oval) * (radius + fold)
+            section_top, section_side = sleeve_panel_section(angle, t)
+            radial = (basis_a * math.cos(angle) + basis_b * math.sin(angle) * oval) * (radius + fold)
+            shaped = (basis_a * section_top + basis_b * section_side * oval) * (radius + fold)
+            panel_change = shaped - radial
+            if panel_change.length > .007:
+                panel_change *= .007 / panel_change.length
+            point = center + radial + panel_change
             # Settle the top surface without shrinking the underarm overlap.
             point -= basis_a * (.013 * shoulder_fit * max(0., math.cos(angle)) ** 2)
-            # A supported upper panel and a looser underside break the circular
-            # padded-tube section. Fade to zero before both sewn openings and
-            # reduce the top adjustment where the shoulder is already fitted.
+            # The broad panel section replaces the earlier top-flatten and
+            # lateral offsets. Retain only the loose underside drop, fading
+            # before both openings; body fitting follows all shape changes.
             section = smooth((t - .28) / .15) * (1. - smooth((t - .73) / .15))
-            c, s = math.cos(angle), math.sin(angle)
-            point -= basis_a * section * (
-                .006 * (1. - .5 * shoulder_fit) * max(0., c) ** 4
-                + .004 * max(0., -c) ** 2)
-            point += basis_b * section * (.004 * s * c * c)
+            point -= basis_a * section * .004 * max(0., -math.cos(angle)) ** 2
             point = clear_body(point, smooth((t - .20) / .14), 'sleeve_' + suffix)
             low = smooth((t - elbow_t + .11) / .22)
             weights = {'upperarm_' + suffix: 1. - low, 'lowerarm_' + suffix: low}

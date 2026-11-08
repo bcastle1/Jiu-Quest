@@ -29,7 +29,7 @@ def front_face_mask(co):
 
 
 def face_detail_offset(co):
-    """Adult facial planes and lateral jaw; combined displacement <= 6 mm."""
+    """Approved base facial planes and lateral jaw, bounded to six mm."""
     x, y, z = co
     mask = front_face_mask(co)
 
@@ -76,6 +76,37 @@ def face_detail_offset(co):
     return offset
 
 
+def adult_structure_offset(co):
+    """Broad adult chin/jaw planes, isolated from neck and hair attachment."""
+    x, y, z = co
+    # Source chin vertices at z=1.530..1.550, y=-.076..-.090 are fully
+    # Head-weighted. The prior z=1.550 face cutoff missed this silhouette.
+    # The neck is farther back: this forward-only support ends at y=-.055.
+    chin = (1. - smoothstep(.028, .046, abs(x)))
+    chin *= smoothstep(1.524, 1.536, z) * (1. - smoothstep(1.540, 1.580, z))
+    chin *= 1. - smoothstep(-.074, -.055, y)
+    width = .0030 * math.copysign(smoothstep(.004, .026, abs(x)), x)
+    offset = Vector((width, -.0065, -.0025)) * chin
+
+    # Connect the forward chin plane to a broader lower mandibular edge. This
+    # fades before the mouth/cheek rather than inflating lip or cheek volume.
+    jaw = smoothstep(.022, .040, abs(x)) * (1. - smoothstep(.056, .070, abs(x)))
+    jaw *= smoothstep(1.539, 1.553, z) * (1. - smoothstep(1.560, 1.590, z))
+    jaw *= smoothstep(-.105, -.075, y) * (1. - smoothstep(-.055, -.035, y))
+    offset += Vector((math.copysign(.0035, x), 0., -.0010)) * jaw
+
+    # A broad bridge and shallow lower-cheek transition support the larger
+    # lower-face planes under the existing light. No sharper eyebrow angle,
+    # eye shrink or new mouth expression is introduced.
+    front = front_face_mask(co)
+    bridge = math.exp(-(x/.014)**4 - ((z-1.625)/.023)**4)
+    cheek = math.exp(-((abs(x)-.043)/.022)**4 - ((z-1.601)/.020)**4)
+    offset.y += (-.0014 * bridge + .0010 * cheek) * front
+    if offset.length > .008:
+        offset *= .008 / offset.length
+    return offset
+
+
 def face_warp(co, facial_detail=True):
     x, y, z = co
     refinement = front_face_mask(co) if facial_detail else 0.
@@ -110,11 +141,16 @@ def face_warp(co, facial_detail=True):
     if not facial_detail:
         return result
     result += face_detail_offset(co)
-    # The 6 mm limit includes the older base styling as well as added detail.
-    # It only limits existing facial displacement; it does not scale the head.
+    # Preserve the approved six-millimeter base warp, then add the separately
+    # supported adult planes. The combined source-to-final limit is ten mm;
+    # the rest of the head, neck and hair are not scaled.
     delta = result - co
     if delta.length > .006:
         result = co + delta * (.006 / delta.length)
+    result += adult_structure_offset(co)
+    delta = result - co
+    if delta.length > .010:
+        result = co + delta * (.010 / delta.length)
     return result
 
 
