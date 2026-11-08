@@ -1,10 +1,22 @@
 """Safety contracts for the fitted fold recipe; no Blender dependency."""
 import math
 import unittest
-from fighter_fabric_detail import fold_height, panel_normal, sleeve_panel_u
+from fighter_fabric_detail import fold_height, panel_normal, sleeve_panel_u, cleared_fold_radius
 
 
 class FabricDetailTests(unittest.TestCase):
+    def test_fuller_thigh_keeps_outward_folds_and_inward_clearance(self):
+        self.assertAlmostEqual(cleared_fold_radius(.132, .121, .006), .147)
+        self.assertAlmostEqual(cleared_fold_radius(.132, .121, -.006), .141)
+        self.assertAlmostEqual(cleared_fold_radius(.060, .090, -.006), .084)
+        self.assertAlmostEqual(cleared_fold_radius(.060, .090, .006), .096)
+
+    def test_hanging_channels_reach_upper_cuff_without_crossing_hem(self):
+        self.assertGreater(fold_height('pants', .19, .08), .001)
+        self.assertGreater(fold_height('pants', .74, .08), .001)
+        for i in range(65):
+            self.assertEqual(fold_height('pants', i / 64, .025), 0.)
+
     def test_left_and_right_elbows_share_forward_compression(self):
         # The outward arm axes reverse basis_b = axis cross up. A point at
         # -Y (the athlete's front) is u=.25 on the left and u=.75 on the right.

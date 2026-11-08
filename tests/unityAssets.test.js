@@ -9,7 +9,7 @@ const manifest = JSON.parse(await readFile(new URL('manifest.json', assetRoot), 
 
 // Cosmetic colors multiply the authored atlas. A colored or transparent texel
 // would change the player's chosen gi, belt or hair color unexpectedly.
-function assertNeutralAtlas(png, name) {
+function assertAtlasPixels(png, name, skinRoughness = false) {
   assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', `${name}: PNG color atlas`);
   let width, height, channels;
   const data = [];
@@ -26,6 +26,9 @@ function assertNeutralAtlas(png, name) {
     offset += length + 12;
   }
   assert.ok(width > 0 && height > 0 && width <= 1024 && height <= 1024, `${name}: bounded atlas dimensions`);
+  if (skinRoughness) {
+    assert.equal(width, 512); assert.equal(height, 512);
+  }
   const stride = width * channels, raw = inflateSync(Buffer.concat(data));
   assert.equal(raw.length, height * (stride + 1));
   let previous = Buffer.alloc(stride), minimum = 255, maximum = 0;
@@ -42,14 +45,21 @@ function assertNeutralAtlas(png, name) {
       row[x] = (row[x] + predictor) & 255;
     }
     for (let x = 0; x < stride; x += channels) {
-      assert.equal(row[x], row[x + 1], `${name}: neutral R/G`);
-      assert.equal(row[x], row[x + 2], `${name}: neutral R/B`);
+      if (skinRoughness) {
+        // glTF roughness is numeric green-channel data, never sRGB color.
+        assert.ok(row[x + 1] >= 111 && row[x + 1] <= 164, `${name}: bounded linear roughness`);
+      } else {
+        assert.equal(row[x], row[x + 1], `${name}: neutral R/G`);
+        assert.equal(row[x], row[x + 2], `${name}: neutral R/B`);
+      }
       if (channels === 4) assert.equal(row[x + 3], 255, `${name}: opaque texels`);
-      minimum = Math.min(minimum, row[x]); maximum = Math.max(maximum, row[x]);
+      const value = row[x + (skinRoughness ? 1 : 0)];
+      minimum = Math.min(minimum, value); maximum = Math.max(maximum, value);
     }
     previous = row;
   }
   assert.ok(maximum > minimum, `${name}: contains authored tonal detail`);
+  if (skinRoughness) assert.ok(maximum - minimum >= 20, `${name}: regional response survived export`);
 }
 
 // The new renderer imports these authored files at runtime. Validate the binary
@@ -64,7 +74,7 @@ for (const [move, path] of Object.entries(manifest.animations)) {
     assert.equal(bytes.readUInt32LE(16), 0x4e4f534a, 'first chunk is JSON');
     const gltf = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString());
     assert.ok(gltf.skins?.length > 0, 'characters must be skinned, not still meshes');
-    assert.equal(gltf.images?.length, 6, 'both actors share the four source images and two original cloth/hair atlases');
+    assert.equal(gltf.images?.length, 7, 'both actors share skin color/roughness, eyes and four cloth/hair maps');
     assert.ok(bytes.length < 9 * 1024 * 1024, 'reference-detail paired clip stays below its 9 MiB asset budget');
     const binOffset = 20 + bytes.readUInt32LE(12) + 8;
     const imageBytes = [];
@@ -79,12 +89,22 @@ for (const [move, path] of Object.entries(manifest.animations)) {
     assert.equal(new Set(imageBytes.map(image => createHash('sha256').update(image).digest('hex'))).size,
       imageBytes.length, 'embedded images are shared rather than duplicated per actor or garment');
     const atlasSources = { cloth: new Set(), hair: new Set() }, foldNormalSources = new Set();
+    const skinRoughnessSources = new Set();
+    let skinMaterials = 0;
     const textureCoord = info => info.extensions?.KHR_texture_transform?.texCoord ?? info.texCoord ?? 0;
     for (const material of gltf.materials) {
       assert.equal(material.alphaMode ?? 'OPAQUE', 'OPAQUE', 'solid anime geometry avoids alpha overdraw and transparent sorting');
       const pbr = material.pbrMetallicRoughness ?? {};
       const slotName = material.name.replace(/_Ref_[0-9A-F]{6}(?:\.\d+)?$/, '');
       const cloth = /_(GiTop|GiPants|Belt)$/.test(slotName), hair = /_Hair$/.test(slotName);
+      if (/_Skin$/.test(slotName)) {
+        skinMaterials++;
+        assert.ok(pbr.baseColorTexture && pbr.metallicRoughnessTexture, 'skin retains diffuse color and regional response');
+        assert.equal(pbr.roughnessFactor ?? 1, 1, 'numeric atlas is not multiplied by the old uniform roughness');
+        assert.equal(pbr.metallicFactor ?? 1, 0, 'skin remains dielectric');
+        assert.equal(textureCoord(pbr.metallicRoughnessTexture), 0, 'skin response follows the original body UVs');
+        skinRoughnessSources.add(gltf.textures[pbr.metallicRoughnessTexture.index].source);
+      }
       if (cloth || hair) {
         assert.deepEqual(pbr.baseColorFactor ?? [1, 1, 1, 1], [1, 1, 1, 1], 'neutral atlas factor must not double-darken cosmetic tint');
         assert.equal(material.name.includes('_Ref_'), false, 'neutral atlases use the runtime white reference');
@@ -106,10 +126,13 @@ for (const [move, path] of Object.entries(manifest.animations)) {
       assert.equal(sources.size, 1, `${kind}: one shared atlas for the pair`);
       const index = [...sources][0];
       assert.ok(Number.isInteger(index), `${kind}: embedded image source`);
-      assertNeutralAtlas(imageBytes[index], `${move} ${kind}`);
+      assertAtlasPixels(imageBytes[index], `${move} ${kind}`);
     }
     assert.notEqual([...atlasSources.cloth][0], [...atlasSources.hair][0], 'cloth and hair have distinct authored artwork');
     assert.equal(foldNormalSources.size, 1, 'both athletes share one fold normal atlas');
+    assert.equal(skinMaterials, 2);
+    assert.equal(skinRoughnessSources.size, 1, 'both athletes share one skin-response atlas');
+    assertAtlasPixels(imageBytes[[...skinRoughnessSources][0]], `${move} skin roughness`, true);
     const foldNormalIndex = [...foldNormalSources][0], foldNormal = imageBytes[foldNormalIndex];
     assert.notEqual(foldNormalIndex, [...atlasSources.cloth][0], 'normal vectors are separate from tintable color');
     assert.equal(foldNormal.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');

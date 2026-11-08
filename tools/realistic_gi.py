@@ -16,7 +16,7 @@ from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 from original_surface_maps import panel_uv, ensure_surface_map
-from fighter_fabric_detail import fold_height, sleeve_panel_u
+from fighter_fabric_detail import fold_height, sleeve_panel_u, cleared_fold_radius
 
 TAU = math.tau
 ROOT = Path(__file__).resolve().parent
@@ -527,6 +527,7 @@ def fitted_trousers(body, armature, material, prefix, waist_z):
     central = [v for v in bm.verts if abs(v.co.x) < .075 and .80 < v.co.z < .96]
     for _ in range(4):
         bmesh.ops.smooth_vert(bm, verts=central, factor=.45, use_axis_x=True, use_axis_y=True, use_axis_z=True)
+    panel_samples = {}
     for v in bm.verts:
         p = v.co; side = 'l' if p.x >= 0 else 'r'
         hip = armature.data.bones['thigh_' + side].head_local
@@ -536,6 +537,9 @@ def fitted_trousers(body, armature, material, prefix, waist_z):
         delta = Vector((p.x-center.x, p.y-center.y, 0))
         length = delta.length
         lower_blend = smooth((.94-p.z)/.13)
+        panel_u = (math.atan2(delta.x, -delta.y) / TAU + .5) % 1.
+        panel_v = (p.z - .129) / (waist_z + .025 - .129)
+        panel_samples[v] = (panel_u, panel_v)
         if length > .0001:
             angle = math.atan2(delta.y,delta.x)
             # Keep loose trouser ease, but exchange repeated circular ripples
@@ -557,10 +561,10 @@ def fitted_trousers(body, armature, material, prefix, waist_z):
             desired += .0025 * math.exp(-((t - shin) / .045) ** 2) * front
             cuff_t = (hip.z - .155) / (hip.z - ankle.z)
             desired += .0030 * math.exp(-((t - cuff_t) / .018) ** 2)
-            panel_u = (math.atan2(delta.x, -delta.y) / TAU + .5) % 1.
-            panel_v = (p.z - .129) / (waist_z + .025 - .129)
-            desired += fold_height('pants', panel_u, panel_v)
-            inflated = center + delta.normalized()*max(length+.009,desired)
+            # Fit first, then shape the folds outside that envelope. Adding
+            # them before the floor erased outward peaks on fuller thighs.
+            radius = cleared_fold_radius(length, desired, fold_height('pants', panel_u, panel_v))
+            inflated = center + delta.normalized()*radius
             p.x = mix(p.x,inflated.x,lower_blend)
             p.y = mix(p.y,inflated.y,lower_blend)
         # Hip fabric sits outside the athlete and under the jacket skirt.
@@ -573,7 +577,13 @@ def fitted_trousers(body, armature, material, prefix, waist_z):
     cut_polygons = [face for face in bm.faces if len(face.verts) > 4]
     if cut_polygons:
         bmesh.ops.triangulate(bm, faces=cut_polygons, quad_method='BEAUTY', ngon_method='BEAUTY')
+    bm.verts.index_update()
+    panel_lookup = [None] * len(bm.verts)
+    for vertex, coordinates in panel_samples.items():
+        panel_lookup[vertex.index] = coordinates
     bm.to_mesh(obj.data); bm.free(); obj.data.update()
+    if len(panel_lookup) != len(obj.data.vertices) or any(p is None for p in panel_lookup):
+        raise ValueError('Trouser panel coordinates no longer match the fitted vertices')
     for polygon in obj.data.polygons:
         polygon.material_index=0; polygon.use_smooth=True
     if obj.data.uv_layers.active:
@@ -585,14 +595,9 @@ def fitted_trousers(body, armature, material, prefix, waist_z):
     for polygon in obj.data.polygons:
         coordinates = []
         for loop in polygon.loop_indices:
-            p = obj.data.vertices[obj.data.loops[loop].vertex_index].co
-            side = 'l' if p.x >= 0 else 'r'
-            hip = armature.data.bones['thigh_' + side].head_local
-            ankle = armature.data.bones['foot_' + side].head_local
-            t = max(0., min(1., (hip.z - p.z) / (hip.z - ankle.z)))
-            center = hip.lerp(ankle, t)
-            u = (math.atan2(p.x - center.x, -(p.y - center.y)) / TAU + .5) % 1.
-            v = (p.z - .129) / (waist_z + .025 - .129)
+            # Reuse the coordinates that shaped this vertex. Re-projecting
+            # after hip ease shifted normal-map valleys away from their folds.
+            u, v = panel_lookup[obj.data.loops[loop].vertex_index]
             coordinates.append((loop, u, v))
         crosses_rear_seam = max(u for _, u, _ in coordinates) - min(u for _, u, _ in coordinates) > .5
         for loop, u, v in coordinates:

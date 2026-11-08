@@ -6,6 +6,12 @@ neither layer changes the skeleton, garment openings or athlete contact points.
 import math
 
 
+def cleared_fold_radius(skin_radius, envelope_radius, relief):
+    """Shape cloth outside a fitted envelope, retaining 9 mm radial clearance."""
+    minimum = skin_radius + .009
+    return max(minimum, max(minimum, envelope_radius) + relief)
+
+
 def sleeve_panel_u(side, u):
     """Mirror the right rest-axis frame so both forward elbows share a panel."""
     if side not in ('l', 'r'):
@@ -88,13 +94,17 @@ def fold_height(panel, u, v):
         # weight. Unequal directions avoid a pressed dress-trouser centerline;
         # only the side/back panels receive these drapes, leaving the front
         # knee compression readable. Both ends fade before the sewn openings.
-        drape_window = smooth(.12, .24, v) * (1. - smooth(.65, .81, v))
+        # Compression stays above the hem; hanging channels continue toward
+        # the actual cuff at v=.027 before fading clear of the sewn opening.
+        # Applying the knee window to these channels erased the lower 11 cm.
+        value *= window
+        drape_window = smooth(.035, .115, v) * (1. - smooth(.65, .81, v))
         for anchor, lean, amplitude in ((.19, .065, .0038),
                                          (.74, -.045, .0031)):
             center = anchor + lean * (v - .45)
             distance = (u - center + .5) % 1. - .5
             value += ridge(distance, .050, amplitude) * drape_window
-        return .0115 * math.tanh(value * window * 1.45 / .0115)
+        return .0115 * math.tanh(value * 1.45 / .0115)
     return 0.
 
 
