@@ -1,10 +1,23 @@
 """Safety contracts for the fitted fold recipe; no Blender dependency."""
 import math
 import unittest
-from fighter_fabric_detail import fold_height, panel_normal
+from fighter_fabric_detail import fold_height, panel_normal, sleeve_panel_u
 
 
 class FabricDetailTests(unittest.TestCase):
+    def test_left_and_right_elbows_share_forward_compression(self):
+        # The outward arm axes reverse basis_b = axis cross up. A point at
+        # -Y (the athlete's front) is u=.25 on the left and u=.75 on the right.
+        for v in (.46, .50, .57, .62, .74):
+            left = sleeve_panel_u('l', .25)
+            right = sleeve_panel_u('r', .75)
+            self.assertAlmostEqual(fold_height('sleeve', left, v),
+                                   fold_height('sleeve', right, v), places=10)
+            self.assertEqual(panel_normal('sleeve', left, v),
+                             panel_normal('sleeve', right, v))
+        self.assertGreater(abs(fold_height('sleeve', sleeve_panel_u('r', .75), .50)),
+                           abs(fold_height('sleeve', sleeve_panel_u('r', .25), .50)))
+
     def test_folds_preserve_openings_and_remain_bounded(self):
         for panel in ('torso', 'sleeve', 'pants'):
             heights = []

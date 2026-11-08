@@ -6,14 +6,25 @@ neither layer changes the skeleton, garment openings or athlete contact points.
 import math
 
 
+def sleeve_panel_u(side, u):
+    """Mirror the right rest-axis frame so both forward elbows share a panel."""
+    if side not in ('l', 'r'):
+        raise ValueError('Unknown sleeve side: ' + side)
+    return u if side == 'l' else 1. - u
+
+
 def smooth(lo, hi, value):
     t = min(1., max(0., (value - lo) / (hi - lo)))
     return t * t * (3. - 2. * t)
 
 
 def ridge(distance, width, amplitude):
-    return amplitude * (math.exp(-(distance / width) ** 2)
-                        - .42 * math.exp(-((distance + width * 1.1) / (width * .68)) ** 2))
+    # Heavy cotton turns across a broad crown into a narrower crease. A pure
+    # Gaussian made every fold look like a soft padded tube at combat distance.
+    across = distance / width
+    crown = .65 * math.exp(-across ** 2) + .35 * math.exp(-across ** 4)
+    valley = .52 * math.exp(-((across + 1.18) / .58) ** 2)
+    return amplitude * (crown - valley)
 
 
 def fold_height(panel, u, v):
@@ -29,8 +40,11 @@ def fold_height(panel, u, v):
             # opens into wider, curved valleys toward chest and jacket skirt.
             center = anchor + lean * (v - .35) + .030 * math.sin((v - .35) * 5.)
             distance = (u - center + .5) % 1. - .5
-            width = .012 + .052 * abs(v - .35)
-            value += ridge(distance, width, amplitude)
+            # Resolve the crown on the existing angular grid. Unequal broad
+            # fading avoids four identical pleats without adding surface noise.
+            width = .018 + .045 * abs(v - .35)
+            fade = .86 + .14 * math.cos((v - .35) * 8. + anchor * 5.)
+            value += ridge(distance, width, amplitude * fade)
         return .0115 * math.tanh(value * window * 1.35 / .0115)
     if panel == 'sleeve':
         window = smooth(.28, .37, v) * (1. - smooth(.89, .97, v))
