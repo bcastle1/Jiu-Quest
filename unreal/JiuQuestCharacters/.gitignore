@@ -1,0 +1,12 @@
+/Binaries/
+/DerivedDataCache/
+/Intermediate/
+/Saved/
+/.vs/
+/*.sln
+/*.suo
+/Content/Pilot/
+# Editor-generated device axis defaults; this pilot defines no runtime input yet.
+/Config/DefaultInput.ini
+__pycache__/
+*.pyc

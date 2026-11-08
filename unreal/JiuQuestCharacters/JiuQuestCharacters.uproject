@@ -1,0 +1,15 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.8",
+  "Category": "Character Preview",
+  "Description": "Original JiuQuest character import, materials and local preview. Production integration pending.",
+  "Plugins": [
+    { "Name": "PythonScriptPlugin", "Enabled": true },
+    { "Name": "EditorScriptingUtilities", "Enabled": true },
+    { "Name": "SequencerScripting", "Enabled": true },
+    { "Name": "Interchange", "Enabled": true },
+    { "Name": "InterchangeEditor", "Enabled": true },
+    { "Name": "AndroidFileServer", "Enabled": false },
+    { "Name": "PixelStreaming2", "Enabled": true }
+  ]
+}
