@@ -128,7 +128,7 @@ def ensure_surface_map(kind, destination):
                 if kind == 'cloth-normal': return panel_normal(panel, pu, pv)
                 # A little occlusion inside a fold, without painted highlights
                 # that would remain fixed when the athlete turns under a light.
-                cavity = min(.035, max(0., -fold_height(panel, pu, pv)) * 12.)
+                cavity = min(.050, max(0., -fold_height(panel, pu, pv)) * 14.)
                 return cloth_value(panel, pu, pv) - cavity
         else:
             sample = hair_value

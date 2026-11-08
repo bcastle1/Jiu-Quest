@@ -16,7 +16,7 @@ from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 from original_surface_maps import panel_uv, ensure_surface_map
-from fighter_fabric_detail import fold_height
+from fighter_fabric_detail import fold_height, sleeve_panel_u
 
 TAU = math.tau
 ROOT = Path(__file__).resolve().parent
@@ -406,7 +406,9 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             fold -= .0024 * max(0., math.cos(angle - seam_angle)) ** 14 * fold_window
             fold += .0009 * max(0., math.cos(angle - seam_angle - .28)) ** 18 * fold_window
             fold += .0013 * math.exp(-((t - .965) / .028) ** 2)
-            fold += fold_height('sleeve', u, t)
+            # The right arm's local circumference runs the opposite way.
+            # Mirror geometry and UV1 together, placing both elbow fans forward.
+            fold += fold_height('sleeve', sleeve_panel_u(suffix, u), t)
             oval = mix(1.035, 1.025, smooth(t))
             # Loose cotton hangs slightly below the arm instead of describing
             # a perfectly centered padded tube; fade out before the wrist.
@@ -415,6 +417,15 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             point = center + (basis_a * math.cos(angle) + basis_b * math.sin(angle) * oval) * (radius + fold)
             # Settle the top surface without shrinking the underarm overlap.
             point -= basis_a * (.013 * shoulder_fit * max(0., math.cos(angle)) ** 2)
+            # A supported upper panel and a looser underside break the circular
+            # padded-tube section. Fade to zero before both sewn openings and
+            # reduce the top adjustment where the shoulder is already fitted.
+            section = smooth((t - .28) / .15) * (1. - smooth((t - .73) / .15))
+            c, s = math.cos(angle), math.sin(angle)
+            point -= basis_a * section * (
+                .006 * (1. - .5 * shoulder_fit) * max(0., c) ** 4
+                + .004 * max(0., -c) ** 2)
+            point += basis_b * section * (.004 * s * c * c)
             point = clear_body(point, smooth((t - .20) / .14), 'sleeve_' + suffix)
             low = smooth((t - elbow_t + .11) / .22)
             weights = {'upperarm_' + suffix: 1. - low, 'lowerarm_' + suffix: low}
@@ -422,7 +433,8 @@ def build_realistic_gi(body, armature, root, materials, prefix):
                 upper = smooth(t / .31)
                 weights = {'spine_03': (1. - upper) * .80, 'clavicle_' + suffix: .20 * (1. - upper), 'upperarm_' + suffix: upper}
             return point, (u * 2., t * 4.2), weights
-        jacket.grid(48, 36, sleeve, detail=lambda t, u: panel_uv('sleeve', u, t), periodic=True)
+        jacket.grid(48, 36, sleeve,
+                    detail=lambda t, u, side=suffix: panel_uv('sleeve', sleeve_panel_u(side, u), t), periodic=True)
         def cuff(t, u, sample=sleeve, shoulder=shoulder, wrist=wrist):
             sleeve_t = mix(.944, .989, t)
             point, uv, weights = sample(sleeve_t, u)
@@ -430,7 +442,8 @@ def build_realistic_gi(body, armature, root, materials, prefix):
             center = start.lerp(wrist, sleeve_t * .97)
             point += (point - center).normalized() * (.0012 + .0013 * math.sin(t * math.pi))
             return point, uv, weights
-        jacket.grid(3, 28, cuff, detail=lambda t, u: panel_uv('sleeve', u, mix(.944, .989, t)), periodic=True)
+        jacket.grid(3, 28, cuff,
+                    detail=lambda t, u, side=suffix: panel_uv('sleeve', sleeve_panel_u(side, u), mix(.944, .989, t)), periodic=True)
 
     belt = ClothMesh()
     def belt_wrap(t, u):

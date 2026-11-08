@@ -54,6 +54,13 @@ def face_detail_offset(co):
     brow = math.exp(-((abs(x)-.031)/.026)**4 - ((z-1.661)/.011)**2)
     orbit = math.exp(-((abs(x)-.0314)/.026)**4 - ((z-1.6434)/.024)**4)
     dy -= .0018 * bridge + .0017 * nose_tip + .0025 * brow
+    # Seat the orbital contents under the existing brow ridge instead of
+    # shrinking the aperture or drawing a darker lid. The same field moves
+    # skin and eyes, retaining a neutral expression and their relative fit.
+    socket = math.exp(-((abs(x)-.0314)/.023)**4 - ((z-1.6434)/.014)**4)
+    lower_orbit = math.exp(-((abs(x)-.029)/.020)**4 - ((z-1.630)/.006)**2)
+    nasal_sidewall = math.exp(-((abs(x)-.012)/.005)**2 - ((z-1.619)/.016)**4)
+    dy += .0024 * socket + .0007 * lower_orbit + .0007 * nasal_sidewall
     dz -= .120 * (z-1.6434) * orbit
     offset = Vector((dx, dy, dz)) * mask
     # The measured mandibular corners sit behind the anterior-face mask.
