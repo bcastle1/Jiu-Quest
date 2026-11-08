@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "baselineCommit": "abb747c2772bc690fc7e2aa8ec4cb8e477a082b9",
+  "licenseRecord": "tools/assets/jiuquest-realistic/README.md",
+  "clips": [
+    {
+      "name": "standing_stance",
+      "source": "public/animations/bjj/standing_stance.glb",
+      "bytes": 8670440,
+      "sha256": "02277c7db7a31b7d7b3710021100060f614caa3e095cc5baccc7c94e9efd6439"
+    },
+    {
+      "name": "rear_naked_choke",
+      "source": "public/animations/bjj/rear_naked_choke.glb",
+      "bytes": 8595868,
+      "sha256": "b8e07b48d1cc297132a25c63c3d97faca6c347cbc2bdfc0f07d6162e1f35c511"
+    },
+    {
+      "name": "armbar",
+      "source": "public/animations/bjj/armbar.glb",
+      "bytes": 8632420,
+      "sha256": "32572ad74aae73f5ef9a9b93826895c2c414aaf5944f86b85b0a540908222517"
+    }
+  ]
+}

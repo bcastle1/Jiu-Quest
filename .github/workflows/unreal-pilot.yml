@@ -1,0 +1,67 @@
+name: Validate Unreal pilot offline
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/unreal-pilot.yml"
+      - "src/unreal/**"
+      - "src/unity/bridge.js"
+      - "tests/unrealBridge.test.js"
+      - "tools/prepare_unreal_pilot*.mjs"
+      - "tools/unreal_pilot.ps1"
+      - "unreal/**"
+      - "docs/unreal-integration.md"
+      - "public/animations/bjj/standing_stance.glb"
+      - "public/animations/bjj/rear_naked_choke.glb"
+      - "public/animations/bjj/armbar.glb"
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "unreal-pilot-${{ github.ref }}"
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  offline-validation:
+    name: Protocol and source preservation (no Unreal rendering)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # These tests use only standard libraries and an injected fake transport.
+      # No SDK, GPU runtime, network service or deployment is started.
+      - name: Verify adapter and source staging
+        run: node --test tests/unrealBridge.test.js tools/prepare_unreal_pilot.test.mjs
+
+      - name: Verify original source preservation
+        run: python unreal/JiuQuestCharacters/Tests/test_pilot_source.py
+
+      - name: Check Editor script syntax without importing Unreal
+        run: python -m py_compile unreal/JiuQuestCharacters/Content/Python/pilot_source.py unreal/JiuQuestCharacters/Content/Python/import_pilot.py
+
+      - name: Record validation boundary
+        if: always()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          This workflow checks the offline message contract, staged source integrity, hair-selection preservation and Python syntax.
+
+          It does not install or run Unreal Editor, import assets into Unreal, compile shaders, render characters, validate paired playback or establish Pixel Streaming. Those remain separate runtime checks. This workflow cannot deploy the application.
+          EOF
