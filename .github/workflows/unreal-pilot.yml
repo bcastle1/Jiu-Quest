@@ -10,6 +10,8 @@ on:
       - "tests/unrealBridge.test.js"
       - "tools/prepare_unreal_pilot*.mjs"
       - "tools/unreal_pilot.ps1"
+      - "tools/unreal_pilot_guard.test.ps1"
+      - "tools/unreal_pilot_guard.test.ps1"
       - "tools/pixel_streaming_local*.cjs"
       - "tools/audit_unreal_capture.py"
       - "unreal/**"
@@ -60,14 +62,25 @@ jobs:
       - name: Verify capture callback lifecycle without Unreal
         run: python unreal/JiuQuestCharacters/Tests/test_capture_lifecycle.py
 
+      - name: Verify preview recipe guard without starting Unreal
+        shell: pwsh
+        run: ./tools/unreal_pilot_guard.test.ps1
+
+      - name: Verify isolated character sculpt and grip preservation
+        run: |
+          python unreal/JiuQuestCharacters/Tests/test_pilot_look.py
+          python unreal/JiuQuestCharacters/Tests/test_pilot_hair.py
+          python unreal/JiuQuestCharacters/Tests/test_pilot_hair_shape.py
+          python unreal/JiuQuestCharacters/Tests/test_ready_hands.py
+
       - name: Check Editor script syntax without importing Unreal
-        run: python -m py_compile unreal/JiuQuestCharacters/Content/Python/pilot_source.py unreal/JiuQuestCharacters/Content/Python/import_pilot.py unreal/JiuQuestCharacters/Content/Python/capture_pilot.py tools/audit_unreal_capture.py
+        run: python -m compileall -q unreal/JiuQuestCharacters/Content/Python tools/audit_unreal_capture.py
 
       - name: Record validation boundary
         if: always()
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
-          This workflow checks the offline message contract, staged source integrity, hair-selection preservation, capture callback lifecycle and Python syntax.
+          This workflow checks the offline message contract, staged source integrity, hair-selection preservation, bounded character sculpt and standing grip preservation, capture callback lifecycle and Python syntax.
 
           It does not install or run Unreal Editor, import assets into Unreal, compile shaders, render characters, validate paired playback or establish Pixel Streaming. Those remain separate runtime checks. This workflow cannot deploy the application.
           EOF

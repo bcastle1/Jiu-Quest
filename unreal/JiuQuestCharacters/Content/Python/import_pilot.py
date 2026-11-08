@@ -11,6 +11,10 @@ import math
 import traceback
 import unreal
 from pilot_source import select_hair
+from ready_hands import refine_ready_hands
+from pilot_look import refine_look
+from pilot_hair import refine_hair
+from pilot_hair_shape import refine_hair_shape
 
 PROJECT = Path(__file__).resolve().parents[2]
 STAGING = PROJECT / "Saved/PilotStaging"
@@ -20,8 +24,9 @@ REPORT = {"status": "not_started", "renderValidated": False,
           "clips": [], "materialGraphs": [], "limits": [
               "Editor-only import and material/scene setup; no runtime web receiver",
               "Imported poses, pairing, timing, hair selection and material output require visual review",
-              "Default Subsurface Profile needs tuning; no new face detail was fabricated",
-              "Existing authored gi folds; no Chaos cloth simulation"]}
+              "Original lower-face and cotton sculpt plus Slick shading require visual comparison",
+              "Standing-only wrist/finger presentation; no cloth grasp simulation",
+              "Authored gi folds; no Chaos cloth simulation"]}
 
 
 def check(condition, message):
@@ -45,8 +50,19 @@ def save_report():
 
 
 def glb_with_selected_hair(source, destination, style="Slick"):
-    """Local display derivative only: unchanged BIN, skin and animation data."""
-    result, proof = select_hair(source.read_bytes(), style)
+    """Compose audited import-only passes; the approved source file stays exact."""
+    original = source.read_bytes()
+    result, selection = select_hair(original, style)
+    result, hands = refine_ready_hands(result, source.stem)
+    result, sculpt = refine_look(result)
+    result, hair = refine_hair(result)
+    result, shape = refine_hair_shape(result)
+    proof = {'sourceSha256': digest(original), 'importSha256': digest(result),
+             'selection': selection, 'readyHands': hands, 'sculpt': sculpt, 'hairShading': hair, 'hairShape': shape,
+             'recipeFiles': {name: digest(Path(__file__).with_name(name).read_bytes()) for name in
+                             ('import_pilot.py', 'pilot_source.py', 'ready_hands.py', 'pilot_look.py', 'pilot_hair.py', 'pilot_hair_shape.py')},
+             'derivedSource': str(destination),
+             'scope': 'Original source retained; bounded primary hair locks, face/gi sculpt and standing grip derivative'}
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(result)
     return proof
@@ -156,7 +172,7 @@ def make_material(spec, images, stage, folder, cache):
     if spec["colorTexture"]:
         base = multiply(sample(spec["colorTexture"], "color"), "RGB", base)
     prop(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
-    rough = scalar(.74 if name.endswith("_Hair") else spec["roughness"])
+    rough = scalar(.82 if name.endswith("_Hair") else spec["roughness"])
     if spec["roughnessTexture"]:
         rough = multiply(sample(spec["roughnessTexture"], "data"), "G", rough)
     prop(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
@@ -193,7 +209,7 @@ def make_material(spec, images, stage, folder, cache):
         prop(scalar(.2), "", unreal.MaterialProperty.MP_OPACITY)
         prop(scalar(.25), "", unreal.MaterialProperty.MP_SPECULAR)
     elif name.endswith("_Hair"):
-        prop(scalar(.2), "", unreal.MaterialProperty.MP_SPECULAR)
+        prop(scalar(.1), "", unreal.MaterialProperty.MP_SPECULAR)
     elif cloth:
         prop(color([.08, .08, .07]), "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
         connect(scalar(.16), "", attributes, "ClearCoat")
@@ -338,7 +354,7 @@ def import_clip(clip, stage, content, level, actors, game_mode):
     settings = world.get_world_settings()
     settings.set_editor_property("default_game_mode", game_mode)
     check(settings.get_editor_property("default_game_mode") == game_mode, "Review game mode assignment failed")
-    derived = REVIEW / "ImportSources" / (clip["name"] + ".glb")
+    derived = REVIEW / "ImportSources" / content.rsplit('/', 1)[-1] / (clip["name"] + ".glb")
     selection = glb_with_selected_hair(stage / (clip["name"] + ".glb"), derived)
     parameters = unreal.ImportAssetParameters()
     parameters.set_editor_property("is_automated", True)
@@ -393,7 +409,7 @@ def import_clip(clip, stage, content, level, actors, game_mode):
     return {"name": clip["name"], "map": map_path, "camera": camera.get_path_name(),
             "gameMode": game_mode.get_path_name(),
             "sharedSequence": shared_sequence,
-            "hairSelection": selection, "components": components,
+            "characterRefinement": selection, "components": components,
             "animationBindingsAssigned": True, "pairedMotionValidated": False,
             "requiredReview": "Check shared sequence playback against source world/root transforms and all-frame paired contact"}
 

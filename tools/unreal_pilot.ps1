@@ -7,6 +7,30 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Assert-JqCharacterRecipes {
+    param($ImportedClip, [string]$RecipeDirectory)
+    $jqExpectedRecipes = @('import_pilot.py', 'pilot_source.py', 'ready_hands.py', 'pilot_look.py', 'pilot_hair.py', 'pilot_hair_shape.py')
+    if ($null -eq $ImportedClip.characterRefinement -or $null -eq $ImportedClip.characterRefinement.recipeFiles) {
+        throw 'The character refinement inventory is missing. Import again before previewing or capturing.'
+    }
+    $jqRecipeProperties = @($ImportedClip.characterRefinement.recipeFiles.PSObject.Properties)
+    $jqRecipeNames = @($jqRecipeProperties | ForEach-Object Name)
+    if ($jqRecipeProperties.Count -ne $jqExpectedRecipes.Count -or
+        @(Compare-Object -ReferenceObject $jqExpectedRecipes -DifferenceObject $jqRecipeNames -CaseSensitive).Count -ne 0) {
+        throw 'The character recipe inventory is incomplete or changed. Import again before previewing or capturing.'
+    }
+    foreach ($jqRecipe in $jqRecipeProperties) {
+        if ($jqRecipe.Value -isnot [string] -or $jqRecipe.Value -cnotmatch '^[0-9a-f]{64}$') {
+            throw 'Invalid imported character recipe hash.'
+        }
+        $jqRecipePath = Join-Path $RecipeDirectory $jqRecipe.Name
+        if ((Get-FileHash -LiteralPath $jqRecipePath -Algorithm SHA256).Hash -ne $jqRecipe.Value) {
+            throw 'The character refinement has changed since import. Import again before previewing or capturing.'
+        }
+    }
+}
+
 $jqRoot = Split-Path -Parent $PSScriptRoot
 $jqProject = Join-Path $jqRoot 'unreal/JiuQuestCharacters/JiuQuestCharacters.uproject'
 $jqImporter = Join-Path $jqRoot 'unreal/JiuQuestCharacters/Content/Python/import_pilot.py'
@@ -51,6 +75,9 @@ if ($Action -in @('Capture', 'Preview')) {
     $jqVerified = ($jqVerifiedText -join [Environment]::NewLine) | ConvertFrom-Json
     if ($jqImported.baselineCommit -ne $jqVerified.baselineCommit -or $jqImported.sourceFingerprint -ne $jqVerified.fingerprint) {
         throw 'The imported characters do not match the current pinned sources. Import again before previewing or capturing.'
+    }
+    foreach ($jqImportedClip in $jqImported.clips) {
+        Assert-JqCharacterRecipes -ImportedClip $jqImportedClip -RecipeDirectory (Join-Path $jqRoot 'unreal/JiuQuestCharacters/Content/Python')
     }
 }
 

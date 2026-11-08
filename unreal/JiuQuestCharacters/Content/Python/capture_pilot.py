@@ -31,6 +31,21 @@ def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def validate_character_recipes(clip):
+    expected_files = {'import_pilot.py', 'pilot_source.py', 'ready_hands.py',
+                      'pilot_look.py', 'pilot_hair.py', 'pilot_hair_shape.py'}
+    refinement = clip.get('characterRefinement')
+    check(isinstance(refinement, dict), 'Character refinement inventory missing; import again')
+    recipes = refinement.get('recipeFiles')
+    check(isinstance(recipes, dict) and set(recipes) == expected_files,
+          'Character recipe inventory is incomplete or changed; import again')
+    for filename, expected_hash in recipes.items():
+        check(isinstance(expected_hash, str) and re.fullmatch(r'[0-9a-f]{64}', expected_hash),
+              'Invalid character recipe hash: '+filename)
+        check(sha256(Path(__file__).with_name(filename).read_bytes()) == expected_hash,
+              'Character recipe changed since import: '+filename)
+
+
 def read_import_report():
     raw = (REVIEW / "editor-import.json").read_bytes()
     report = json.loads(raw)
@@ -44,6 +59,7 @@ def read_import_report():
     check(re.fullmatch(r"/Game/Pilot/Run_[A-Za-z0-9_]+", root), "Unexpected imported content root")
     check([c["name"] for c in report["clips"]] == [c["name"] for c in pinned["clips"]], "Imported clip inventory changed")
     for clip in report["clips"]:
+        validate_character_recipes(clip)
         check(clip["map"] == root + "/Maps/" + clip["name"], "Map escaped the reported import run")
         check(clip["camera"].startswith(clip["map"] + "."), "Camera is outside its reported map")
         check(clip.get("animationBindingsAssigned") is True and clip["components"], "Import has no validated animation assignment")
@@ -179,6 +195,7 @@ class Capture:
                      for label, fraction in (("first", 0.), ("mid", .5), ("finish", 1.))]
         standing = next(c for c in imported["clips"] if c["name"] == "standing_stance")
         self.jobs.extend((standing, role + "-face", 0.) for role in ("Attacker", "Defender"))
+        self.jobs.extend((standing, role + "-hands", 0.) for role in ("Attacker", "Defender"))
         self.level = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
         self.actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
         self.editor = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
@@ -338,6 +355,47 @@ class Capture:
         self.camera.set_actor_rotation(unreal.MathLibrary.find_look_at_rotation(location, target), False)
         self.camera.camera_component.set_editor_property("field_of_view", 28.)
 
+    def frame_hands(self, role):
+        body = self.role_bodies[role]
+        wrists = [body.get_socket_location(self.resolve_bone(role, 'hand_'+side)) for side in ('l', 'r')]
+        target = unreal.Vector(sum(p.x for p in wrists)/2., sum(p.y for p in wrists)/2., sum(p.z for p in wrists)/2.+2.)
+        other_role = 'Defender' if role == 'Attacker' else 'Attacker'
+        other = self.role_bodies[other_role].get_socket_location(self.resolve_bone(other_role, 'Head'))
+        dx, dy = other.x-target.x, other.y-target.y
+        length = math.hypot(dx, dy)
+        check(length > 1., 'No stable opponent direction for hand review')
+        dx, dy = dx/length, dy/length
+        location = unreal.Vector(target.x+140.*(.8660254*dx-.5*dy),
+                                 target.y+140.*(.8660254*dy+.5*dx), target.z+30.)
+        self.camera.set_actor_location(location, False, False)
+        self.camera.set_actor_rotation(unreal.MathLibrary.find_look_at_rotation(location, target), False)
+        self.camera.camera_component.set_editor_property('field_of_view', 32.)
+
+    def grip_state(self):
+        """Actual evaluated knuckle-to-distal-joint direction, not a grasp claim."""
+        result = []
+        for role, body in self.role_bodies.items():
+            other = 'Defender' if role == 'Attacker' else 'Attacker'
+            head = self.role_bodies[other].get_socket_location(self.resolve_bone(other, 'Head'))
+            for side in ('l', 'r'):
+                wrist = body.get_socket_location(self.resolve_bone(role, 'hand_'+side))
+                dx, dy = head.x-wrist.x, head.y-wrist.y
+                distance = math.hypot(dx, dy)
+                check(distance > 1., 'No horizontal opponent direction')
+                for digit in ('index', 'middle', 'ring', 'pinky'):
+                    start_name, end_name = (f'{digit}_01_{side}', f'{digit}_03_{side}')
+                    start = body.get_socket_location(self.resolve_bone(role, start_name))
+                    end = body.get_socket_location(self.resolve_bone(role, end_name))
+                    direction = (end.x-start.x, end.y-start.y, end.z-start.z)
+                    length = math.sqrt(sum(v*v for v in direction))
+                    check(length > .1, 'Invalid evaluated finger length')
+                    direction = tuple(v/length for v in direction)
+                    result.append({'role': role, 'side': side, 'digit': digit,
+                        'fromBone': start_name, 'toBone': end_name,
+                        'pitchDegrees': math.degrees(math.asin(max(-1., min(1., direction[2])))),
+                        'forwardDot': (direction[0]*dx+direction[1]*dy)/distance})
+        return result
+
     def camera_state(self):
         location = self.camera.get_actor_location()
         rotation = self.camera.get_actor_rotation()
@@ -429,9 +487,12 @@ class Capture:
                           f"Shared sequence seek wanted {self.seconds:.9f}s, got {actual:.9f}s after one tick")
                 if self.frames < 30 or now - self.settled_at < 2.:
                     return
-                if self.phase == "settle" and label.endswith("-face"):
-                    self.stage("frame face " + label)
-                    self.frame_face(label.removesuffix("-face"))
+                if self.phase == "settle" and label.endswith(("-face", "-hands")):
+                    self.stage("frame detail " + label)
+                    if label.endswith('-face'):
+                        self.frame_face(label.removesuffix("-face"))
+                    else:
+                        self.frame_hands(label.removesuffix('-hands'))
                     self.frames = 0
                     self.settled_at = time.monotonic()
                     self.phase = "camera_settle"
@@ -460,10 +521,11 @@ class Capture:
                     "animationAuthority": "shared_level_sequence",
                     "world": self.game_world.get_path_name(), "worldMode": "simulate_in_editor_game_world",
                     "runtimeCamera": self.camera.get_path_name(),
-                    "viewLabel": label if label.endswith("-face") else "fullbody",
+                    "viewLabel": label if label.endswith(("-face", "-hands")) else "fullbody",
                     "cameraTransform": self.camera_state(),
                     "headBones": dict(self.head_bones) if label.endswith("-face") else {},
                     "evaluatedBoneTransforms": self.bone_state(),
+                    "readyHandDirections": self.grip_state() if clip['name'] == 'standing_stance' else [],
                     "file": self.image.name, "bytes": len(data), "sha256": sha256(data), "reviewed": False})
                 self.save()
                 self.index += 1

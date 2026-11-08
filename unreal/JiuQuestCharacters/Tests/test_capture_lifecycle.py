@@ -1,5 +1,6 @@
 """Offline lifecycle regressions; these do not simulate or prove rendering."""
 import importlib.util
+import copy
 import json
 from pathlib import Path
 import struct
@@ -148,6 +149,28 @@ class CaptureLifecycleTests(unittest.TestCase):
         self.assertEqual(self.keep_alive, [False])
         self.assertEqual(self.unregistered, ["registered delegate"])
         self.assertEqual(self.session.report["status"], "failed")
+
+    def recipe_clip(self):
+        directory = Path(self.module.__file__).parent
+        names = ('import_pilot.py', 'pilot_source.py', 'ready_hands.py',
+                 'pilot_look.py', 'pilot_hair.py', 'pilot_hair_shape.py')
+        return {'characterRefinement': {'recipeFiles': {
+            name:self.module.sha256((directory/name).read_bytes()) for name in names}}}
+
+    def test_recipe_guard_accepts_current_six_files(self):
+        self.module.validate_character_recipes(self.recipe_clip())
+
+    def test_recipe_guard_rejects_legacy_partial_malformed_and_stale_reports(self):
+        valid = self.recipe_clip()
+        partial = copy.deepcopy(valid); partial['characterRefinement']['recipeFiles'].pop('pilot_hair_shape.py')
+        extra = copy.deepcopy(valid); extra['characterRefinement']['recipeFiles']['unexpected.py'] = '0'*64
+        invalid = copy.deepcopy(valid); invalid['characterRefinement']['recipeFiles']['pilot_hair.py'] = 42
+        malformed = copy.deepcopy(valid); malformed['characterRefinement']['recipeFiles']['pilot_hair.py'] = 'not-a-sha256'
+        stale = copy.deepcopy(valid); stale['characterRefinement']['recipeFiles']['pilot_hair.py'] = '0'*64
+        for clip in ({}, {'characterRefinement':{}}, {'characterRefinement':{'recipeFiles':{}}},
+                     partial, extra, invalid, malformed, stale):
+            with self.subTest(clip=clip), self.assertRaises(RuntimeError):
+                self.module.validate_character_recipes(clip)
 
 
 if __name__ == "__main__":
