@@ -2,12 +2,14 @@
   "FileVersion": 3,
   "EngineAssociation": "5.8",
   "Category": "Character Preview",
-  "Description": "Isolated original JiuQuest character import and material pilot. Editor execution and visual acceptance pending.",
+  "Description": "Original JiuQuest character import, materials and local preview. Production integration pending.",
   "Plugins": [
     { "Name": "PythonScriptPlugin", "Enabled": true },
     { "Name": "EditorScriptingUtilities", "Enabled": true },
+    { "Name": "SequencerScripting", "Enabled": true },
     { "Name": "Interchange", "Enabled": true },
     { "Name": "InterchangeEditor", "Enabled": true },
-    { "Name": "PixelStreaming2", "Enabled": false }
+    { "Name": "AndroidFileServer", "Enabled": false },
+    { "Name": "PixelStreaming2", "Enabled": true }
   ]
 }
