@@ -417,6 +417,28 @@ try {
     assert.deepEqual((await page.locator('.test-panel .order-card > p').allTextContents()).sort(), [...technique.steps].sort());
   }
   checks.push('All 36 guide techniques render 141 exact steps, source numbering and visible bold; all 13 player-start groups and shuffled sequences match.');
+  await page.getByRole('button', { name: 'Arena', exact: true }).click();
+  await page.getByLabel('Your starting position', { exact: true }).selectOption('open-guard-bottom');
+  await page.getByRole('button', { name: 'Position Start', exact: true }).click();
+  assert.match(await page.locator('.snapshot-position').innerText(), /On your back, opponent standing/);
+  assert.match(await page.locator('.snapshot-position').innerText(), /exact setup not pictured/);
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Restart match', exact: true }).click();
+  assert.match(await page.locator('.snapshot-position').innerText(), /On your back, opponent standing/);
+  await page.goto(`${base}/?engine=snapshot`);
+  await page.getByRole('button', { name: 'Arena', exact: true }).click();
+  await page.getByLabel('Your starting position', { exact: true }).selectOption('mount-bottom');
+  await page.getByRole('button', { name: 'Position Start', exact: true }).click();
+  await page.getByRole('button', { name: /Trap and Roll Escape standard escape/ }).click();
+  const sequenceParagraphs = page.getByRole('list', { name: 'Trap and Roll Escape standard step order' }).locator('.order-card > p');
+  const beforeSwap = await sequenceParagraphs.allTextContents();
+  assert.deepEqual([...beforeSwap].sort(), [...guideMoves.find(move => move.id === 'trap-roll-escape').steps].sort());
+  assert.ok(await sequenceParagraphs.locator('strong').evaluateAll(nodes => nodes.length > 0 && nodes.every(node => Number(getComputedStyle(node).fontWeight) >= 700)));
+  assert.match(await page.getByRole('timer').first().innerText(), /[2-9]\ds remaining/);
+  await page.getByRole('button', { name: /^Move step 1 down:/ }).click();
+  const afterSwap = await sequenceParagraphs.allTextContents();
+  assert.equal(afterSwap[0], beforeSwap[1]); assert.equal(afterSwap[1], beforeSwap[0]);
+  checks.push('Arena position starts and restart preserve player roles; guide paragraphs and visible bold survive reordering with an extended timer.');
   await closeContext(desktop, 'desktop');
 
   for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 740 }, { width: 844, height: 390 }]) {
