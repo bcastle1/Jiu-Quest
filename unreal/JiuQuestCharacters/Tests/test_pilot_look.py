@@ -1,7 +1,9 @@
 """Sculpt envelope and original-data preservation, independent of UE rendering."""
 from pathlib import Path
 import copy
+import hashlib
 import math
+import struct
 import sys
 import unittest
 
@@ -9,7 +11,7 @@ PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parents[1]
 sys.path.insert(0, str(PROJECT / 'Content/Python'))
 from pilot_look import (MeshFile, face_offset, cloth_relief, cloth_offset, refine_look,
-                        dot, rigid_frame, panel_at, shoulder_offset, MAX_CLOTH_OFFSET,
+                        dot, rigid_frame, panel_at, shoulder_offset, folded_ridge, MAX_CLOTH_OFFSET,
                         MAX_CLOTH_BOUNDS_EXPANSION)
 
 
@@ -40,6 +42,21 @@ class LookTests(unittest.TestCase):
             samples = [(cloth_relief('pants', u, i/1000.), i/1000.) for i in range(330, 480)]
             peaks.append(max(samples)[1])
         self.assertGreater(abs(peaks[0]-peaks[1]), .06)
+
+    def test_folded_planes_have_broad_flanks_and_a_smooth_crest(self):
+        # Fold faces should read as cloth planes, without the hard cusp that
+        # would create a pinched highlight on the existing sleeve grid.
+        width, amount = .06, .01
+        points = [folded_ridge(width*r, width, amount) for r in (.2,.4,.6,.8)]
+        slopes = [(a-b)/(.2*width) for a,b in zip(points,points[1:])]
+        self.assertGreater(min(slopes),.14)
+        self.assertLess(max(slopes)/min(slopes),1.15)
+        step = 1e-6
+        left = (folded_ridge(0.,width,amount)-folded_ridge(-step,width,amount))/step
+        right = (folded_ridge(step,width,amount)-folded_ridge(0.,width,amount))/step
+        self.assertLess(abs(left-right),.0001)
+        for distance in (-.3,.3):
+            self.assertEqual(folded_ridge(distance,width,amount),0.)
 
     def test_trim_openings_and_exposed_skin_bands_remain_fixed(self):
         landmarks = {'upperarm_l':(.212, .0654, 1.4555), 'hand_l':(.7065, .0654, 1.4555),
@@ -77,6 +94,7 @@ class LookTests(unittest.TestCase):
                     self.assertGreater(determinant,.60)
 
     def test_three_clips_preserve_rig_uv_topology_images_and_motion(self):
+        accepted_regions = hashlib.sha256()
         for clip in ('standing_stance', 'rear_naked_choke', 'armbar'):
             raw = (ROOT / 'public/animations/bjj' / (clip+'.glb')).read_bytes()
             result, proof = refine_look(raw)
@@ -102,10 +120,20 @@ class LookTests(unittest.TestCase):
                     for part in ('Body', 'GiJacket', 'GiPantsMesh')}:
                     continue
                 for primitive in before.doc['meshes'][node['mesh']]['primitives']:
+                    attributes = primitive['attributes']
+                    if node['name'].endswith('_GiPantsMesh'):
+                        protected = [p for p,uv in zip(after.read(attributes['POSITION']),
+                            before.read(attributes['TEXCOORD_1'])) if panel_at(uv)[2] >= .58]
+                        self.assertEqual(len(protected),1713)
+                        for point in protected:
+                            accepted_regions.update(struct.pack('<3f',*point))
+                    else:
+                        for semantic in ('POSITION','NORMAL','TANGENT'):
+                            for value in after.read(attributes[semantic]):
+                                accepted_regions.update(struct.pack('<'+'f'*len(value),*value))
                     for semantic in ('POSITION', 'NORMAL', 'TANGENT'):
                         index = primitive['attributes'][semantic]
                         accessor, start, stride, fmt = before.layout(index)
-                        import struct
                         for i in range(accessor['count']):
                             allowed.update(range(start+i*stride, start+i*stride+struct.calcsize(fmt)))
                     skin = before.doc['skins'][node['skin']]
@@ -154,6 +182,12 @@ class LookTests(unittest.TestCase):
             self.assertTrue(all(a == b or i+before.start in allowed for i,(a,b) in
                                 enumerate(zip(raw[before.start:],result[after.start:]))))
             self.assertEqual(refine_look(raw)[0], result, 'Sculpt must be deterministic from original bytes')
+        # Actual accepted 003210 recipe, evaluated on the three pinned sources:
+        # complete body/jacket P/N/T plus every upper-pants POSITION at v>=.58.
+        # This catches lining crossover in the original inner-thigh overlap
+        # even when the new rest-space triangles retain their orientation.
+        self.assertEqual(accepted_regions.hexdigest(),
+            'd8d04b9bdd5e26b79189bc299e2529739cad2ad6ebcac21ceadf760d6ba7523c')
 
 
 if __name__ == '__main__':

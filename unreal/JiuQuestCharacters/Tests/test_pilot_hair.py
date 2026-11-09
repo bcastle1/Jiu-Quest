@@ -1,16 +1,22 @@
+import ast
 import copy
+import hashlib
+import itertools
 import json
 import math
 from pathlib import Path
 import struct
 import sys
+import tempfile
 import unittest
+from unittest.mock import Mock
 
 PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parents[1]
 sys.path.insert(0, str(PROJECT / 'Content/Python'))
 from pilot_hair import refine_hair, smooth_frames, unit, dot
 from pilot_source import select_hair
+from pilot_hair_shape import refine_hair_shape
 
 
 def unpack(raw):
@@ -34,10 +40,22 @@ def floats(doc, binary, index):
 class PilotHairTests(unittest.TestCase):
     def test_actual_clips_only_redirect_selected_hair_shading_accessors(self):
         pinned = json.loads((PROJECT/'pilot-assets.json').read_text())
-        for clip in pinned['clips']:
-            with self.subTest(clip=clip['name']):
-                raw,_ = select_hair((ROOT/clip['source']).read_bytes())
-                derived,proof = refine_hair(raw)
+        for clip,style in itertools.product(pinned['clips'], ('Slick','Spikes')):
+            with self.subTest(clip=clip['name'],style=style):
+                original = (ROOT/clip['source']).read_bytes()
+                raw,selection = select_hair(original,style)
+                source,source_bin = unpack(original); selected,selected_bin = unpack(raw)
+                self.assertEqual(selected_bin,source_bin)
+                expected_selection = copy.deepcopy(source)
+                self.assertEqual(len(selection['removedMeshAttachments']),8)
+                for row in selection['removedMeshAttachments']:
+                    expected_selection['nodes'][row['nodeIndex']].pop('mesh')
+                    expected_selection['nodes'][row['nodeIndex']].pop('skin')
+                self.assertEqual(selected,expected_selection)
+                for role in ('Attacker','Defender'):
+                    visible = [n['name'] for n in selected['nodes'] if n.get('name','').startswith('JQ_'+role+'_Hair') and 'mesh' in n]
+                    self.assertEqual(visible,['JQ_'+role+'_Hair'+style])
+                derived,proof = refine_hair(raw,style)
                 old,old_bin = unpack(raw); new,new_bin = unpack(derived)
                 self.assertEqual(new_bin[:len(old_bin)],old_bin)
                 expected = copy.deepcopy(old)
@@ -51,13 +69,69 @@ class PilotHairTests(unittest.TestCase):
                     self.assertEqual([t[3] for t in tangent],[t[3] for t in old_tangent])
                     self.assertLess(max(abs(dot(n,t[:3])) for n,t in zip(normal,tangent)), .0002)
                     self.assertGreater(row['changedNormalVertices'], 0)
-                    self.assertEqual(row['capTrianglesPreserved'],152)
-                    self.assertLess(row['maxNormalRotationDegrees'],36.)
+                    self.assertEqual(row['capTrianglesPreserved'],152 if style == 'Slick' else 176)
+                    self.assertLess(row['maxNormalRotationDegrees'],36. if style == 'Slick' else 37.)
                 expected['accessors'] += new['accessors'][len(old['accessors']):]
                 expected['bufferViews'] += new['bufferViews'][len(old['bufferViews']):]
                 expected['buffers'][0]['byteLength'] = new['buffers'][0]['byteLength']
                 self.assertEqual(new, expected)
                 self.assertEqual(len(proof['primitives']),2)
+                self.assertTrue(proof['applied'])
+                self.assertEqual(proof['selectedHair'],style)
+
+    def test_unreviewed_or_mismatched_style_is_rejected(self):
+        original = (ROOT/'public/animations/bjj/standing_stance.glb').read_bytes()
+        raw,_ = select_hair(original,'Spikes')
+        with self.assertRaisesRegex(ValueError,'shading review'):
+            refine_hair(raw,'Crew')
+        with self.assertRaisesRegex(ValueError,'selected Slick attachment'):
+            refine_hair(raw,'Slick')
+        with self.assertRaisesRegex(ValueError,'Missing unique Slick attachment'):
+            refine_hair_shape(raw)
+
+    def test_default_import_retains_spikes_geometry_and_reports_shape_skip(self):
+        # Exercise the actual importer composition without loading Unreal.
+        # Independent hand/cloth passes are isolated here; their tests own those
+        # deformations. A Slick shape call must fail this Spikes regression.
+        script = PROJECT/'Content/Python/import_pilot.py'
+        tree = ast.parse(script.read_text())
+        functions = [n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in ('check','digest','glb_with_selected_hair')]
+        identity = lambda raw,*args: (raw,{'isolatedForDispatchTest':True})
+        shape = Mock(side_effect=AssertionError('Spikes must not enter the Slick shape pass'))
+        namespace = {'Path':Path,'hashlib':hashlib,'__file__':str(script),
+                     'select_hair':select_hair,'refine_hair':refine_hair,
+                     'refine_ready_hands':Mock(side_effect=identity),'refine_look':Mock(side_effect=identity),
+                     'refine_hair_shape':shape}
+        exec(compile(ast.Module(body=functions,type_ignores=[]),str(script),'exec'),namespace)
+        source = ROOT/'public/animations/bjj/standing_stance.glb'
+        original = source.read_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory)/'derived.glb'
+            proof = namespace['glb_with_selected_hair'](source,destination)
+            expected,_ = select_hair(original,'Spikes'); expected,_ = refine_hair(expected,'Spikes')
+            self.assertEqual(destination.read_bytes(),expected)
+        self.assertEqual(source.read_bytes(),original)
+        shape.assert_not_called()
+        self.assertEqual(proof['selectedHair'],'Spikes')
+        self.assertEqual(proof['selection']['selectedHair'],'Spikes')
+        self.assertEqual(proof['hairShading']['selectedHair'],'Spikes')
+        self.assertFalse(proof['hairShape']['applied'])
+        self.assertEqual(proof['hairShape']['sourceSha256'],proof['hairShape']['importSha256'])
+        self.assertEqual(proof['hairShape']['importSha256'],proof['importSha256'])
+        self.assertTrue(proof['hairShape']['sourceGeometryUnchanged'])
+        self.assertEqual(proof['appliedHelpers'],['pilot_source.select_hair','ready_hands.refine_ready_hands',
+            'pilot_look.refine_look','pilot_hair.refine_hair'])
+        recipes = ('import_pilot.py','pilot_source.py','ready_hands.py','pilot_look.py','pilot_hair.py','pilot_hair_shape.py')
+        self.assertEqual(proof['recipeFiles'],{name:hashlib.sha256(script.with_name(name).read_bytes()).hexdigest() for name in recipes})
+        # Explicit Slick remains available for the matched baseline comparison.
+        shape.side_effect = identity
+        with tempfile.TemporaryDirectory() as directory:
+            slick_proof = namespace['glb_with_selected_hair'](source,Path(directory)/'slick.glb','Slick')
+        expected,_ = select_hair(original,'Slick'); expected,_ = refine_hair(expected,'Slick')
+        shape.assert_called_once_with(expected)
+        self.assertTrue(slick_proof['hairShape']['applied'])
+        self.assertEqual(slick_proof['hairShape']['selectedHair'],'Slick')
+        self.assertEqual(slick_proof['appliedHelpers'],proof['appliedHelpers']+['pilot_hair_shape.refine_hair_shape'])
 
     def test_only_edge_connected_mild_fans_smooth_and_tangents_follow(self):
         # Two 45-degree side triangles meet along an edge. A third touches only
@@ -105,13 +179,15 @@ class PilotHairTests(unittest.TestCase):
         self.assertEqual(proof['newAccessorCount'],2)
 
     def test_normal_mapped_hair_rejects_unreviewed_tangent_contract(self):
-        raw,_ = select_hair((ROOT/'public/animations/bjj/standing_stance.glb').read_bytes())
-        doc,binary = unpack(raw)
-        node = next(n for n in doc['nodes'] if n.get('name') == 'JQ_Attacker_HairSlick')
-        mat = doc['meshes'][node['mesh']]['primitives'][0]['material']
-        doc['materials'][mat]['normalTexture'] = {'index':0}
-        with self.assertRaisesRegex(ValueError,'normal map'):
-            refine_hair(repack(doc,binary))
+        for style in ('Slick','Spikes'):
+            with self.subTest(style=style):
+                raw,_ = select_hair((ROOT/'public/animations/bjj/standing_stance.glb').read_bytes(),style)
+                doc,binary = unpack(raw)
+                node = next(n for n in doc['nodes'] if n.get('name') == 'JQ_Attacker_Hair'+style)
+                mat = doc['meshes'][node['mesh']]['primitives'][0]['material']
+                doc['materials'][mat]['normalTexture'] = {'index':0}
+                with self.assertRaisesRegex(ValueError,'normal map'):
+                    refine_hair(repack(doc,binary),style)
 
 
 if __name__ == '__main__':

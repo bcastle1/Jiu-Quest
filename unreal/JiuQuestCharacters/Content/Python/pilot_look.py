@@ -74,6 +74,35 @@ def crease(distance, width, amount):
     return amount * (math.exp(-r*r) - .48 * math.exp(-((r+1.25)/.62)**2))
 
 
+def folded_ridge(distance, width, amount):
+    """Broad folded planes with a rounded crest and an unequal adjacent valley.
+
+    Nearly straight flanks make cotton folds readable under a broad light.
+    Round both the crest and the foot rather than introducing a sharp cusp;
+    the support is wide enough for the existing limb rows, without new mesh.
+    """
+    def tent(r):
+        a = math.sqrt(r*r + .10*.10) - .10
+        h = 1.-a
+        rounded = .5*(h + math.sqrt(h*h + .06*.06))
+        return rounded * (1.-smooth(1.08, 1.40, a))
+    r = distance / width
+    return amount * (tent(r) - .52*tent((r+1.38)/.72))
+
+
+def lower_pants_relief(u, v):
+    """Unequal angular knee fans and lower-leg drape, away from the hip lining."""
+    angle = math.tau*u
+    support = window(.035, .085, .915, .965, u) * window(.16, .22, .82, .92, v)
+    front = max(0., -math.cos(angle)) ** 3
+    result = folded_ridge(v-.405-.090*math.sin(angle), .049, .0120) * front
+    result += folded_ridge(v-.525+.120*math.sin(angle), .065, .0068) * front
+    result += folded_ridge(u-.22-.13*(v-.45), .073, .0075) * window(.19, .27, .66, .77, v)
+    result += folded_ridge(u-.78+.09*(v-.45), .078, .0058) * window(.23, .31, .63, .74, v)
+    result += folded_ridge(v-.275-.145*math.sin(angle), .060, .0072) * front * window(.16, .23, .34, .41, v)
+    return .0145 * math.tanh(result * support / .015)
+
+
 def cloth_relief(panel, u, v):
     """Localized bend/drag folds, rather than rings around cylindrical limbs.
 
@@ -110,7 +139,14 @@ def cloth_relief(panel, u, v):
         result += crease(u-.34-.19*(v-.64), .061, .0080) * thigh
         result += crease(u-.65+.13*(v-.66), .066, .0060) * thigh
         result += crease(v-.275-.105*math.sin(angle), .046, .0062) * front * window(.16, .23, .34, .41, v)
-        return .012 * math.tanh(result * support / .012)
+        accepted = .012 * math.tanh(result * support / .012)
+        # The accepted upper legs include a narrow inner-thigh overlap whose
+        # lining crosses the canonical x=0 plane. Keep its existing fit exact;
+        # a new radial ridge there can bring the lining through the outer shell.
+        if v >= .58:
+            return accepted
+        angular = lower_pants_relief(u, v)
+        return accepted + (angular-accepted)*(1.-smooth(.48, .58, v))
     if panel == 'torso':
         support = window(.04, .10, .90, .96, u) * window(.37, .44, .69, .81, v)
         result = 0.
@@ -335,7 +371,7 @@ def refine_look(raw):
     mesh_file = MeshFile(raw)
     doc = mesh_file.doc
     original_doc = copy.deepcopy(doc)
-    proof = {'version': 3, 'changes': [], 'maximumFaceOffsetMeters': 0., 'maximumClothOffsetMeters': 0.,
+    proof = {'version': 5, 'changes': [], 'maximumFaceOffsetMeters': 0., 'maximumClothOffsetMeters': 0.,
              'clothOffsetLimitMeters': MAX_CLOTH_OFFSET,
              'clothBoundsExpansionLimitMeters': MAX_CLOTH_BOUNDS_EXPANSION}
     handled = set()
@@ -451,7 +487,7 @@ def refine_look(raw):
     proof.update(sourceSha256=hashlib.sha256(raw).hexdigest(), importSha256=hashlib.sha256(result).hexdigest(),
         scopedPositionBoundsOnly=True, positionBoundsAccessors=updated_bounds,
         protectedBinaryBytesUnchanged=True, binaryByteLengthUnchanged=True,
-        scope='Original lower face field; continuous shoulder settling, leaner limbs and unequal drag folds; original source retained',
+        scope='Accepted face, shoulders, jacket and upper trousers retained; bounded angular knee and lower-leg drape only; original source retained',
         limitations=['Rest-pose triangle/frame checks do not establish every posed contact or skin clearance.',
                      'Covered body skin, hands, cuffs, lapels, rig, motion and texture coordinates are not reauthored.',
                      'Baked cloth shapes suggest anatomy; no dynamic cloth or muscle simulation.'])

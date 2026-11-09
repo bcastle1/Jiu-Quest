@@ -1,4 +1,4 @@
-"""Smooth only selected Slick shading frames in an import-only GLB derivative.
+"""Smooth selected Slick or Spikes shading in an import-only GLB derivative.
 
 Positions, indices, UVs, weights and all original binary bytes are retained.
 New normal/tangent accessors are appended, leaving every other primitive intact.
@@ -129,7 +129,8 @@ def smooth_frames(positions, normals, tangents, uvs, joints, weights, indices):
         "maximumTangentNormalDot":max((abs(dot(output[i],result_tangents[i][:3])) for i in range(count)), default=0.)}
 
 
-def refine_hair(raw):
+def refine_hair(raw, style="Slick"):
+    require(style in ("Slick", "Spikes"), "Hair style has not passed the pilot shading review")
     require(len(raw) >= 28 and struct.unpack_from('<III',raw) == (0x46546c67,2,len(raw)), "Invalid GLB")
     length,kind = struct.unpack_from('<II',raw,12)
     require(kind == 0x4e4f534a and length % 4 == 0 and 28+length <= len(raw), "Invalid GLB JSON")
@@ -162,11 +163,12 @@ def refine_hair(raw):
         appended[key] = index
         return index
     rows = []; seen = set()
+    selected_names = tuple('JQ_'+role+'_Hair'+style for role in ('Attacker','Defender'))
     for role in ('Attacker','Defender'):
-        nodes = [n for n in doc['nodes'] if n.get('name') == 'JQ_'+role+'_HairSlick' and 'mesh' in n and 'skin' in n]
-        require(len(nodes) == 1, "Expected one selected Slick attachment per role")
+        nodes = [n for n in doc['nodes'] if n.get('name') == 'JQ_'+role+'_Hair'+style and 'mesh' in n and 'skin' in n]
+        require(len(nodes) == 1, "Expected one selected "+style+" attachment per role")
         mesh_index = nodes[0]['mesh']
-        require(not any(n.get('mesh') == mesh_index and n.get('name') not in ('JQ_Attacker_HairSlick','JQ_Defender_HairSlick') for n in doc['nodes']), "Selected hair mesh is shared with another attachment")
+        require(not any(n.get('mesh') == mesh_index and n.get('name') not in selected_names for n in doc['nodes']), "Selected hair mesh is shared with another attachment")
         for primitive_index,p in enumerate(doc['meshes'][mesh_index]['primitives']):
             if (mesh_index,primitive_index) in seen:
                 continue
@@ -178,7 +180,7 @@ def refine_hair(raw):
             normals,tangents,proof = smooth_frames(values['POSITION'],values['NORMAL'],values['TANGENT'],values['TEXCOORD_0'],values['JOINTS_0'],values['WEIGHTS_0'],[x[0] for x in accessor(p['indices'])])
             a['NORMAL'] = append(normals,3); a['TANGENT'] = append(tangents,4)
             rows.append({'mesh':mesh_index,'primitive':primitive_index,**proof})
-    require(rows and all(r['changedNormalVertices'] > 0 and r['capTrianglesPreserved'] > 0 for r in rows), "No bounded Slick shading change found")
+    require(rows and all(r['changedNormalVertices'] > 0 and r['capTrianglesPreserved'] > 0 for r in rows), "No bounded selected-hair shading change found")
     require(all(r['maxNormalRotationDegrees'] <= 45. for r in rows), "Hair normal change exceeds the 45-degree pilot limit")
     doc['buffers'][0]['byteLength'] = len(output)
     expected = copy.deepcopy(original)
@@ -196,6 +198,7 @@ def refine_hair(raw):
     result = struct.pack('<III',0x46546c67,2,28+len(encoded)+len(output)) + struct.pack('<II',len(encoded),0x4e4f534a) + encoded + struct.pack('<II',len(output),0x004e4942) + output
     require(output[:len(binary)] == binary, "Original binary bytes changed")
     return bytes(result), {'sourceSha256':hashlib.sha256(raw).hexdigest(),'importSha256':hashlib.sha256(result).hexdigest(),
+        'applied':True,'selectedHair':style,
         'originalBinaryPrefixUnchanged':True,'originalBinaryBytes':len(binary),'positionsUVsWeightsIndicesUnchanged':True,
         'skeletonAnimationAndOtherPrimitivesUnchanged':True,'newAccessorCount':len(appended),'primitives':rows,
-        'scope':'Selected Slick side shading only; caps and hard fans retained; silhouette unchanged'}
+        'scope':'Selected '+style+' side shading only; caps and hard fans retained; silhouette unchanged'}

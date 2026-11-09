@@ -24,7 +24,7 @@ REPORT = {"status": "not_started", "renderValidated": False,
           "clips": [], "materialGraphs": [], "limits": [
               "Editor-only import and material/scene setup; no runtime web receiver",
               "Imported poses, pairing, timing, hair selection and material output require visual review",
-              "Original lower-face and cotton sculpt plus Slick shading require visual comparison",
+              "Original lower-face/cotton sculpt and selected hair shading require visual comparison",
               "Standing-only wrist/finger presentation; no cloth grasp simulation",
               "Authored gi folds; no Chaos cloth simulation"]}
 
@@ -49,20 +49,34 @@ def save_report():
     (REVIEW / "editor-import.json").write_text(json.dumps(REPORT, indent=2) + "\n")
 
 
-def glb_with_selected_hair(source, destination, style="Slick"):
+def glb_with_selected_hair(source, destination, style="Spikes"):
     """Compose audited import-only passes; the approved source file stays exact."""
+    check(style in ("Slick", "Spikes"), "Hair style has not passed the pilot shading review")
     original = source.read_bytes()
     result, selection = select_hair(original, style)
     result, hands = refine_ready_hands(result, source.stem)
     result, sculpt = refine_look(result)
-    result, hair = refine_hair(result)
-    result, shape = refine_hair_shape(result)
+    result, hair = refine_hair(result, style)
+    applied = ['pilot_source.select_hair', 'ready_hands.refine_ready_hands',
+               'pilot_look.refine_look', 'pilot_hair.refine_hair']
+    if style == "Slick":
+        result, shape = refine_hair_shape(result)
+        shape.update(applied=True, selectedHair=style)
+        applied.append('pilot_hair_shape.refine_hair_shape')
+    else:
+        # Spikes has a different crown/fringe topology. Keep its source geometry
+        # rather than apply or relax the six-lock Slick-only shape contract.
+        shape = {'applied': False, 'selectedHair': style,
+                 'sourceSha256': digest(result), 'importSha256': digest(result),
+                 'sourceGeometryUnchanged': True,
+                 'scope': 'Pass-through: original Spikes geometry retained; six-lock Slick sculpt not applied'}
     proof = {'sourceSha256': digest(original), 'importSha256': digest(result),
+             'selectedHair': style, 'appliedHelpers': applied,
              'selection': selection, 'readyHands': hands, 'sculpt': sculpt, 'hairShading': hair, 'hairShape': shape,
              'recipeFiles': {name: digest(Path(__file__).with_name(name).read_bytes()) for name in
                              ('import_pilot.py', 'pilot_source.py', 'ready_hands.py', 'pilot_look.py', 'pilot_hair.py', 'pilot_hair_shape.py')},
              'derivedSource': str(destination),
-             'scope': 'Original source retained; bounded primary hair locks, face/gi sculpt and standing grip derivative'}
+             'scope': 'Original source retained; selected hair shading, explicit style-specific shape handling, face/gi sculpt and standing grip derivative'}
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(result)
     return proof
