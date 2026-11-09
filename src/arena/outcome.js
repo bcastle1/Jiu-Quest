@@ -3,7 +3,8 @@
 // Keeping these separate prevents an NPC takedown from making the player top.
 const SIDES = new Set(["fighter", "opponent"]);
 const NEUTRAL = new Set(["standing", "kneeling", "clinch", "scramble"]);
-const DOMINANT = new Set(["side", "mount", "back", "turtle", "headlock"]);
+const DOMINANT = new Set(["side", "mount", "back", "turtle", "headlock", "standing-headlock", "rear-clinch"]);
+const CONTROL_ONLY = new Set(["back", "standing-headlock", "rear-clinch"]);
 
 export function otherArenaSide(side) {
   return side === "fighter" ? "opponent" : side === "opponent" ? "fighter" : null;
@@ -16,6 +17,10 @@ function parsePosition(position) {
   const aliases = {
     guard: ["guard", "top"], "closed-guard": ["guard", "bottom"],
     "guard-top": ["guard", "top"], "guard-bottom": ["guard", "bottom"],
+    "open-guard-top": ["open-guard", "top"], "open-guard-bottom": ["open-guard", "bottom"],
+    "guard-side-top": ["guard-side", "top"], "guard-side-bottom": ["guard-side", "bottom"],
+    "rear-clinch": ["rear-clinch", "top"], "rear-clinch-defending": ["rear-clinch", "bottom"],
+    "standing-headlock": ["standing-headlock", "bottom"], "standing-headlock-top": ["standing-headlock", "top"],
     "half-guard": ["half-guard", "top"], "half-guard-top": ["half-guard", "top"],
     "half-guard-bottom": ["half-guard", "bottom"],
     "side-control": ["side", "top"], "side-top": ["side", "top"],
@@ -33,14 +38,16 @@ function parsePosition(position) {
 
 function stateFromRoles(family, topSide, controlSide) {
   if (NEUTRAL.has(family)) return { position: family, topSide: null, controlSide: null };
-  const leadSide = family === "back" ? controlSide : topSide;
+  const leadSide = CONTROL_ONLY.has(family) ? controlSide : topSide;
   const role = leadSide === "opponent" ? "bottom" : "top";
   let position = `${family}-${role}`;
   if (family === "back") position = role === "top" ? "back-control" : "back-defending";
   if (family === "headlock") position = role === "top" ? "headlock-top" : "headlock";
+  if (family === "standing-headlock") position = role === "top" ? "standing-headlock-top" : "standing-headlock";
+  if (family === "rear-clinch") position = role === "top" ? "rear-clinch" : "rear-clinch-defending";
   return {
     position,
-    topSide: family === "back" ? null : leadSide,
+    topSide: CONTROL_ONLY.has(family) ? null : leadSide,
     controlSide: DOMINANT.has(family) ? leadSide : null,
   };
 }
@@ -77,8 +84,9 @@ export function isArenaCounterApplicable(move, current, opposingMove, actorSide 
   const counter = move?.id;
   if (!["haymaker-defense", "guillotine-defense", "standing-headlock-defense"].includes(counter)) return true;
   if (!SIDES.has(actorSide)) return false;
+  if (!move.starts?.includes(getPositionForSide(current, actorSide))) return false;
   // An established headlock is already a threat even if its holder now defends.
-  if (counter === "standing-headlock-defense" && getPositionForSide(current, actorSide) === "headlock") return true;
+  if (counter === "standing-headlock-defense" && getPositionForSide(current, actorSide) === "standing-headlock") return true;
   if (!opposingMove) return false;
   const opposingPosition = getPositionForSide(current, otherArenaSide(actorSide));
   if (Array.isArray(opposingMove.starts) && !opposingMove.starts.includes(opposingPosition)) return false;
@@ -86,7 +94,7 @@ export function isArenaCounterApplicable(move, current, opposingMove, actorSide 
   if (counter === "guillotine-defense") return opposingMove.id === "guillotine-choke" && opposingMove.isSubmission === true;
   // The current curriculum has no headlock-entry attack. This explicit endpoint
   // supports a future entry without treating a headlock escape as an attack.
-  return opposingMove.endsIn === "headlock-top" && ["control", "takedown", "submission"].includes(opposingMove.category);
+  return opposingMove.endsIn === "standing-headlock-top" && ["control", "takedown", "submission"].includes(opposingMove.category);
 }
 
 /**
@@ -126,6 +134,10 @@ const FAMILY_LABELS = {
   clinch: ["Clinch", "Clinch"],
   scramble: ["Scramble", "Scramble"],
   guard: ["Top in guard", "Guard from bottom"],
+  "open-guard": ["Standing over guard", "On your back, opponent standing"],
+  "guard-side": ["Facing a back-take setup", "Bottom side position — back-take setup"],
+  "rear-clinch": ["Rear clinch control", "Defending rear clinch"],
+  "standing-headlock": ["Standing headlock control", "Defending a standing headlock"],
   "half-guard": ["Top half guard", "Bottom half guard"],
   side: ["Top side control", "Under side control"],
   mount: ["Top mount", "Under mount"],
@@ -145,6 +157,8 @@ export function getArenaSnapshot(current) {
   const { family } = parsePosition(state.position);
   const keys = {
     standing: "standing", clinch: "standing", kneeling: "kneeling",
+    "rear-clinch": "standing", "standing-headlock": "standing",
+    "open-guard": "guard", "guard-side": "guard",
     scramble: "kneeling", guard: "guard", "half-guard": "half-guard",
     side: "side-control", mount: "mount", back: "back-control", turtle: "turtle", headlock: "side-control",
   };
@@ -158,5 +172,6 @@ export function getArenaSnapshot(current) {
     label: getArenaPositionLabel(state),
     // The library depicts settled positional outcomes, not each individual technique.
     representative: true,
+    exactPositionAvailable: !["rear-clinch", "standing-headlock", "open-guard", "guard-side"].includes(family),
   };
 }

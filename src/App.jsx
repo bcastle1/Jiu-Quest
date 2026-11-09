@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import {
   allMoves,
+  blueBeltPositionGroups,
   beltColors,
   beltLabels,
   BELTS,
@@ -55,6 +56,8 @@ import GrapplingSnapshotStage from "./components/GrapplingSnapshotStage";
 import UnityGrapplingStage from "./components/UnityGrapplingStage.jsx";
 import UnityCombatPreview from "./components/UnityCombatPreview.jsx";
 import { isUnityEnabled, resolveUnityMove } from "./unity/bridge.js";
+import { TechniqueStep, RichText } from './components/TechniqueText.js';
+import { groupTechniques, sequenceSeconds } from './data/techniqueSteps.js';
 import CombatArena from "./components/CombatArenaView";
 import GrapplingLab from "./components/GrapplingPositionLab";
 import { createArenaState, getPositionForSide, getArenaPositionLabel, isArenaCounterApplicable, resolveArenaOutcome } from "./arena/outcome.js";
@@ -289,7 +292,7 @@ function getFighterPose(fighter, fallback = "profile") {
 
 function techniqueArtworkForMove(move) {
   if (!move) return null;
-  const text = `${move.id} ${move.name} ${move.lesson} ${move.category} ${move.phase}`.toLowerCase();
+  const text = `${move.id} ${move.name} ${move.startingPosition ?? move.lesson} ${move.category} ${move.phase}`.toLowerCase();
   const positions = [...(move.starts ?? []), ...(move.good ?? []), move.endsIn ?? ""].join(" ").toLowerCase();
 
   if (text.includes("headlock") || positions.includes("headlock")) {
@@ -603,7 +606,7 @@ function App() {
       active: true,
       selectedMoveId: move.id,
       order: shuffle(move.steps),
-      secondsLeft: 10,
+      secondsLeft: sequenceSeconds(move),
       phase: "ordering",
       result: null,
       log: [
@@ -1169,7 +1172,7 @@ function Dashboard({
               <TechniqueThumbnail move={move} fighter={fighter} />
               <span>
                 <strong>{move.name}</strong>
-                <small>{move.lesson}</small>
+                <small>{move.startingPosition ?? move.lesson}</small>
                 <ProgressBar value={((fighter.progress?.[move.id] ?? 0) / 50) * 100} mini />
               </span>
               <span className="xp-chip">XP</span>
@@ -1347,7 +1350,8 @@ function Training({
 }) {
   const selectedProgress = fighter.progress?.[selectedMove.id] ?? 0;
   const lockedFullPath = selectedMove.belt !== "blue" && selectedMove.preview;
-  const trainingPosition = createArenaState(selectedMove.endsIn ?? selectedMove.starts[0]);
+  const trainingPosition = createArenaState(selectedMove.starts[0]);
+  const techniqueGroups = groupTechniques(beltMoves, blueBeltPositionGroups);
 
   return (
     <section className="training-grid">
@@ -1363,7 +1367,10 @@ function Training({
           ))}
         </div>
         <div className="move-list">
-          {beltMoves.map((move) => {
+          {techniqueGroups.map((group) => (
+            <section className="technique-group" key={group.id} aria-label={group.label || 'Techniques'}>
+              {group.label && <h2>{group.label}<small>{group.moves.length}</small></h2>}
+              {group.moves.map((move) => {
             const count = fighter.progress?.[move.id] ?? 0;
             const learned = count >= 5;
             return (
@@ -1381,16 +1388,18 @@ function Training({
                 {move.preview ? <Lock size={15} /> : learned ? <Check size={16} /> : <span className="rep-count">{count}/5</span>}
               </button>
             );
-          })}
+              })}
+            </section>
+          ))}
         </div>
       </div>
 
       <div className="panel technique-stage">
         <div className="technique-head">
           <span>
-            <small>{selectedMove.lesson}</small>
+            <small>{selectedMove.startingPosition ?? selectedMove.lesson}</small>
             <h1>{selectedMove.name}</h1>
-            <p>{selectedMove.description}</p>
+            {selectedMove.description && <p>{selectedMove.description}</p>}
           </span>
           <div className="progress-orb">
             <strong>{selectedProgress}/50</strong>
@@ -1398,18 +1407,18 @@ function Training({
           </div>
         </div>
         <div className="training-animation-card">
-          <div className="training-animation-head"><span><h3>{isUnityEnabled(window.location.search) ? 'Movement preview' : 'Position reference'}</h3><p>{isUnityEnabled(window.location.search) ? 'Review the draft movement where a matching animation is available. Follow the lesson steps for the required setup.' : 'The settled position for this technique. Follow the steps below for the full sequence and required setup.'}</p></span></div>
+          <div className="training-animation-head"><span><h3>{isUnityEnabled(window.location.search) ? 'Movement preview' : 'Position reference'}</h3><p>{isUnityEnabled(window.location.search) ? 'Review the draft movement where a matching animation is available. Follow the technique steps for the required setup.' : 'A reference for the starting position. Follow the steps below for the exact setup and full sequence.'}</p></span></div>
           {isUnityEnabled(window.location.search) ? <UnityGrapplingStage moveId={resolveUnityMove(selectedMove.id)} moveLabel={selectedMove.name} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact fallback={<GrapplingSnapshotStage state={trainingPosition} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact />} /> : <GrapplingSnapshotStage state={trainingPosition} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact />}
         </div>
-        <div className="scenario-box">
-          <h3>Ideal Scenario</h3>
+        {selectedMove.scenario && <div className="scenario-box">
+          <h3>Starting scenario</h3>
           <p>{selectedMove.scenario}</p>
-        </div>
+        </div>}
         <div className="step-scroll">
           {selectedMove.steps.map((step, index) => (
-            <div key={step} className="step-line">
-              <span>{index + 1}</span>
-              <p>{step}</p>
+            <div key={`${selectedMove.id}-${index}`} className="step-line">
+              <span>{selectedMove.stepDetails?.[index] ? <RichText runs={selectedMove.stepDetails[index].labelRuns} /> : index + 1}</span>
+              <p><TechniqueStep move={selectedMove} step={step} /></p>
             </div>
           ))}
         </div>
@@ -1433,7 +1442,7 @@ function Training({
           {trainingOrder.map((step, index) => (
             <div key={`${step}-${index}`} className="order-card">
               <span>{index + 1}</span>
-              <p>{step}</p>
+              <p><TechniqueStep move={selectedMove} step={step} /></p>
               <div>
                 <button onClick={() => setTrainingOrder((list) => moveItem(list, index, index - 1))} aria-label="Move step up">
                   <ChevronLeft size={16} />
@@ -2022,7 +2031,7 @@ function createCombatState(npc) {
     bestPlayer: null,
     bestNpc: null,
     result: null,
-    log: ["Choose a standing or kneeling start to begin your match."],
+    log: ["Choose a standing, kneeling, or position start to begin your match."],
   };
 }
 

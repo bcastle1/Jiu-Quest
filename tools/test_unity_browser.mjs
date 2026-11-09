@@ -5,6 +5,7 @@ import { readFile, mkdir, stat, writeFile, rename } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { arch, cpus, platform, release, totalmem } from 'node:os';
 import { chromium } from 'playwright';
+import { moves as curriculumMoves } from '../src/data/curriculum.js';
 import { installUnityStartupTelemetry } from './unity_startup_telemetry.mjs';
 
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser');
@@ -401,6 +402,21 @@ try {
   await checkpoint('training:fresh-instance-ready');
   await page.goto(`${base}/?engine=snapshot`); await page.getByRole('button', { name: 'Training', exact: true }).click(); await page.getByRole('heading', { name: 'Position reference', exact: true }).waitFor(); assert.equal(await page.locator('.unity-stage').count(), 0);
   checks.push('Release default enables supported Training animations; unsupported lessons dispose the player; explicit snapshot rollback works.');
+  const guideMoves = curriculumMoves.filter(move => move.belt === 'blue');
+  assert.equal(await page.locator('.technique-group').count(), 13);
+  assert.equal(await page.locator('.move-list .move-row').count(), 36);
+  assert.doesNotMatch(await page.locator('.training-grid').innerText(), /Lesson\s*\d|BBQD/i);
+  for (const technique of guideMoves) {
+    await page.locator('.move-list .move-row').filter({ has: page.getByText(technique.name, { exact: true }) }).click();
+    await page.getByRole('heading', { name: technique.name, exact: true }).waitFor();
+    assert.deepEqual(await page.locator('.step-line > p').allTextContents(), technique.steps);
+    assert.deepEqual(await page.locator('.step-line > span').allTextContents(), technique.stepDetails.map(step => step.label));
+    const rendered = await page.locator('.step-line > p').evaluateAll(paragraphs => paragraphs.map(p => [...p.childNodes].map(node => ({ text: node.textContent, bold: node.nodeType === 1 && node.tagName === 'STRONG' }))));
+    assert.deepEqual(rendered, technique.stepDetails.map(step => step.runs));
+    assert.ok(await page.locator('.step-line p strong').evaluateAll(nodes => nodes.every(node => Number(getComputedStyle(node).fontWeight) >= 700)));
+    assert.deepEqual((await page.locator('.test-panel .order-card > p').allTextContents()).sort(), [...technique.steps].sort());
+  }
+  checks.push('All 36 guide techniques render 141 exact steps, source numbering and visible bold; all 13 player-start groups and shuffled sequences match.');
   await closeContext(desktop, 'desktop');
 
   for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 740 }, { width: 844, height: 390 }]) {

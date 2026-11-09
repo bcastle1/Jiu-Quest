@@ -385,7 +385,7 @@ export function getBeltStatus(fighter) {
 export function getTrainingTotals(fighter) {
   const learned = moves.filter((move) => (fighter.progress?.[move.id] ?? 0) >= 5).length;
   const mastered = moves.filter((move) => (fighter.progress?.[move.id] ?? 0) >= 50).length;
-  const attempts = Object.values(fighter.progress ?? {}).reduce((sum, count) => sum + Math.min(50, count), 0);
+  const attempts = allMoves.reduce((sum, move) => sum + clampProgress(fighter.progress?.[move.id]), 0);
   return { learned, mastered, attempts };
 }
 
