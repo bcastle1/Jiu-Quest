@@ -68,6 +68,13 @@ class HairShapeTests(unittest.TestCase):
                     self.assertEqual(row['finalClosedEdges'],9504)
                     self.assertLessEqual(row['maximumTotalSourceDeviationMeters'],.009)
                     self.assertEqual(row['crownSourceEnvelopeMeters'],.009)
+                    self.assertEqual(row['sweptCrownLayers'],1)
+                    self.assertLessEqual(row['maximumSweptPlaneDeltaMeters'],.0032)
+                    self.assertLessEqual(row['maximumSweptAuthoredSourceDeviationMeters'],.0081)
+                    self.assertGreaterEqual(row['minimumSweptCoarseAreaRatio'],.65)
+                    self.assertGreaterEqual(row['minimumSweptCoarseNormalDot'],.75)
+                    self.assertEqual(row['checkedSweptCoarsePoints'],360)
+                    self.assertGreaterEqual(row['minimumSweptCoarseClearanceMarginMeters'],-2e-6)
                     self.assertTrue(row['profileAuthoredBeforeSubdivision'])
                     self.assertLessEqual(row['maximumAuthoredCrownDisplacementMeters'],.0081)
                     self.assertLessEqual(row['maximumRefinementFromAuthoredMeters'],.005000001)
@@ -148,6 +155,28 @@ class HairShapeTests(unittest.TestCase):
                                 self.assertLess(abs(dot(rotation[0],shift)),2e-6)
                                 self.assertLess(abs(dot(rotation[1],shift)),2e-6)
                                 upper_ring_drops.append(drop)
+                                root_x=sum(dot(rotation[0],before['POSITION'][i])+translation[0] for i in roots)/len(roots)
+                                if abs(root_x)<.01:
+                                    # The central broad source wall must become
+                                    # a visible coarse crease in stored geometry.
+                                    # Find its inserted UV midpoint by proximity
+                                    # to the independent original edge endpoints.
+                                    for v in (2./3.,1./3.):
+                                        ends=[next(i for i in ids if abs(before['TEXCOORD_0'][i][0]-u)<1e-6
+                                                   and abs(before['TEXCOORD_0'][i][1]-v)<1e-6) for u in (1./3.,.5)]
+                                        left,right=(after['POSITION'][i] for i in ends)
+                                        linear=tuple((left[k]+right[k])/2. for k in range(3))
+                                        candidates=[i for i,uv in enumerate(after['TEXCOORD_0'])
+                                                    if abs(uv[0]-5./12.)<1e-6 and abs(uv[1]-v)<1e-6]
+                                        middle=after['POSITION'][min(candidates,key=lambda i:math.dist(after['POSITION'][i],linear))]
+                                        first=tuple(middle[k]-left[k] for k in range(3));second=tuple(right[k]-middle[k] for k in range(3))
+                                        l1=math.sqrt(dot(first,first));l2=math.sqrt(dot(second,second))
+                                        angle=math.degrees(math.acos(max(-1.,min(1.,dot(first,second)/(l1*l2)))))
+                                        self.assertGreater(angle,20.)
+                                        self.assertLess(angle,50.)
+                                        self.assertGreater(abs(l1-l2),.0006)
+                                        self.assertGreater(math.dist(middle,linear),.002)
+                                        self.assertLess(math.dist(middle,linear),.004)
                             endpoints={before['POSITION'][i] for i in ids if before['TEXCOORD_0'][i][1] in (0.,1.)}
                             for i in ids:
                                 if before['POSITION'][i] in endpoints:

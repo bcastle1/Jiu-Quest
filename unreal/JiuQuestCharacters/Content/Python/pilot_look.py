@@ -158,7 +158,7 @@ def cloth_relief(panel, u, v):
     return 0.
 
 
-def shoulder_offset(p):
+def _accepted_shoulder_offset(p):
     """One continuous field shared by the separate torso/sleeve islands.
 
     Lower the high crown rather than independently shrinking the sleeve and
@@ -177,6 +177,33 @@ def shoulder_offset(p):
     # This affine cross-section taper has no panel/UV-dependent discontinuity.
     return (-.0025*support*(1. if x > 0. else -1.),
             -.045*(y-.0654)*support, -.018*support)
+
+
+def shoulder_crown_offset(p):
+    """Ease the high round cap toward a sloped plane without crushing lining.
+
+    Both overlapping jacket panels use this canonical field. Its inner and
+    outer boundaries leave the neckline and inner-elbow shading rings fixed.
+    A soft positive-part ramp limits the vertical slope; literal projection
+    onto the plane would collapse the thickness between stacked surfaces.
+    """
+    x, y, z = p
+    support = window(.175, .205, .265, .295, abs(x))
+    support *= 1.-smooth(.020, .070, -y)*(1.-smooth(.105, .140, abs(x)))
+    if support == 0.:
+        return (0., 0., 0.)
+    previous = _accepted_shoulder_offset(p)
+    plane = 1.490-.22*(abs(x)-.19)
+    excess = z+previous[2]-plane
+    if excess <= 0.:
+        return (0., 0., 0.)
+    positive = excess*excess/.008 if excess < .004 else excess-.002
+    return (0., 0., -.0035*math.tanh(positive/.024)*support)
+
+
+def shoulder_offset(p):
+    previous, crown = _accepted_shoulder_offset(p), shoulder_crown_offset(p)
+    return tuple(a+b for a,b in zip(previous,crown))
 
 
 def cloth_offset(panel, p, u, v, landmarks):
@@ -478,7 +505,8 @@ def refine_look(raw):
     mesh_file = MeshFile(raw)
     doc = mesh_file.doc
     original_doc = copy.deepcopy(doc)
-    proof = {'version': 8, 'changes': [], 'maximumFaceOffsetMeters': 0., 'maximumClothOffsetMeters': 0.,
+    proof = {'version': 9, 'changes': [], 'maximumFaceOffsetMeters': 0., 'maximumClothOffsetMeters': 0.,
+             'maximumShoulderCrownOffsetMeters': 0., 'shoulderCrownOffsetLimitMeters': .0035,
              'maximumJacketFitOffsetMeters': 0., 'jacketFitOffsetLimitMeters': .005,
              'maximumJacketTensionOffsetMeters': 0., 'jacketTensionOffsetLimitMeters': .005,
              'maximumLowerLegOffsetMeters': 0., 'lowerLegOffsetLimitMeters': .005,
@@ -535,6 +563,7 @@ def refine_look(raw):
                 result = []; moved = 0; maximum = 0.; panel_maxima = {}
                 fitted = 0; fit_maximum = 0.
                 tension_count = 0; tension_maximum = 0.
+                crown_count = 0; crown_maximum = 0.
                 lower_leg_count = 0; lower_leg_maximum = 0.
                 for i, p in enumerate(positions):
                     canonical = tuple(dot(row, p)+translation[j] for j, row in enumerate(rows))
@@ -545,6 +574,16 @@ def refine_look(raw):
                         panel, u, v = shared_panels[(p, joints[i], weights[i], panel)]
                         delta = cloth_offset(panel, canonical, u, v, landmarks)
                         if part == 'GiJacket':
+                            if panel in ('torso', 'sleeve'):
+                                crown = shoulder_crown_offset(canonical)
+                                crown_distance = math.sqrt(dot(crown, crown))
+                                if crown_distance > .003500001:
+                                    raise ValueError('Shoulder crown exceeded its separate 3.5 mm bound')
+                                if crown_distance > 1e-10:
+                                    crown_count += 1
+                                    crown_maximum = max(crown_maximum, crown_distance)
+                                # The common shoulder field is already included
+                                # in cloth_offset; only record its bound here.
                             fit = jacket_fit_offset(panel, canonical, u, v, landmarks)
                             fit_distance = math.sqrt(dot(fit, fit))
                             if fit_distance > .005000001:
@@ -607,10 +646,12 @@ def refine_look(raw):
                     'maximumOffsetMeters': maximum, 'panelMaximumOffsetsMeters': panel_maxima,
                     'jacketFitVertices': fitted, 'maximumJacketFitOffsetMeters': fit_maximum,
                     'jacketTensionVertices': tension_count, 'maximumJacketTensionOffsetMeters': tension_maximum,
+                    'shoulderCrownVertices': crown_count, 'maximumShoulderCrownOffsetMeters': crown_maximum,
                     'lowerLegVertices': lower_leg_count, 'maximumLowerLegOffsetMeters': lower_leg_maximum,
                     'maximumOriginalBoundsExpansionMeters': expansion, **audit})
                 proof['maximumJacketFitOffsetMeters'] = max(proof['maximumJacketFitOffsetMeters'], fit_maximum)
                 proof['maximumJacketTensionOffsetMeters'] = max(proof['maximumJacketTensionOffsetMeters'], tension_maximum)
+                proof['maximumShoulderCrownOffsetMeters'] = max(proof['maximumShoulderCrownOffsetMeters'], crown_maximum)
                 proof['maximumLowerLegOffsetMeters'] = max(proof['maximumLowerLegOffsetMeters'], lower_leg_maximum)
                 bound = 'maximumFaceOffsetMeters' if part == 'Body' else 'maximumClothOffsetMeters'
                 proof[bound] = max(proof[bound], maximum)
@@ -632,7 +673,7 @@ def refine_look(raw):
     proof.update(sourceSha256=hashlib.sha256(raw).hexdigest(), importSha256=hashlib.sha256(result).hexdigest(),
         scopedPositionBoundsOnly=True, positionBoundsAccessors=updated_bounds,
         protectedBinaryBytesUnchanged=True, binaryByteLengthUnchanged=True,
-        scope='Accepted face and full trousers retained; bounded oblique outer-sleeve and lateral-waist pulls outside protected jacket overlaps; original source retained',
+        scope='Accepted face, trousers and jacket fit retained; bounded shared shoulder crown easing outside protected neckline, underarm, elbow and cuff boundaries; original source retained',
         limitations=['Rest-pose triangle/frame checks do not establish every posed contact or skin clearance.',
                      'Covered body skin, hands, cuffs, lapels, rig, motion and texture coordinates are not reauthored.',
                      'Baked cloth shapes suggest anatomy; no dynamic cloth or muscle simulation.'])
