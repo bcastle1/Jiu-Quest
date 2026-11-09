@@ -411,6 +411,13 @@ try {
     await page.getByRole('heading', { name: technique.name, exact: true }).waitFor();
     assert.deepEqual(await page.locator('.step-line > p').allTextContents(), technique.steps);
     assert.deepEqual(await page.locator('.step-line > span').allTextContents(), technique.stepDetails.map(step => step.label));
+    assert.ok(await page.locator('.step-line > span').evaluateAll(labels => labels.every(label => {
+      const badge = label.getBoundingClientRect();
+      const range = document.createRange(); range.selectNodeContents(label);
+      const rects = [...range.getClientRects()].filter(rect => rect.width > 0);
+      return rects.length > 0 && rects.every(rect => rect.top >= badge.top - 1 && rect.bottom <= badge.bottom + 1)
+        && Math.max(...rects.map(rect => rect.top)) - Math.min(...rects.map(rect => rect.top)) < 3;
+    })), 'source numbering and bold punctuation stay together inside the step badge');
     const rendered = await page.locator('.step-line > p').evaluateAll(paragraphs => paragraphs.map(p => [...p.childNodes].map(node => ({ text: node.textContent, bold: node.nodeType === 1 && node.tagName === 'STRONG' }))));
     assert.deepEqual(rendered, technique.stepDetails.map(step => step.runs));
     assert.ok(await page.locator('.step-line p strong').evaluateAll(nodes => nodes.every(node => Number(getComputedStyle(node).fontWeight) >= 700)));

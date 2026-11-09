@@ -7554,7 +7554,7 @@ main {
 .step-line, .order-card { align-items: start; grid-template-columns: auto minmax(0, 1fr) auto; }
 .step-line p, .order-card p { font-size: 1rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .step-line p strong, .order-card p strong, .step-line > span strong { font-weight: 700 !important; color: inherit; }
-.step-line > span { font-weight: 400; }
+.step-line > span { display: flex; align-items: center; justify-content: center; font-weight: 400; }
 .technique-head h1 { white-space: pre-wrap; overflow-wrap: anywhere; }
 .position-start-choice { display: grid; gap: .3rem; min-width: 0; color: var(--muted); font-size: .85rem; }
 .position-start-choice select { width: 100%; max-width: 100%; }
