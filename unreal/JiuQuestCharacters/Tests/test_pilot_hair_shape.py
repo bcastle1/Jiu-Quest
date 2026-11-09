@@ -7,6 +7,7 @@ import struct
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parents[1]
@@ -42,13 +43,99 @@ def fringe_attributes_digest(mesh, primitive, rotation, translation):
     return hashlib.sha256(json.dumps(payload,separators=(',',':')).encode()).hexdigest()
 
 
+def proper_triangle_contacts(points, faces, changed_faces):
+    """Find nonadjacent surface crossings involving the changed region."""
+    def sub(a,b):return tuple(x-y for x,y in zip(a,b))
+    def cross(a,b):return (a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0])
+    def crosses(a,b,triangle):
+        direction=sub(b,a);e1=sub(triangle[1],triangle[0]);e2=sub(triangle[2],triangle[0])
+        h=cross(direction,e2);det=dot(e1,h)
+        if abs(det)<1e-15:return False
+        inverse=1./det;s=sub(a,triangle[0]);u=inverse*dot(s,h)
+        if u<=1e-8 or u>=1.-1e-8:return False
+        q=cross(s,e1);v=inverse*dot(direction,q)
+        if v<=1e-8 or u+v>=1.-1e-8:return False
+        distance=inverse*dot(e2,q)
+        return 1e-8<distance<1.-1e-8
+    triangles=[tuple(points[i] for i in face) for face in faces]
+    boxes=[(tuple(min(p[k] for p in triangle) for k in range(3)),
+            tuple(max(p[k] for p in triangle) for k in range(3))) for triangle in triangles]
+    contacts=set()
+    for a in changed_faces:
+        triangle=triangles[a];low,high=boxes[a]
+        for b,other in enumerate(triangles):
+            if a==b or (b in changed_faces and b<a):continue
+            other_low,other_high=boxes[b]
+            if any(high[k]<other_low[k]-1e-10 or other_high[k]<low[k]-1e-10 for k in range(3)):continue
+            if set(triangle).intersection(other):continue
+            if any(crosses(first[i],first[(i+1)%3],second)
+                   for first,second in ((triangle,other),(other,triangle)) for i in range(3)):
+                contacts.add(tuple(sorted((a,b))))
+    return contacts
+
+
 class HairShapeTests(unittest.TestCase):
+    def check_pointed_taper_preservation(self, baseline, candidate, primitive, rotation, translation):
+        accepted_primitive=baseline.doc['meshes'][primitive]['primitives'][0]
+        final_primitive=candidate.doc['meshes'][primitive]['primitives'][0]
+        before={k:baseline.read(v) for k,v in accepted_primitive['attributes'].items()}
+        after={k:candidate.read(v) for k,v in final_primitive['attributes'].items()}
+        indices=[v[0] for v in baseline.read(accepted_primitive['indices'])]
+        self.assertEqual(indices,[v[0] for v in candidate.read(final_primitive['indices'])])
+        p,q=before['POSITION'],after['POSITION'];faces=list(zip(*[iter(indices)]*3))
+        neighbors={point:set() for point in p}
+        for face in faces:
+            for i in face:neighbors[p[i]].update(p[j] for j in face)
+        unseen=set(neighbors);islands=[]
+        while unseen:
+            pending=[unseen.pop()];island=set(pending)
+            while pending:
+                for point in neighbors[pending.pop()]:
+                    if point in unseen:unseen.remove(point);island.add(point);pending.append(point)
+            islands.append({i for i,point in enumerate(p) if point in island})
+        changed={i for i in range(len(p)) if p[i]!=q[i]}
+        targets=[island for island in islands if island.intersection(changed)]
+        self.assertEqual(len(islands),23);self.assertEqual(len(targets),1);self.assertEqual(len(changed),84)
+        target=targets[0]
+        self.assertEqual(p[:1775],q[:1775])
+        self.assertLessEqual(max(math.dist(p[i],q[i]) for i in changed),.003)
+        for key in ('TEXCOORD_0','JOINTS_0','WEIGHTS_0'):self.assertEqual(before[key],after[key])
+        for key in before:
+            self.assertEqual([before[key][i] for i in range(len(p)) if i not in target],
+                             [after[key][i] for i in range(len(p)) if i not in target])
+        self.assertTrue(all(i>=1775 and 0.<after['TEXCOORD_0'][i][1]<1./3.-1e-6 for i in changed))
+        roots=[i for i in target if after['TEXCOORD_0'][i][1]==1.]
+        tips=[i for i in target if after['TEXCOORD_0'][i][1]==0.]
+        self.assertLess(abs(sum(dot(rotation[0],q[i])+translation[0] for i in roots)/len(roots)),.01)
+        self.assertGreater(sum(dot(rotation[1],q[i])+translation[1] for i in tips)/len(tips),.03)
+        # Measure the stored shape independently: the upper section narrows
+        # while its contour rises continuously toward the original tip.
+        heights=[]
+        for v in (0.,1./12.,1./6.,.25,1./3.):
+            ring=[i for i in target if abs(after['TEXCOORD_0'][i][1]-v)<1e-6]
+            heights.append(max(dot(rotation[2],q[i])+translation[2] for i in ring))
+        self.assertTrue(all(a>b for a,b in zip(heights,heights[1:])))
+        self.assertGreater(heights[0]-heights[1],.0035)
+        self.assertLess(heights[0]-heights[1],.004)
+        ends=[next(i for i in target if abs(after['TEXCOORD_0'][i][1]-1./6.)<1e-6
+                   and abs(after['TEXCOORD_0'][i][0]-u)<1e-6) for u in (0.,.5)]
+        a,b=ends;reduction=math.dist(p[a],p[b])-math.dist(q[a],q[b])
+        self.assertGreater(reduction,.0024);self.assertLess(reduction,.0026)
+        changed_faces={k for k,face in enumerate(faces) if changed.intersection(face)}
+        self.assertEqual(len(changed_faces),192)
+        self.assertEqual(proper_triangle_contacts(q,faces,changed_faces)-proper_triangle_contacts(p,faces,changed_faces),set())
+
     def test_spikes_three_clips_keep_caps_scalp_uv_weights_and_nonhair_exact(self):
         fringe_digests=[]
         for clip in ('standing_stance','rear_naked_choke','armbar'):
             with self.subTest(clip=clip):
                 original=(ROOT/'public/animations/bjj'/f'{clip}.glb').read_bytes()
                 raw,_=select_hair(original,'Spikes');raw,_=refine_hair(raw,'Spikes')
+                # Compare the isolated taper to the accepted pipeline in the
+                # same runtime, including every subdivided non-target lock.
+                with patch('pilot_hair_shape.author_pointed_crown_taper',return_value={}):
+                    accepted,_=refine_spikes_shape(raw)
+                baseline=MeshFile(accepted)
                 result,proof=refine_spikes_shape(raw)
                 old,new=MeshFile(raw),MeshFile(result)
                 self.assertEqual(result[new.start:new.start+len(raw)-old.start],raw[old.start:])
@@ -68,6 +155,18 @@ class HairShapeTests(unittest.TestCase):
                     self.assertEqual(row['finalClosedEdges'],9504)
                     self.assertLessEqual(row['maximumTotalSourceDeviationMeters'],.009)
                     self.assertEqual(row['crownSourceEnvelopeMeters'],.009)
+                    self.assertEqual(row['pointedTaperCrownLayers'],1)
+                    self.assertEqual(row['pointedTaperInsertedVertices'],84)
+                    self.assertTrue(row['pointedTaperOriginalPositionsExact'])
+                    self.assertTrue(row['pointedTaperUpperContourMonotonic'])
+                    self.assertGreater(row['minimumPointedTaperRingRiseMeters'],0.)
+                    self.assertLessEqual(row['maximumPointedTaperLocalDeltaMeters'],.003)
+                    self.assertLessEqual(row['maximumPointedTaperStoredSourceDeviationMeters'],.009)
+                    self.assertGreaterEqual(row['minimumPointedTaperStoredSourceAreaRatio'],.65)
+                    self.assertGreaterEqual(row['minimumPointedTaperStoredSourceNormalDot'],.75)
+                    self.assertEqual(row['checkedPointedTaperStoredTriangles'],192)
+                    self.assertEqual(row['checkedPointedTaperStoredScalpPoints'],2880)
+                    self.assertGreaterEqual(row['minimumPointedTaperStoredScalpMarginMeters'],-2e-6)
                     self.assertEqual(row['sweptCrownLayers'],1)
                     self.assertLessEqual(row['maximumSweptPlaneDeltaMeters'],.0032)
                     self.assertLessEqual(row['maximumSweptAuthoredSourceDeviationMeters'],.0081)
@@ -115,6 +214,7 @@ class HairShapeTests(unittest.TestCase):
                     skin=old.doc['skins'][node['skin']]
                     root=next(i for i,j in enumerate(skin['joints']) if old.doc['nodes'][j]['name']=='root')
                     rotation,translation=rigid_frame(old.read(skin['inverseBindMatrices'])[root])
+                    self.check_pointed_taper_preservation(baseline,new,row['mesh'],rotation,translation)
                     fringe_digests.append(fringe_attributes_digest(new,b,rotation,translation))
                     protected_islands=0;shoulder_reductions=[];upper_ring_drops=[];primary_positions=set()
                     for island in islands:
