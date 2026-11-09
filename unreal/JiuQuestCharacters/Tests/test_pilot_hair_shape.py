@@ -109,7 +109,7 @@ class HairShapeTests(unittest.TestCase):
                     root=next(i for i,j in enumerate(skin['joints']) if old.doc['nodes'][j]['name']=='root')
                     rotation,translation=rigid_frame(old.read(skin['inverseBindMatrices'])[root])
                     fringe_digests.append(fringe_attributes_digest(new,b,rotation,translation))
-                    protected_islands=0;shoulder_reductions=[]
+                    protected_islands=0;shoulder_reductions=[];upper_ring_drops=[];primary_positions=set()
                     for island in islands:
                         ids=[i for i,p in enumerate(before['POSITION']) if p in island]
                         roots=[i for i in ids if before['TEXCOORD_0'][i][1]==1.]
@@ -119,6 +119,7 @@ class HairShapeTests(unittest.TestCase):
                             for key in before:
                                 self.assertEqual([after[key][i] for i in ids],[before[key][i] for i in ids])
                         else:
+                            primary_positions.update(island)
                             tips=[i for i in ids if before['TEXCOORD_0'][i][1]==0.]
                             if sum(dot(rotation[1],before['POSITION'][i])+translation[1] for i in tips)/len(tips)>.03:
                                 # Independently measure the actual first raised
@@ -132,13 +133,48 @@ class HairShapeTests(unittest.TestCase):
                                 self.assertGreater(reduction,.009)
                                 self.assertLess(reduction,.016)
                                 shoulder_reductions.append(reduction)
+                                # Measure the second raised ring independently:
+                                # its across-center must settle vertically while
+                                # the terminal anchors stay exact below. This
+                                # changes the blunt ridge into a steeper taper.
+                                upper=[next(i for i in ids if abs(before['TEXCOORD_0'][i][1]-1./3.)<1e-6
+                                            and before['TEXCOORD_0'][i][0]==u) for u in (0.,.5)]
+                                before_center=tuple(sum(before['POSITION'][i][axis] for i in upper)/2. for axis in range(3))
+                                after_center=tuple(sum(after['POSITION'][i][axis] for i in upper)/2. for axis in range(3))
+                                shift=tuple(after_center[axis]-before_center[axis] for axis in range(3))
+                                drop=-dot(rotation[2],shift)
+                                self.assertGreater(drop,.0038)
+                                self.assertLess(drop,.0052)
+                                self.assertLess(abs(dot(rotation[0],shift)),2e-6)
+                                self.assertLess(abs(dot(rotation[1],shift)),2e-6)
+                                upper_ring_drops.append(drop)
                             endpoints={before['POSITION'][i] for i in ids if before['TEXCOORD_0'][i][1] in (0.,1.)}
                             for i in ids:
                                 if before['POSITION'][i] in endpoints:
                                     self.assertEqual(after['POSITION'][i],before['POSITION'][i])
                     self.assertEqual(protected_islands,14)
                     self.assertEqual(len(shoulder_reductions),5)
+                    self.assertEqual(len(upper_ring_drops),5)
+                    self.assertGreater(max(upper_ring_drops)-min(upper_ring_drops),.0008)
                     self.assertGreater(max(shoulder_reductions)-min(shoulder_reductions),.004)
+                    # Recheck source-relative winding and area using the
+                    # actual stored float32 vertices, after both subdivisions.
+                    source_faces=[idx[k:k+3] for k in range(0,len(idx),3)
+                                  if before['POSITION'][idx[k]] in primary_positions]
+                    final_idx=[value[0] for value in new.read(b['indices'])]
+                    children=final_idx[-len(source_faces)*16*3:]
+                    def cross(v,w):return (v[1]*w[2]-v[2]*w[1],v[2]*w[0]-v[0]*w[2],v[0]*w[1]-v[1]*w[0])
+                    def area_vector(points):
+                        x,y,z=points
+                        return cross(tuple(y[k]-x[k] for k in range(3)),tuple(z[k]-x[k] for k in range(3)))
+                    for ordinal,face in enumerate(source_faces):
+                        old_cross=area_vector([before['POSITION'][i] for i in face]);old_length=math.sqrt(dot(old_cross,old_cross))
+                        for child in range(16):
+                            offset=(ordinal*16+child)*3
+                            new_cross=area_vector([after['POSITION'][i] for i in children[offset:offset+3]])
+                            length=math.sqrt(dot(new_cross,new_cross))
+                            self.assertGreaterEqual(length*16./old_length,.65)
+                            self.assertGreaterEqual(dot(old_cross,new_cross)/(old_length*length),.75)
                     # Cap/side duplicates still share positions after shaping.
                     seen={}
                     for p,q in zip(before['POSITION'],after['POSITION'][:count]):
