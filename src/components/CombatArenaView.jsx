@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, BookOpen, Check, Play, RotateCcw, Shield, Swords, Trophy } from "lucide-react";
-import { allMoves, beltLabels } from "../data/curriculum.js";
+import { TechniqueStep } from './TechniqueText.js';
+import { allMoves, beltLabels, trainingStartPositions } from "../data/curriculum.js";
 import { createArenaState, getArenaPositionLabel, getPositionForSide } from "../arena/outcome.js";
 import GrapplingSnapshotStage from "./GrapplingSnapshotStage.jsx";
 import UnityGrapplingStage from "./UnityGrapplingStage.jsx";
@@ -44,6 +45,7 @@ export default function CombatArenaView({
   onTrain,
 }) {
   const [announcement, setAnnouncement] = useState("");
+  const [positionStart, setPositionStart] = useState('mount-bottom');
   const nextActionRef = useRef(null);
   const orderRef = useRef(null);
   const opponent = combat.npc;
@@ -76,7 +78,7 @@ export default function CombatArenaView({
 
   const begin = (startPosition) => {
     startCombat(opponent, startPosition);
-    announce(`Match started against ${opponent.name} from ${startPosition}. Choose your first technique.`, "success");
+    announce(`Match started against ${opponent.name} from ${getArenaPositionLabel(startPosition)}. Choose your first technique.`, "success");
   };
 
   const changeOpponent = (event) => {
@@ -100,7 +102,7 @@ export default function CombatArenaView({
       bestPlayer: null,
       bestNpc: null,
       result: null,
-      log: [`${nextNpc.name} selected. Choose a standing or kneeling start.`],
+      log: [`${nextNpc.name} selected. Choose a starting position.`],
     }));
     announce(`${nextNpc.name} selected. Ready for a new match.`);
   };
@@ -123,9 +125,9 @@ export default function CombatArenaView({
       announce("Restart cancelled. Your current match is unchanged.");
       return;
     }
-    const startPosition = combat.startPosition === "kneeling" ? "kneeling" : "standing";
+    const startPosition = createArenaState(combat.startPosition).position;
     startCombat(opponent, startPosition);
-    announce(`Match restarted against ${opponent.name} from ${startPosition}.`, "success");
+    announce(`Match restarted against ${opponent.name} from ${getArenaPositionLabel(startPosition)}.`, "success");
   };
 
   const moveStep = (index, direction) => {
@@ -229,6 +231,12 @@ export default function CombatArenaView({
                 </select>
                 <button type="button" className="primary-button" onClick={() => begin("standing")}><Play size={15} />Standing Start</button>
                 <button type="button" className="secondary-button" onClick={() => begin("kneeling")}>Kneeling Start</button>
+                <label className="position-start-choice">Your starting position
+                  <select aria-label="Your starting position" value={positionStart} onChange={(event) => setPositionStart(event.target.value)}>
+                    {trainingStartPositions.map((position) => <option key={position} value={position}>{getArenaPositionLabel(position)}</option>)}
+                  </select>
+                </label>
+                <button type="button" className="secondary-button" onClick={() => begin(positionStart)}>Position Start</button>
               </>
             ) : isOrdering ? (
               <>
@@ -281,7 +289,7 @@ export default function CombatArenaView({
                 {selectedOrder.map((step, index) => (
                   <div key={step} className="order-card" role="listitem">
                     <span aria-label={`Step ${index + 1}`}>{index + 1}</span>
-                    <p>{step}</p>
+                    <p><TechniqueStep move={selectedMove} step={step} /></p>
                     <div>
                       <button type="button" aria-label={`Move step ${index + 1} up: ${step}`} disabled={index === 0 || !isOrdering} onClick={() => moveStep(index, -1)}><ArrowUp size={16} /></button>
                       <button type="button" aria-label={`Move step ${index + 1} down: ${step}`} disabled={index === selectedOrder.length - 1 || !isOrdering} onClick={() => moveStep(index, 1)}><ArrowDown size={16} /></button>
@@ -304,7 +312,7 @@ export default function CombatArenaView({
             <div className="empty-state">
               <Shield size={28} aria-hidden="true" />
               <h2>Your next move</h2>
-              <p>Choose a technique to begin its 10-second sequence. The outcome determines who holds the next position.</p>
+              <p>Choose a technique to begin its timed sequence. Longer techniques include more reading time. The outcome determines who holds the next position.</p>
             </div>
           )}
 

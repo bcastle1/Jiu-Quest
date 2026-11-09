@@ -5,6 +5,7 @@ import { readFile, mkdir, stat, writeFile, rename } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { arch, cpus, platform, release, totalmem } from 'node:os';
 import { chromium } from 'playwright';
+import { moves as curriculumMoves } from '../src/data/curriculum.js';
 import { installUnityStartupTelemetry } from './unity_startup_telemetry.mjs';
 
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser');
@@ -401,6 +402,59 @@ try {
   await checkpoint('training:fresh-instance-ready');
   await page.goto(`${base}/?engine=snapshot`); await page.getByRole('button', { name: 'Training', exact: true }).click(); await page.getByRole('heading', { name: 'Position reference', exact: true }).waitFor(); assert.equal(await page.locator('.unity-stage').count(), 0);
   checks.push('Release default enables supported Training animations; unsupported lessons dispose the player; explicit snapshot rollback works.');
+  const guideMoves = curriculumMoves.filter(move => move.belt === 'blue');
+  assert.equal(await page.locator('.technique-group').count(), 13);
+  assert.equal(await page.locator('.move-list .move-row').count(), 36);
+  assert.doesNotMatch(await page.locator('.training-grid').innerText(), /Lesson\s*\d|BBQD/i);
+  for (const technique of guideMoves) {
+    await page.locator('.move-list .move-row').filter({ has: page.getByText(technique.name, { exact: true }) }).click();
+    await page.getByRole('heading', { name: technique.name, exact: true }).waitFor();
+    assert.deepEqual(await page.locator('.step-line > p').allTextContents(), technique.steps);
+    assert.deepEqual(await page.locator('.step-line > span').allTextContents(), technique.stepDetails.map(step => step.label));
+    assert.ok(await page.locator('.step-line > span').evaluateAll(labels => labels.every(label => {
+      const badge = label.getBoundingClientRect();
+      const range = document.createRange(); range.selectNodeContents(label);
+      const rects = [...range.getClientRects()].filter(rect => rect.width > 0);
+      return rects.length > 0 && rects.every(rect => rect.top >= badge.top - 1 && rect.bottom <= badge.bottom + 1)
+        && Math.max(...rects.map(rect => rect.top)) - Math.min(...rects.map(rect => rect.top)) < 3;
+    })), 'source numbering and bold punctuation stay together inside the step badge');
+    const rendered = await page.locator('.step-line > p').evaluateAll(paragraphs => paragraphs.map(p => [...p.childNodes].map(node => ({ text: node.textContent, bold: node.nodeType === 1 && node.tagName === 'STRONG' }))));
+    assert.deepEqual(rendered, technique.stepDetails.map(step => step.runs));
+    assert.ok(await page.locator('.step-line p strong').evaluateAll(nodes => nodes.every(node => Number(getComputedStyle(node).fontWeight) >= 700)));
+    assert.deepEqual((await page.locator('.test-panel .order-card > p').allTextContents()).sort(), [...technique.steps].sort());
+  }
+  checks.push('All 36 guide techniques render 141 exact steps, source numbering and visible bold; all 13 player-start groups and shuffled sequences match.');
+  await page.getByRole('button', { name: 'Arena', exact: true }).click();
+  await page.getByLabel('Your starting position', { exact: true }).selectOption('open-guard-bottom');
+  await page.getByRole('button', { name: 'Position Start', exact: true }).click();
+  assert.match(await page.locator('.snapshot-position').innerText(), /On your back, opponent standing/);
+  assert.match(await page.locator('.snapshot-position').innerText(), /exact setup not pictured/);
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Restart match', exact: true }).click();
+  assert.match(await page.locator('.snapshot-position').innerText(), /On your back, opponent standing/);
+  await page.goto(`${base}/?engine=snapshot`);
+  await page.getByRole('button', { name: 'Arena', exact: true }).click();
+  await page.getByLabel('Your starting position', { exact: true }).selectOption('mount-bottom');
+  await page.getByRole('button', { name: 'Position Start', exact: true }).click();
+  await page.getByRole('button', { name: /Trap and Roll Escape standard escape/ }).click();
+  const sequenceParagraphs = page.getByRole('list', { name: 'Trap and Roll Escape standard step order' }).locator('.order-card > p');
+  const beforeSwap = await sequenceParagraphs.allTextContents();
+  assert.deepEqual([...beforeSwap].sort(), [...guideMoves.find(move => move.id === 'trap-roll-escape').steps].sort());
+  assert.ok(await sequenceParagraphs.locator('strong').evaluateAll(nodes => nodes.length > 0 && nodes.every(node => Number(getComputedStyle(node).fontWeight) >= 700)));
+  assert.match(await page.getByRole('timer').first().innerText(), /[2-9]\ds remaining/);
+  await page.getByRole('button', { name: /^Move step 1 down:/ }).click();
+  const afterSwap = await sequenceParagraphs.allTextContents();
+  assert.equal(afterSwap[0], beforeSwap[1]); assert.equal(afterSwap[1], beforeSwap[0]);
+  checks.push('Arena position starts and restart preserve player roles; guide paragraphs and visible bold survive reordering with an extended timer.');
+  await page.setViewportSize({ width: 320, height: 740 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+  await page.getByRole('button', { name: 'Training', exact: true }).click();
+  await page.getByRole('button', { name: /Trap and Roll Escape standard/ }).click();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+  const guideMobileFile = resolve(artifacts, 'blue-belt-guide-mobile.png');
+  const guideMobileImage = await page.locator('.technique-stage').screenshot({ path: guideMobileFile });
+  images.push({ name: 'blue-belt-guide-mobile', path: guideMobileFile, bytes: guideMobileImage.length, sha256: createHash('sha256').update(guideMobileImage).digest('hex') });
+  checks.push('Long guide paragraphs fit a 320-pixel desktop viewport including classic scrollbar space in Training and Arena.');
   await closeContext(desktop, 'desktop');
 
   for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 740 }, { width: 844, height: 390 }]) {
@@ -409,7 +463,7 @@ try {
     await page.goto(`${base}/?preview=unity`); await ready(); await state(0, { moveId: 'double_leg', playing: false });
     await selectedCamera('Side');
     assert.equal(await page.evaluate(() => window.__unityEvents.some((event) => event.type === 'state' && event.playing)), false);
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
     const stage = await page.locator('.unity-viewport').boundingBox(); dimensions.push({ viewport, stage });
     assert.ok(stage.width >= viewport.width - 60);
     assert.ok(stage.height >= (viewport.height > viewport.width ? 360 : 210));

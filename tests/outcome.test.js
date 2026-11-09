@@ -46,14 +46,14 @@ test("a sweep reverses the previous top side and persists through the next selec
 });
 
 test("an NPC sweep from bottom puts the NPC on top", () => {
-  const state = resolveArenaOutcome("guard-top", move("double-ankle-sweep"), "opponent");
+  const state = resolveArenaOutcome("open-guard-top", move("double-ankle-sweep"), "opponent");
   assert.equal(state.topSide, "opponent");
-  assert.equal(getPositionForSide(state, "fighter"), "guard-bottom");
-  assert.equal(getPositionForSide(state, "opponent"), "guard-top");
+  assert.equal(getPositionForSide(state, "fighter"), "mount-bottom");
+  assert.equal(getPositionForSide(state, "opponent"), "mount-top");
 });
 
-test("elbow and shrimp escapes recover bottom guard without making the winner top", () => {
-  for (const [start, technique] of [["mount-bottom", "elbow-escape-mount"], ["side-bottom", "shrimp-escape-side"]]) {
+test("elbow escapes recover bottom guard without making the winner top", () => {
+  for (const [start, technique] of [["mount-bottom", "elbow-escape-mount"], ["side-bottom", "elbow-escape-side"]]) {
     for (const actorSide of ["fighter", "opponent"]) {
       const before = createArenaState(start, actorSide);
       const after = resolveArenaOutcome(before, move(technique), actorSide);
@@ -79,12 +79,12 @@ test("pulling guard deliberately places the successful actor on bottom", () => {
   }
 });
 
-test("a guard pass preserves the actor's top role while advancing the settled scene", () => {
-  const before = createArenaState("guard-top", "opponent");
-  const after = resolveArenaOutcome(before, move("double-underhook-guard-pass"), "opponent");
+test("a side-to-mount transition preserves the actor's top role", () => {
+  const before = createArenaState("side-top", "opponent");
+  const after = resolveArenaOutcome(before, move("side-mount-to-full-mount"), "opponent");
   assert.equal(after.topSide, "opponent");
-  assert.equal(after.position, "side-bottom");
-  assert.equal(getArenaSnapshot(after).key, "side-control");
+  assert.equal(after.position, "mount-bottom");
+  assert.equal(getArenaSnapshot(after).key, "mount");
 });
 
 test("strikes and failed attacks do not teleport grounded players or reverse control", () => {
@@ -106,14 +106,13 @@ test("a submission from side control does not silently advance to mount", () => 
   assert.deepEqual(resolveArenaOutcome(before, move("americana-armlock"), "fighter"), before);
 });
 
-test("the standing guillotine's declared guard pull places the finishing actor underneath", () => {
+test("the guide standing guillotine stays standing without an invented guard pull", () => {
   const state = resolveArenaOutcome("clinch", move("guillotine-choke"), "opponent");
-  assert.equal(state.position, "guard-top");
-  assert.equal(state.topSide, "fighter");
+  assert.deepEqual(state, createArenaState("clinch"));
 });
 
 test("back control uses controller identity, not an invented vertical top position", () => {
-  const state = resolveArenaOutcome("guard-top", move("take-the-back-guard"), "opponent");
+  const state = resolveArenaOutcome("guard-side-top", move("take-back-guard-final-getup"), "opponent");
   assert.deepEqual(state, { position: "back-defending", topSide: null, controlSide: "opponent" });
   assert.equal(getPositionForSide(state, "opponent"), "back-control");
   assert.equal(getArenaSnapshot(state).leadSide, "opponent");
@@ -195,7 +194,7 @@ test("counter-specific defenses cannot teleport either grappler when the opponen
 
 test("a real opposing guillotine allows the defender to earn side control for either side", () => {
   for (const actorSide of ["fighter", "opponent"]) {
-    for (const position of ["standing", "clinch", "guard-top"]) {
+    for (const position of ["standing", "clinch"]) {
       const before = createArenaState(position, actorSide);
       const counter = move("guillotine-defense");
       const threat = move("guillotine-choke");
@@ -212,7 +211,9 @@ test("punch defense reacts to a legal punch, not a kick, takedown, or ground-onl
   for (const actorSide of ["fighter", "opponent"]) {
     const before = createArenaState("standing");
     assert.equal(isArenaCounterApplicable(counter, before, move("basic-punch"), actorSide), true);
-    assert.equal(resolveArenaOutcome(before, counter, actorSide, { opposingMove: move("basic-punch") }).position, "clinch");
+    const rearClinch = resolveArenaOutcome(before, counter, actorSide, { opposingMove: move("basic-punch") });
+    assert.equal(getPositionForSide(rearClinch, actorSide), "rear-clinch");
+    assert.equal(rearClinch.controlSide, actorSide);
     for (const id of ["basic-kick", "double-leg-takedown", "triangle-choke"]) {
       assert.equal(isArenaCounterApplicable(counter, before, move(id), actorSide), false);
     }
@@ -223,11 +224,11 @@ test("punch defense reacts to a legal punch, not a kick, takedown, or ground-onl
 test("an existing headlock is sufficient context, while another headlock defense is not an attack", () => {
   const counter = move("standing-headlock-defense");
   for (const actorSide of ["fighter", "opponent"]) {
-    const trapped = createArenaState("headlock", actorSide);
+    const trapped = createArenaState("standing-headlock", actorSide);
     assert.equal(isArenaCounterApplicable(counter, trapped, move("protect-position"), actorSide), true);
-    assert.equal(resolveArenaOutcome(trapped, counter, actorSide, { opposingMove: move("protect-position") }).position, "clinch");
+    assert.equal(getPositionForSide(resolveArenaOutcome(trapped, counter, actorSide, { opposingMove: move("protect-position") }), actorSide), "mount-top");
     assert.equal(isArenaCounterApplicable(counter, "standing", counter, actorSide), false);
-    assert.equal(isArenaCounterApplicable(counter, "standing", { category: "control", endsIn: "headlock-top", starts: ["standing"] }, actorSide), true);
+    assert.equal(isArenaCounterApplicable(counter, "standing", { category: "control", endsIn: "standing-headlock-top", starts: ["standing"] }, actorSide), true);
   }
 });
 

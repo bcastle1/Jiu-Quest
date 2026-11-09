@@ -46,7 +46,9 @@ export default function GrapplingSnapshotStage({ state, fighter, opponent, fight
   }, [renderKey]);
 
   const label = getArenaPositionLabel(state);
-  const description = `${label}. ${snapshot.topSide ? `${snapshot.topSide === 'fighter' ? fighter.name : opponent.name} is on top.` : snapshot.controlSide ? `${snapshot.controlSide === 'fighter' ? fighter.name : opponent.name} controls the back.` : 'Both athletes are in a neutral position.'} Each athlete wears their selected gi colors, hair, skin tone, belt, emblem and aura.`;
+  const description = snapshot.exactPositionAvailable
+    ? `${label}. ${snapshot.topSide ? `${snapshot.topSide === 'fighter' ? fighter.name : opponent.name} is on top.` : snapshot.controlSide ? `${snapshot.controlSide === 'fighter' ? fighter.name : opponent.name} holds control.` : 'Both athletes are in a neutral position.'} Each athlete wears their selected gi colors, hair, skin tone, belt, emblem and aura.`
+    : `General grappling reference. The exact ${label.toLowerCase()} setup is not pictured. Follow the technique steps and position labels.`;
   return <figure className={`grappling-snapshot-stage ${compact ? 'compact' : ''}`} data-position={snapshot.key} data-top-side={snapshot.topSide ?? 'neutral'} data-control-side={snapshot.controlSide ?? 'neutral'} data-ready={status}>
     <div className="snapshot-image-wrap" key={`${sceneKey}-${replay}`}>
       <canvas ref={canvasRef} className={`snapshot-canvas ${status === 'ready' ? 'is-ready' : ''}`} role="img" aria-label={description} />
@@ -56,7 +58,7 @@ export default function GrapplingSnapshotStage({ state, fighter, opponent, fight
       {status === 'ready' && result && <span className="snapshot-round">Exchange {result.round} settled</span>}
     </div>
     <figcaption className="snapshot-caption">
-      <div className="snapshot-position"><span>{label}</span><small>Position snapshot · your appearance</small></div>
+      <div className="snapshot-position"><span>{label}</span><small>{snapshot.exactPositionAvailable ? 'Position snapshot · your appearance' : 'General reference · exact setup not pictured'}</small></div>
       <div className="snapshot-identities"><AthleteKey athlete={fighter} player role={getArenaPositionLabel(state, 'fighter')} /><AthleteKey athlete={opponent} role={getArenaPositionLabel(state, 'opponent')} /></div>
       {result && <button className="snapshot-replay" aria-label="Review the settled position" disabled={status !== 'ready'} onClick={() => { setReplay((value) => value + 1); onReplay?.(); }}><RotateCcw size={16} /><span>Review</span></button>}
     </figcaption>
