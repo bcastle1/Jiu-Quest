@@ -11,7 +11,6 @@ on:
       - "tools/prepare_unreal_pilot*.mjs"
       - "tools/unreal_pilot.ps1"
       - "tools/unreal_pilot_guard.test.ps1"
-      - "tools/unreal_pilot_guard.test.ps1"
       - "tools/pixel_streaming_local*.cjs"
       - "tools/audit_unreal_capture.py"
       - "unreal/**"

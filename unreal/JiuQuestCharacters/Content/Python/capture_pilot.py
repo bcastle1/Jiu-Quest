@@ -196,6 +196,8 @@ class Capture:
         standing = next(c for c in imported["clips"] if c["name"] == "standing_stance")
         self.jobs.extend((standing, role + "-face", 0.) for role in ("Attacker", "Defender"))
         self.jobs.extend((standing, role + "-hands", 0.) for role in ("Attacker", "Defender"))
+        self.jobs.extend((standing, role + detail, 0.) for detail in ('-torso', '-legs')
+                         for role in ("Attacker", "Defender"))
         self.level = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
         self.actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
         self.editor = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
@@ -371,6 +373,31 @@ class Capture:
         self.camera.set_actor_rotation(unreal.MathLibrary.find_look_at_rotation(location, target), False)
         self.camera.camera_component.set_editor_property('field_of_view', 32.)
 
+    def frame_cloth(self, role, region):
+        body = self.role_bodies[role]
+        point = lambda bone: body.get_socket_location(self.resolve_bone(role, bone))
+        if region == 'torso':
+            anchor = point('spine_02')
+            target = unreal.Vector(anchor.x, anchor.y, anchor.z)
+            distance, fov, rise = 200., 38., 8.
+        else:
+            pelvis = point('pelvis'); left, right = point('foot_l'), point('foot_r')
+            target = unreal.Vector((2.*pelvis.x+left.x+right.x)/4.,
+                                   (2.*pelvis.y+left.y+right.y)/4.,
+                                   (2.*pelvis.z+left.z+right.z)/4.)
+            distance, fov, rise = 260., 42., 20.
+        other_role = 'Defender' if role == 'Attacker' else 'Attacker'
+        other = self.role_bodies[other_role].get_socket_location(self.resolve_bone(other_role, 'Head'))
+        dx, dy = other.x-target.x, other.y-target.y
+        length = math.hypot(dx, dy)
+        check(length > 1., 'No stable facing direction for cloth review')
+        dx, dy = dx/length, dy/length
+        location = unreal.Vector(target.x+distance*(.8660254*dx-.5*dy),
+                                 target.y+distance*(.8660254*dy+.5*dx), target.z+rise)
+        self.camera.set_actor_location(location, False, False)
+        self.camera.set_actor_rotation(unreal.MathLibrary.find_look_at_rotation(location, target), False)
+        self.camera.camera_component.set_editor_property('field_of_view', fov)
+
     def grip_state(self):
         """Actual evaluated knuckle-to-distal-joint direction, not a grasp claim."""
         result = []
@@ -487,12 +514,15 @@ class Capture:
                           f"Shared sequence seek wanted {self.seconds:.9f}s, got {actual:.9f}s after one tick")
                 if self.frames < 30 or now - self.settled_at < 2.:
                     return
-                if self.phase == "settle" and label.endswith(("-face", "-hands")):
+                if self.phase == "settle" and label.endswith(("-face", "-hands", "-torso", "-legs")):
                     self.stage("frame detail " + label)
                     if label.endswith('-face'):
                         self.frame_face(label.removesuffix("-face"))
-                    else:
+                    elif label.endswith('-hands'):
                         self.frame_hands(label.removesuffix('-hands'))
+                    else:
+                        role, region = label.split('-')
+                        self.frame_cloth(role, region)
                     self.frames = 0
                     self.settled_at = time.monotonic()
                     self.phase = "camera_settle"
@@ -521,7 +551,7 @@ class Capture:
                     "animationAuthority": "shared_level_sequence",
                     "world": self.game_world.get_path_name(), "worldMode": "simulate_in_editor_game_world",
                     "runtimeCamera": self.camera.get_path_name(),
-                    "viewLabel": label if label.endswith(("-face", "-hands")) else "fullbody",
+                    "viewLabel": label if label.endswith(("-face", "-hands", "-torso", "-legs")) else "fullbody",
                     "cameraTransform": self.camera_state(),
                     "headBones": dict(self.head_bones) if label.endswith("-face") else {},
                     "evaluatedBoneTransforms": self.bone_state(),

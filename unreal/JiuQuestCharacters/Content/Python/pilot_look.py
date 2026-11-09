@@ -1,12 +1,16 @@
 """Bounded original face and cotton sculpt for an import-only GLB derivative.
 
-Changes existing POSITION/NORMAL/TANGENT values only. Source files, topology,
-UVs, weights, rest rig, embedded images and animation bytes remain untouched.
+Changes existing POSITION/NORMAL/TANGENT values and their POSITION bounds only.
+Source files, topology, UVs, weights, rest rig, images and motion stay untouched.
 """
 import hashlib
+import copy
 import json
 import math
 import struct
+
+MAX_CLOTH_OFFSET = .022
+MAX_CLOTH_BOUNDS_EXPANSION = .003
 
 
 def smooth(a, b, x):
@@ -71,29 +75,143 @@ def crease(distance, width, amount):
 
 
 def cloth_relief(panel, u, v):
-    """Unequal compression creases, zero at seams/openings and lapels."""
+    """Localized bend/drag folds, rather than rings around cylindrical limbs.
+
+    UV1 follows the source garment panels. The same radial displacement applies
+    to both lining surfaces, preserving thickness instead of pulling them apart.
+    """
     edge = window(.035, .085, .915, .965, u)
     angle = math.tau * u
     if panel == 'sleeve':
-        support = edge * window(.36, .43, .78, .86, v)
-        inside = max(0., math.sin(angle)) ** 4
-        result = crease(v-.525-.070*math.cos(angle), .021, .00125)
-        result += crease(v-.635+.048*math.cos(angle), .028, .00085)
-        result += crease(v-.705-.024*math.cos(2*angle), .019, .00055)
-        return max(-.0015, min(.0015, result * support * inside))
+        support = edge * window(.30, .39, .83, .92, v)
+        inside = max(0., math.sin(angle)) ** 3
+        underside = max(0., -math.cos(angle)) ** 4
+        result = crease(v-.575-.078*math.cos(angle), .040, .0092) * inside
+        result += crease(v-.695+.058*math.cos(angle), .048, .0064) * inside
+        # A slanting branch and one long underside pull interrupt the bend fan.
+        result += crease(v-.485-.15*math.cos(angle), .035, -.0042) * underside
+        result += crease(u-.49-.075*(v-.62), .044, .0050) * window(.40, .48, .77, .87, v)
+        drag = window(.34, .44, .76, .88, v)
+        result += crease(u-.15-.17*(v-.52), .052, .0070) * drag
+        result += crease(u-.39+.12*(v-.50), .047, -.0044) * drag
+        return .011 * math.tanh(result * support / .011)
     if panel == 'pants':
-        support = edge * window(.26, .32, .53, .60, v)
-        front = max(0., -math.cos(angle)) ** 4
-        result = crease(v-.365-.045*math.sin(angle), .019, .0011)
-        result += crease(v-.455+.065*math.sin(angle), .025, .00135)
-        return max(-.0015, min(.0015, result * support * front))
+        support = edge * window(.16, .22, .82, .92, v)
+        front = max(0., -math.cos(angle)) ** 3
+        side = abs(math.sin(angle)) ** 3
+        result = crease(v-.405-.075*math.sin(angle), .037, .0095) * front
+        result += crease(v-.515+.090*math.sin(angle), .050, .0060) * front
+        # Hip compression turns diagonally into the outer thigh; lower-leg
+        # drape runs lengthwise and leaves the knee center broad.
+        result += crease(v-.755-.095*math.sin(angle), .052, .0075) * side
+        result += crease(u-.23-.10*(v-.45), .052, .0058) * window(.19, .27, .66, .77, v)
+        result += crease(u-.77+.075*(v-.45), .055, .0047) * window(.23, .31, .63, .74, v)
+        thigh = window(.48, .57, .76, .86, v)
+        result += crease(u-.34-.19*(v-.64), .061, .0080) * thigh
+        result += crease(u-.65+.13*(v-.66), .066, .0060) * thigh
+        result += crease(v-.275-.105*math.sin(angle), .046, .0062) * front * window(.16, .23, .34, .41, v)
+        return .012 * math.tanh(result * support / .012)
     if panel == 'torso':
-        side = min(u, 1.-u)
-        support = window(.025, .055, .21, .27, side) * window(.19, .28, .54, .64, v)
-        origin = .29 if u < .5 else .33
-        result = crease(v-origin-.70*side, .024+.035*side, .0013)
-        return max(-.0015, min(.0015, result * support))
+        support = window(.04, .10, .90, .96, u) * window(.37, .44, .69, .81, v)
+        result = 0.
+        for anchor, lean, amount in ((.15, .28, .0068), (.37, -.17, .0048),
+                                     (.65, .19, .0056), (.86, -.24, .0074)):
+            center = anchor + lean*(v-.40) + .025*math.sin((v-.40)*5.)
+            result += crease(u-center, .032+.075*abs(v-.40), amount)
+        return .009 * math.tanh(result * support / .009)
     return 0.
+
+
+def shoulder_offset(p):
+    """One continuous field shared by the separate torso/sleeve islands.
+
+    Lower the high crown rather than independently shrinking the sleeve and
+    dropping the torso, which can expose their buried overlap. The lower
+    underarm stays fixed; the outer upper surface compresses smoothly by at
+    most 18 mm. The entire neck, front opening and lapels are outside support.
+    """
+    x, y, z = p
+    # The top torso rings reach x=.123 m; keep that complete neckline band.
+    across = window(.125, .190, .285, .365, abs(x))
+    upper = smooth(1.425, 1.535, z)
+    if across == 0. or upper == 0.:
+        return (0., 0., 0.)
+    front_guard = 1.-smooth(.020, .070, -y)*(1.-smooth(.105, .140, abs(x)))
+    support = across*upper*front_guard
+    # This affine cross-section taper has no panel/UV-dependent discontinuity.
+    return (-.0025*support*(1. if x > 0. else -1.),
+            -.045*(y-.0654)*support, -.018*support)
+
+
+def cloth_offset(panel, p, u, v, landmarks):
+    """Fit broad limb envelopes, leaving seams, cuffs and exposed skin fixed.
+
+    Original covered deltoid/arm/thigh/calf skin is absent in these GLBs. This
+    field does not reshape any body vertices. Its support ends before retained
+    distal forearms, ankles, neckline and the open chest/lapel boundary.
+    """
+    if panel == 'trim':
+        return (0., 0., 0.)
+    x, y, z = p
+    shared = shoulder_offset(p) if panel in ('sleeve', 'torso') else (0., 0., 0.)
+    if panel == 'sleeve':
+        envelope = window(.18, .28, .85, .93, v)
+        if envelope == 0.:
+            return shared
+        side = 'l' if x > 0. else 'r'
+        shoulder, wrist = (landmarks[name+'_'+side] for name in ('upperarm', 'hand'))
+        axis = unit(sub(wrist, shoulder))
+        start = tuple(shoulder[k]-.155*axis[k] for k in range(3))
+        center = tuple(start[k]+(wrist[k]-start[k])*v*.97 for k in range(3))
+        radial = sub(p, center)
+        radial = sub(radial, tuple(dot(radial, axis)*q for q in axis))
+        outward = unit(radial)
+        front = max(0., -outward[1])
+        # Sleeve-specific fitting starts beyond the shared shoulder overlap.
+        # Upper-arm fullness then tapers toward elbow and distal forearm.
+        distal = smooth(.29, .39, abs(x))
+        take_in = .0050*math.exp(-((v-.46)/.12)**2)*(.75+.25*front)
+        take_in += .0110*math.exp(-((v-.635)/.080)**2)
+        take_in += .0130*math.exp(-((v-.795)/.090)**2)
+        relief = cloth_relief(panel, u, v)
+        amount = MAX_CLOTH_OFFSET*math.tanh((relief-take_in*envelope)*distal/MAX_CLOTH_OFFSET)
+        return tuple(shared[k]+amount*q for k,q in enumerate(outward))
+    if panel == 'pants':
+        envelope = window(.16, .23, .71, .83, v)
+        if envelope == 0. and cloth_relief(panel, u, v) == 0.:
+            return (0., 0., 0.)
+        side = 'l' if x > 0. else 'r'
+        hip, ankle = (landmarks[name+'_'+side] for name in ('thigh', 'foot'))
+        along = min(1., max(0., (hip[2]-z)/(hip[2]-ankle[2])))
+        center = tuple(hip[k]+(ankle[k]-hip[k])*along for k in range(3))
+        outward = unit((x-center[0], y-center[1], 0.))
+        take_in = .0070*math.exp(-((v-.64)/.13)**2)
+        take_in += .0140*math.exp(-((v-.435)/.085)**2)
+        take_in += .0120*math.exp(-((v-.205)/.085)**2)
+        # Keep a calf belly above the tapered lower leg; a gi should suggest
+        # anatomy through its silhouette rather than trace every muscle.
+        take_in -= .0020*math.exp(-((v-.30)/.065)**2)*max(0., outward[1])**2
+        relief = cloth_relief(panel, u, v)
+        # The center crotch joins two leg panels; leave that bridge undisturbed.
+        bridge = 1.-smooth(.70, .83, v)*(1.-smooth(.025, .070, abs(x)))
+        amount = MAX_CLOTH_OFFSET*math.tanh((relief-take_in*envelope)*bridge/MAX_CLOTH_OFFSET)
+        return tuple(amount*q for q in outward)
+    if panel == 'torso':
+        opening = window(.045, .11, .89, .955, u)
+        # Retained chest triangles extend slightly beyond the nominal V mask.
+        # Keep that complete front band fixed, including its hidden overlap.
+        opening *= 1.-smooth(.020, .070, -y)*(1.-smooth(.105, .140, abs(x)))
+        if opening == 0. or v <= .08 or v >= .94:
+            return shared
+        radial = unit((x, y-.018, 0.))
+        waist = window(.37, .45, .66, .78, v)
+        take_in = .0055*waist*(.55+.45*abs(radial[0]))
+        amount = (cloth_relief(panel, u, v)-take_in)*opening
+        # The waist field fades before the shoulder field starts. Both panels
+        # therefore receive the same displacement throughout their armhole.
+        amount *= 1.-smooth(1.355, 1.405, z)
+        return tuple(shared[k]+amount*q for k,q in enumerate(radial))
+    return (0., 0., 0.)
 
 
 def panel_at(uv):
@@ -169,7 +287,7 @@ def rotate_between(vector, before, after):
     return tuple(vector[i]*cosine+across[i]*sine+axis[i]*dot(axis, vector)*(1.-cosine) for i in range(3))
 
 
-def adjust_frames(old, new, normals, tangents, indices, joints, weights):
+def adjust_frames(old, new, normals, tangents, indices, joints, weights, audit=None):
     old_sum = [[0., 0., 0.] for _ in old]
     new_sum = [[0., 0., 0.] for _ in old]
     changed = set()
@@ -179,6 +297,11 @@ def adjust_frames(old, new, normals, tangents, indices, joints, weights):
         b = cross(sub(new[ids[1]], new[ids[0]]), sub(new[ids[2]], new[ids[0]]))
         if dot(a, a) > 1e-20 and dot(a, b) <= 0.:
             raise ValueError('Sculpt inverted a triangle')
+        if audit is not None and dot(a, a) > 1e-20:
+            audit['minimumTriangleAreaRatio'] = min(audit.get('minimumTriangleAreaRatio', 1.),
+                math.sqrt(dot(b, b)/dot(a, a)))
+            audit['minimumTriangleNormalDot'] = min(audit.get('minimumTriangleNormalDot', 1.),
+                dot(unit(a), unit(b)))
         if any(old[i] != new[i] for i in ids):
             changed.update(ids)
         for i in ids:
@@ -211,8 +334,12 @@ def adjust_frames(old, new, normals, tangents, indices, joints, weights):
 def refine_look(raw):
     mesh_file = MeshFile(raw)
     doc = mesh_file.doc
-    proof = {'version': 1, 'changes': [], 'maximumFaceOffsetMeters': 0., 'maximumClothOffsetMeters': 0.}
+    original_doc = copy.deepcopy(doc)
+    proof = {'version': 3, 'changes': [], 'maximumFaceOffsetMeters': 0., 'maximumClothOffsetMeters': 0.,
+             'clothOffsetLimitMeters': MAX_CLOTH_OFFSET,
+             'clothBoundsExpansionLimitMeters': MAX_CLOTH_BOUNDS_EXPANSION}
     handled = set()
+    updated_bounds = []
     for role in ('Attacker', 'Defender'):
         for part in ('Body', 'GiJacket', 'GiPantsMesh'):
             matches = [n for n in doc['nodes'] if n.get('name') == f'JQ_{role}_{part}']
@@ -225,7 +352,17 @@ def refine_look(raw):
             root_index = [i for i, j in enumerate(skin['joints']) if doc['nodes'][j]['name'] == 'root']
             if len(root_index) != 1:
                 raise ValueError('Missing unique root inverse bind')
-            rows, translation = rigid_frame(mesh_file.read(skin['inverseBindMatrices'])[root_index[0]])
+            inverse_binds = mesh_file.read(skin['inverseBindMatrices'])
+            rows, translation = rigid_frame(inverse_binds[root_index[0]])
+            landmarks = {}
+            for joint_index, joint in enumerate(skin['joints']):
+                name = doc['nodes'][joint]['name']
+                if name in {prefix+'_'+side for prefix in ('upperarm', 'hand', 'thigh', 'foot') for side in ('l', 'r')}:
+                    rotation, origin = rigid_frame(inverse_binds[joint_index])
+                    world = tuple(-sum(rotation[j][axis]*origin[j] for j in range(3)) for axis in range(3))
+                    landmarks[name] = tuple(dot(row, world)+translation[j] for j, row in enumerate(rows))
+            if len(landmarks) != 8:
+                raise ValueError('Missing original limb landmarks')
             for primitive in doc['meshes'][node['mesh']]['primitives']:
                 if primitive.get('mode', 4) != 4 or 'targets' in primitive:
                     raise ValueError('Sculpt requires triangle mesh without morph targets')
@@ -235,40 +372,87 @@ def refine_look(raw):
                 handled.add(key)
                 positions = mesh_file.read(key); normals = mesh_file.read(attributes['NORMAL'])
                 tangents = mesh_file.read(attributes['TANGENT'])
+                joints, weights = mesh_file.read(attributes['JOINTS_0']), mesh_file.read(attributes['WEIGHTS_0'])
                 uvs = mesh_file.read(attributes['TEXCOORD_1']) if part != 'Body' else None
-                result = []; moved = 0; maximum = 0.
+                shared_panels = {}
+                if uvs is not None:
+                    # Source trouser seam triangles sometimes replace an
+                    # interior u with 1 on a UV copy. Use the retained interior
+                    # coordinate for every copy of that same skinned point;
+                    # UVs themselves remain exact and geometry cannot crack.
+                    for i, p in enumerate(positions):
+                        panel, u, v = panel_at(uvs[i])
+                        seam_key = (p, joints[i], weights[i], panel)
+                        previous = shared_panels.get(seam_key)
+                        if previous is None or min(u, 1.-u) > min(previous[1], 1.-previous[1]):
+                            shared_panels[seam_key] = (panel, u, v)
+                result = []; moved = 0; maximum = 0.; panel_maxima = {}
                 for i, p in enumerate(positions):
                     canonical = tuple(dot(row, p)+translation[j] for j, row in enumerate(rows))
                     if part == 'Body':
                         delta = face_offset(canonical)
                     else:
-                        panel, u, v = panel_at(uvs[i]); relief = cloth_relief(panel, u, v)
-                        # Follow the current surface, including inner lining;
-                        # all trim/openings stay exactly unchanged by the field.
-                        cn = unit(tuple(dot(row, normals[i]) for row in rows))
-                        delta = tuple(relief*v for v in cn)
+                        panel, _, _ = panel_at(uvs[i])
+                        panel, u, v = shared_panels[(p, joints[i], weights[i], panel)]
+                        delta = cloth_offset(panel, canonical, u, v, landmarks)
                     distance = math.sqrt(dot(delta, delta))
+                    if part != 'Body':
+                        if distance > MAX_CLOTH_OFFSET:
+                            raise ValueError('Cloth displacement exceeded the regional envelope')
+                        panel_maxima[panel] = max(panel_maxima.get(panel, 0.), distance)
                     if distance < 1e-10:
                         result.append(p); continue
                     change = tuple(sum(rows[j][axis]*delta[j] for j in range(3)) for axis in range(3))
                     result.append(tuple(p[axis]+change[axis] for axis in range(3)))
                     moved += 1; maximum = max(maximum, distance)
                 accessor = doc['accessors'][key]
-                if any(p[axis] < accessor['min'][axis]-1e-7 or p[axis] > accessor['max'][axis]+1e-7
+                allowance = MAX_CLOTH_BOUNDS_EXPANSION if part != 'Body' else 0.
+                if any(p[axis] < accessor['min'][axis]-allowance-1e-7 or p[axis] > accessor['max'][axis]+allowance+1e-7
                        for p in result for axis in range(3)):
-                    raise ValueError('Local sculpt escaped original whole-mesh bounds')
+                    raise ValueError('Local sculpt escaped its whole-mesh envelope')
+                expansion = max(0., max(accessor['min'][axis]-p[axis] for p in result for axis in range(3)),
+                                max(p[axis]-accessor['max'][axis] for p in result for axis in range(3)))
                 indices = [v[0] for v in mesh_file.read(primitive['indices'])]
-                joints, weights = mesh_file.read(attributes['JOINTS_0']), mesh_file.read(attributes['WEIGHTS_0'])
-                new_n, new_t = adjust_frames(positions, result, normals, tangents, indices, joints, weights)
+                audit = {}
+                new_n, new_t = adjust_frames(positions, result, normals, tangents, indices, joints, weights, audit)
+                if part != 'Body' and (audit['minimumTriangleAreaRatio'] < .65
+                                       or audit['minimumTriangleNormalDot'] < .85):
+                    raise ValueError('Cloth fit excessively compressed or tilted a triangle')
                 mesh_file.write(key, result); mesh_file.write(attributes['NORMAL'], new_n)
                 mesh_file.write(attributes['TANGENT'], new_t)
-                proof['changes'].append({'role': role, 'part': part, 'verticesMoved': moved, 'maximumOffsetMeters': maximum})
+                # glTF bounds describe stored float32 values, not the old mesh
+                # envelope or Python's intermediate double-precision values.
+                # A narrower silhouette can move the actual extrema inward.
+                if moved:
+                    stored = mesh_file.read(key)
+                    accessor['min'] = [min(p[axis] for p in stored) for axis in range(3)]
+                    accessor['max'] = [max(p[axis] for p in stored) for axis in range(3)]
+                    updated_bounds.append(key)
+                proof['changes'].append({'role': role, 'part': part, 'verticesMoved': moved,
+                    'maximumOffsetMeters': maximum, 'panelMaximumOffsetsMeters': panel_maxima,
+                    'maximumOriginalBoundsExpansionMeters': expansion, **audit})
                 bound = 'maximumFaceOffsetMeters' if part == 'Body' else 'maximumClothOffsetMeters'
                 proof[bound] = max(proof[bound], maximum)
-    result = bytes(mesh_file.data)
-    if any(a != b and i not in mesh_file.allowed for i, (a, b) in enumerate(zip(raw, result))):
+    binary = bytes(mesh_file.data[mesh_file.start:])
+    if any(a != b and i+mesh_file.start not in mesh_file.allowed
+           for i, (a, b) in enumerate(zip(raw[mesh_file.start:], binary))):
         raise AssertionError('Changed bytes outside sculpt attribute allowlist')
+    expected = copy.deepcopy(original_doc)
+    for index in updated_bounds:
+        for key in ('min', 'max'):
+            expected['accessors'][index][key] = doc['accessors'][index][key]
+    if doc != expected:
+        raise AssertionError('Changed JSON outside sculpt POSITION bounds')
+    encoded = json.dumps(doc, separators=(',', ':')).encode('utf8')
+    encoded += b' ' * (-len(encoded) % 4)
+    result = (struct.pack('<III', 0x46546c67, 2, 28+len(encoded)+len(binary))
+              + struct.pack('<II', len(encoded), 0x4e4f534a) + encoded
+              + struct.pack('<II', len(binary), 0x004e4942) + binary)
     proof.update(sourceSha256=hashlib.sha256(raw).hexdigest(), importSha256=hashlib.sha256(result).hexdigest(),
-        jsonUnchanged=True, protectedBinaryBytesUnchanged=True,
-        scope='Lower facial shaping and local cotton compression; original source retained')
+        scopedPositionBoundsOnly=True, positionBoundsAccessors=updated_bounds,
+        protectedBinaryBytesUnchanged=True, binaryByteLengthUnchanged=True,
+        scope='Original lower face field; continuous shoulder settling, leaner limbs and unequal drag folds; original source retained',
+        limitations=['Rest-pose triangle/frame checks do not establish every posed contact or skin clearance.',
+                     'Covered body skin, hands, cuffs, lapels, rig, motion and texture coordinates are not reauthored.',
+                     'Baked cloth shapes suggest anatomy; no dynamic cloth or muscle simulation.'])
     return result, proof

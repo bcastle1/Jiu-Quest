@@ -104,6 +104,15 @@ try {
             $jqArguments += @('-PixelStreamingURL=ws://127.0.0.1:49088', '-RenderOffScreen', '-AudioMixer')
         }
     }
+    # SIE otherwise starts the Editor's embedded web/signalling servers on
+    # wildcard ports 80/8888. Only the explicit local game preview streams.
+    $jqArguments += @('-PixelStreamingEditorAutoStreamPIE=false',
+                      '-PixelStreamingEditorStartOnLaunch=false',
+                      '-PixelStreamingEditorUseRemoteSignallingServer=true',
+                      '-notraceserver', '-traceautostart=0')
+    $jqArguments += if ($Action -eq 'Preview' -and $StreamLocal) {
+        '-PixelStreamingAutoStartStream=true'
+    } else { '-PixelStreamingAutoStartStream=false' }
     # Native Preview is an interactive window for reviewing the fighters.
     # Import, capture and the offscreen browser renderer remain hidden.
     $jqWindowStyle = if ($Action -eq 'Preview' -and -not $StreamLocal) { 'Normal' } else { 'Hidden' }

@@ -145,14 +145,17 @@ def make_material(spec, images, stage, folder, cache):
         connect(b, "", n, "B")
         return n
 
-    def sample(info, usage):
+    def texture_asset(info, usage):
         check(info["uv"] in (0, 1), "Unexpected source UV channel")
         image = images[info["image"]]
         key = (image["sha256"], usage)
         if key not in cache:
             cache[key] = import_texture(inside(stage, image["file"]), folder + "/Textures/" + usage, usage)
+        return cache[key]
+
+    def sample(info, usage):
         n = node(unreal.MaterialExpressionTextureSample)
-        n.set_editor_property("texture", cache[key])
+        n.set_editor_property("texture", texture_asset(info, usage))
         n.set_editor_property("const_coordinate", info["uv"])
         sampler = {"color": unreal.MaterialSamplerType.SAMPLERTYPE_COLOR,
                    "normal": unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL,
@@ -164,6 +167,8 @@ def make_material(spec, images, stage, folder, cache):
     factor = list(spec["baseColor"])
     if "_Defender_Gi" in name:
         factor = [.025, .045, .09, 1.]
+    elif "_Attacker_Gi" in name:
+        factor = [.65, .67, .69, 1.]
     elif name.endswith("_Hair"):
         factor = [.009, .006, .004, 1.]
     elif name.endswith("_Belt"):
@@ -210,6 +215,38 @@ def make_material(spec, images, stage, folder, cache):
         prop(scalar(.25), "", unreal.MaterialProperty.MP_SPECULAR)
     elif name.endswith("_Hair"):
         prop(scalar(.1), "", unreal.MaterialProperty.MP_SPECULAR)
+        # Reuse the original painted strand values as shallow shading relief.
+        # Four repeats across UV0 add finer flow without a new bitmap or any
+        # vertex displacement. The ordinary colour atlas stays at its old UVs.
+        check(spec['colorTexture'] and spec['colorTexture']['uv'] == 0,
+              'Hair detail requires the original UV0 strand atlas')
+        check(not spec['normalTexture'], 'Review how an existing hair normal should be blended')
+        hair_texture = node(unreal.MaterialExpressionTextureObject)
+        hair_texture.set_editor_property('texture', texture_asset(spec['colorTexture'], 'data'))
+        hair_texture.set_editor_property('sampler_type', unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
+        coordinates = node(unreal.MaterialExpressionTextureCoordinate)
+        coordinates.set_editor_property('coordinate_index', 0)
+        coordinates.set_editor_property('u_tiling', 4.)
+        coordinates.set_editor_property('v_tiling', 1.)
+        function = unreal.load_asset('/Engine/Functions/Engine_MaterialFunctions03/Procedurals/NormalFromHeightmap')
+        check(function is not None, 'Engine NormalFromHeightmap function is missing')
+        detail = node(unreal.MaterialExpressionMaterialFunctionCall)
+        check(detail.set_material_function(function), 'Could not bind strand normal function')
+        check(set(edit.get_material_expression_input_names(detail)) ==
+              {'Height Map', 'Coordinates', 'Height Map UV Offset', 'Normal Map Intensity', 'Height Map Channel Selector'},
+              'NormalFromHeightmap inputs changed; review the installed function')
+        connect(hair_texture, '', detail, 'Height Map')
+        connect(coordinates, '', detail, 'Coordinates')
+        connect(scalar(.0039), '', detail, 'Height Map UV Offset')
+        connect(scalar(3.), '', detail, 'Normal Map Intensity')
+        basis_function = unreal.load_asset('/Engine/Functions/Engine_MaterialFunctions01/Texturing/DeriveTangentBasis')
+        check(basis_function is not None, 'Engine DeriveTangentBasis function is missing')
+        basis = node(unreal.MaterialExpressionMaterialFunctionCall)
+        check(basis.set_material_function(basis_function), 'Could not bind hair UV0 tangent basis')
+        connect(coordinates, '', basis, 'UVs')
+        connect(detail, 'Result', basis, 'Normal')
+        material.set_editor_property('tangent_space_normal', False)
+        prop(basis, 'World Space Normal', unreal.MaterialProperty.MP_NORMAL)
     elif cloth:
         prop(color([.08, .08, .07]), "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
         connect(scalar(.16), "", attributes, "ClearCoat")
@@ -218,10 +255,14 @@ def make_material(spec, images, stage, folder, cache):
     unreal.EditorAssetLibrary.save_loaded_asset(material)
     REPORT["materialGraphs"].append({"source": name, "asset": material.get_path_name(),
         "colorUV": (spec["colorTexture"] or {}).get("uv"),
-        "normalUV": (spec["normalTexture"] or {}).get("uv"),
-        "normalBasis": "UV1 derivative world space" if cloth and spec["normalTexture"] else "mesh tangent space",
+        "normalUV": 0 if name.endswith('_Hair') else (spec["normalTexture"] or {}).get("uv"),
+        "normalBasis": ("UV0 derivative world space" if name.endswith('_Hair') else
+                        "UV1 derivative world space" if cloth and spec["normalTexture"] else "mesh tangent space"),
         "roughnessUV": (spec["roughnessTexture"] or {}).get("uv"),
-        "roughnessChannel": "G", "skinDefaultProfileUntuned": skin})
+        "roughnessChannel": "G", "skinDefaultProfileUntuned": skin,
+        "hairStrandRelief": ({'source': 'original grayscale colour atlas', 'uv': 0,
+                              'tiling': [4., 1.], 'normalIntensity': 3., 'uvOffset': .0039}
+                             if name.endswith('_Hair') else None)})
     return material
 
 

@@ -134,7 +134,7 @@ def audit(capture, tolerance):
     durations = {name: max(max(channel[3]) for channel in source.channels)
                  for name, source in sources.items()}
     expected = {(clip, frame) for clip in sources for frame in ("first", "mid", "finish")}
-    expected |= {("standing_stance", role + detail) for role in ROLES for detail in ('-face', '-hands')}
+    expected |= {("standing_stance", role + detail) for role in ROLES for detail in ('-face', '-hands', '-torso', '-legs')}
     shots = report["captures"]
     require(len(shots) == len(expected) and {(s["clip"], s["frame"]) for s in shots} == expected,
             "Capture inventory changed")
@@ -191,7 +191,7 @@ def audit(capture, tolerance):
         "minimumGripPitchDegrees": min(row['pitchDegrees'] for row in grip_rows),
         "maximumGripPitchDegrees": max(row['pitchDegrees'] for row in grip_rows),
         "minimumGripForwardDot": min(row['forwardDot'] for row in grip_rows),
-        "limits": ["Six joints: head and both hands for each fighter, at three paused times per clip plus four standing closeups",
+        "limits": ["Six joints: head and both hands for each fighter, at three paused times per clip plus eight standing closeups",
                    "Not an all-frame, full-rig, cloth collision or paired-contact audit",
                    "Grip direction uses knuckle-to-distal-joint vectors; it does not prove cloth contact or finger collision clearance",
                    "World positions compared; recorded rotations are not numerically validated here",
