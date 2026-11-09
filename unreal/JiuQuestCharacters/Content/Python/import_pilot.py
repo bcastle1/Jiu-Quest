@@ -202,7 +202,64 @@ def make_material(spec, images, stage, folder, cache):
     if spec["normalTexture"]:
         normal = sample(spec["normalTexture"], "normal")
         strength = spec["normalTexture"]["scale"]
-        scaled = multiply(normal, "RGB", color([strength, strength, 1.]))
+        normal_source, normal_output = normal, "RGB"
+        fold_detail = None
+        if name.endswith("_GiTop"):
+            # Broad authored creases have their own height field, so increasing
+            # fold readability cannot amplify the source texture's fine weave.
+            # This is normal relief only; openings and silhouette stay exact.
+            fold_detail = node(unreal.MaterialExpressionCustom)
+            fold_detail.set_editor_property("description", "Protected jacket fold relief")
+            fold_detail.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT3)
+            inputs = []
+            for input_name in ("FineNormal", "AtlasUV"):
+                item = unreal.CustomInput()
+                item.set_editor_property("input_name", input_name)
+                inputs.append(item)
+            fold_detail.set_editor_property("inputs", inputs)
+            fold_detail.set_editor_property("code", """
+struct CottonFolds {
+    float ridge(float distance, float width) {
+        float r = distance / width;
+        float q = (r+1.25) / 0.62;
+        return exp(-r*r) - 0.48 * exp(-q*q);
+    }
+    float height(float2 p, float sleeve) {
+        float torsoHeight = 0.007 * ridge(p.x - 0.24 - 0.30*(p.y-0.42), 0.048);
+        torsoHeight += 0.005 * ridge(p.x - 0.67 + 0.20*(p.y-0.42), 0.055);
+        torsoHeight += 0.004 * ridge(p.y - 0.51 - 0.16*(p.x-0.5), 0.045);
+        float sleeveHeight = 0.005 * ridge(p.y - 0.52 + 0.18*(p.x-0.70), 0.040);
+        sleeveHeight += 0.003 * ridge(p.y - 0.67 - 0.14*(p.x-0.70), 0.048);
+        return lerp(torsoHeight, sleeveHeight, sleeve);
+    }
+};
+CottonFolds folds;
+float2 atlas = float2(AtlasUV.x, 1.0 - AtlasUV.y);
+float2 cell = floor(atlas * 2.0);
+float2 panel = (atlas - cell * 0.5 - 0.008) / 0.484;
+float edge = smoothstep(0.06, 0.12, min(panel.x, 1.0 - panel.x));
+float torso = (1.0 - step(0.5, cell.x)) * edge
+    * smoothstep(0.18, 0.28, panel.y) * (1.0 - smoothstep(0.68, 0.76, panel.y));
+float sleeve = step(0.5, cell.x)
+    * smoothstep(0.50, 0.62, panel.x) * (1.0 - smoothstep(0.88, 0.98, panel.x))
+    * smoothstep(0.34, 0.43, panel.y) * (1.0 - smoothstep(0.76, 0.86, panel.y));
+float mask = saturate(torso + sleeve) * (1.0 - step(0.5, cell.y));
+float isSleeve = step(0.5, cell.x);
+float epsilon = 0.002;
+float dx = (folds.height(panel+float2(epsilon,0),isSleeve)
+          - folds.height(panel-float2(epsilon,0),isSleeve)) / (2.0*epsilon);
+float dy = (folds.height(panel+float2(0,epsilon),isSleeve)
+          - folds.height(panel-float2(0,epsilon),isSleeve)) / (2.0*epsilon);
+// Atlas V is opposite the imported UV1 V; preserve that derivative sign.
+float2 extra = mask * float2(-dx, dy);
+extra *= min(1.0, 0.35 / max(length(extra), 0.000001));
+return float3(FineNormal.xy + extra, FineNormal.z);
+""")
+            check(set(edit.get_material_expression_input_names(fold_detail)) ==
+                  {"FineNormal", "AtlasUV"}, "Jacket fold inputs changed")
+            connect(normal, "RGB", fold_detail, "FineNormal")
+            normal_source, normal_output = fold_detail, ""
+        scaled = multiply(normal_source, normal_output, color([strength, strength, 1.]))
         normalized = node(unreal.MaterialExpressionNormalize)
         # Normalize has one input; the documented empty-name convention selects
         # its first pin without relying on a reflected/display label.
@@ -220,6 +277,8 @@ def make_material(spec, images, stage, folder, cache):
             coordinates = node(unreal.MaterialExpressionTextureCoordinate)
             coordinates.set_editor_property("coordinate_index", 1)
             connect(coordinates, "", normal, "UVs")
+            if fold_detail:
+                connect(coordinates, "", fold_detail, "AtlasUV")
             connect(coordinates, "", derived, "UVs")
             connect(normalized, "", derived, "Normal")
             material.set_editor_property("tangent_space_normal", False)
@@ -277,6 +336,10 @@ def make_material(spec, images, stage, folder, cache):
         "roughnessUV": (spec["roughnessTexture"] or {}).get("uv"),
         "roughnessChannel": "G", "skinDefaultProfileUntuned": skin,
         "skinBaseColorScale": .82 if skin else None,
+        "jacketFoldRelief": ({"source": "authored broad crease height field", "uv": 1,
+                              "derivativeStep": .002, "extraXYLimit": .35,
+                              "scope": "torso interior and outer/back sleeve; openings and inner elbow excluded"}
+                             if name.endswith("_GiTop") else None),
         "hairStrandRelief": ({'source': 'original grayscale colour atlas', 'uv': 0,
                               'tiling': [4., 1.], 'normalIntensity': 3., 'uvOffset': .0039}
                              if name.endswith('_Hair') else None)})

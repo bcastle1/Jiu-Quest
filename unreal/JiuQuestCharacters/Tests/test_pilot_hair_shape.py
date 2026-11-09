@@ -1,5 +1,6 @@
 """Actual-source topology, interpolation and preservation checks; no renderer."""
 import copy
+import hashlib
 import json
 import math
 import struct
@@ -16,8 +17,34 @@ from pilot_hair_shape import refine_hair_shape, refine_spikes_shape, closest, cl
 from pilot_look import MeshFile, rigid_frame
 
 
+def fringe_attributes_digest(mesh, primitive, rotation, translation):
+    """Find four refined front locks by connectivity and unchanged tip location."""
+    values={k:mesh.read(v) for k,v in primitive['attributes'].items()}
+    positions=values['POSITION'];indices=[v[0] for v in mesh.read(primitive['indices'])]
+    neighbors={p:set() for p in positions}
+    for k in range(0,len(indices),3):
+        face=[positions[i] for i in indices[k:k+3]]
+        for p in face:neighbors[p].update(face)
+    unseen=set(neighbors);selected=set();count=0
+    while unseen:
+        pending=[unseen.pop()];island=set(pending)
+        while pending:
+            for p in neighbors[pending.pop()]:
+                if p in unseen:unseen.remove(p);island.add(p);pending.append(p)
+        ids=[i for i,p in enumerate(positions) if p in island]
+        tips=[i for i in ids if values['TEXCOORD_0'][i][1]==0.]
+        if len(island)<100 or not tips:continue
+        y=sum(dot(rotation[1],positions[i])+translation[1] for i in tips)/len(tips)
+        z=sum(dot(rotation[2],positions[i])+translation[2] for i in tips)/len(tips)
+        if y<-.10 and z<1.70:selected.update(ids);count+=1
+    assert count==4
+    payload={key:[values[key][i] for i in sorted(selected)] for key in sorted(values)}
+    return hashlib.sha256(json.dumps(payload,separators=(',',':')).encode()).hexdigest()
+
+
 class HairShapeTests(unittest.TestCase):
     def test_spikes_three_clips_keep_caps_scalp_uv_weights_and_nonhair_exact(self):
+        fringe_digests=[]
         for clip in ('standing_stance','rear_naked_choke','armbar'):
             with self.subTest(clip=clip):
                 original=(ROOT/'public/animations/bjj'/f'{clip}.glb').read_bytes()
@@ -39,12 +66,28 @@ class HairShapeTests(unittest.TestCase):
                     self.assertEqual(row['unchangedTriangleCount'],1012)
                     self.assertEqual(row['originalClosedEdges'],594)
                     self.assertEqual(row['finalClosedEdges'],9504)
-                    self.assertLessEqual(row['maximumTotalSourceDeviationMeters'],.005)
-                    self.assertGreater(row['maximumTotalSourceDeviationMeters'],.002)
+                    self.assertLessEqual(row['maximumTotalSourceDeviationMeters'],.009)
+                    self.assertEqual(row['crownSourceEnvelopeMeters'],.009)
+                    self.assertTrue(row['profileAuthoredBeforeSubdivision'])
+                    self.assertLessEqual(row['maximumAuthoredCrownDisplacementMeters'],.0081)
+                    self.assertLessEqual(row['maximumRefinementFromAuthoredMeters'],.005000001)
+                    self.assertGreaterEqual(row['authoredSourceTriangleAreaMinimum'],.65)
+                    self.assertGreaterEqual(row['authoredSourceTriangleNormalDotMinimum'],.75)
+                    self.assertEqual(row['checkedAuthoredTrianglePoints'],9900)
+                    self.assertGreaterEqual(row['minimumAuthoredTrianglePointMarginMeters'],-2e-6)
+                    self.assertGreater(row['maximumTotalSourceDeviationMeters'],.007)
+                    actual_source_movement=max(math.dist(a,b) for a,b in zip(before['POSITION'],after['POSITION'][:count]))
+                    self.assertGreater(actual_source_movement,.007)
+                    self.assertLessEqual(actual_source_movement,.0090002)
+                    self.assertAlmostEqual(actual_source_movement,row['maximumAuthoredCrownDisplacementMeters'],places=6)
                     self.assertGreaterEqual(row['minimumSourceChildAreaRatio'],.65)
                     self.assertGreaterEqual(row['minimumSourceChildNormalDot'],.75)
                     self.assertGreaterEqual(row['minimumCentroidClearanceMarginMeters'],-2e-6)
                     self.assertEqual(row['checkedTriangleCentroids'],6336)
+                    self.assertEqual(row['taperedCrownLocks'],5)
+                    self.assertEqual(row['checkedCrownTriangleCentroids'],3520)
+                    self.assertGreaterEqual(row['minimumCrownCentroidClearanceMarginMeters'],-2e-6)
+                    self.assertGreaterEqual(row['minimumCrownVertexClearanceMarginMeters'],0.)
                     for key in ('TEXCOORD_0','JOINTS_0','WEIGHTS_0'):
                         self.assertEqual(after[key][:count],before[key])
                     # Independently find islands and cap copies by source geometry.
@@ -65,7 +108,8 @@ class HairShapeTests(unittest.TestCase):
                     skin=old.doc['skins'][node['skin']]
                     root=next(i for i,j in enumerate(skin['joints']) if old.doc['nodes'][j]['name']=='root')
                     rotation,translation=rigid_frame(old.read(skin['inverseBindMatrices'])[root])
-                    protected_islands=0
+                    fringe_digests.append(fringe_attributes_digest(new,b,rotation,translation))
+                    protected_islands=0;shoulder_reductions=[]
                     for island in islands:
                         ids=[i for i,p in enumerate(before['POSITION']) if p in island]
                         roots=[i for i in ids if before['TEXCOORD_0'][i][1]==1.]
@@ -75,11 +119,26 @@ class HairShapeTests(unittest.TestCase):
                             for key in before:
                                 self.assertEqual([after[key][i] for i in ids],[before[key][i] for i in ids])
                         else:
+                            tips=[i for i in ids if before['TEXCOORD_0'][i][1]==0.]
+                            if sum(dot(rotation[1],before['POSITION'][i])+translation[1] for i in tips)/len(tips)>.03:
+                                # Independently measure the actual first raised
+                                # ring: this must taper visibly, not just report
+                                # a nonzero field somewhere inside the lock.
+                                corners=[]
+                                for u in (0.,.5):
+                                    corners.append(next(i for i in ids if abs(before['TEXCOORD_0'][i][1]-2./3.)<1e-6 and before['TEXCOORD_0'][i][0]==u))
+                                a0,b0=corners
+                                reduction=math.dist(before['POSITION'][a0],before['POSITION'][b0])-math.dist(after['POSITION'][a0],after['POSITION'][b0])
+                                self.assertGreater(reduction,.009)
+                                self.assertLess(reduction,.016)
+                                shoulder_reductions.append(reduction)
                             endpoints={before['POSITION'][i] for i in ids if before['TEXCOORD_0'][i][1] in (0.,1.)}
                             for i in ids:
                                 if before['POSITION'][i] in endpoints:
                                     self.assertEqual(after['POSITION'][i],before['POSITION'][i])
                     self.assertEqual(protected_islands,14)
+                    self.assertEqual(len(shoulder_reductions),5)
+                    self.assertGreater(max(shoulder_reductions)-min(shoulder_reductions),.004)
                     # Cap/side duplicates still share positions after shaping.
                     seen={}
                     for p,q in zip(before['POSITION'],after['POSITION'][:count]):
@@ -106,6 +165,10 @@ class HairShapeTests(unittest.TestCase):
                 expected['bufferViews']+=new.doc['bufferViews'][len(old.doc['bufferViews']):]
                 expected['buffers'][0]['byteLength']=new.doc['buffers'][0]['byteLength']
                 self.assertEqual(new.doc,expected)
+        # Golden attributes for all four accepted fringe locks, including their
+        # new subdivided vertices and shading, from approved 7c15a18.
+        self.assertEqual(hashlib.sha256(''.join(fringe_digests).encode()).hexdigest(),
+                         'e56cd767a559ec829c42644c5467f9ad5c233e3fcc17c4122c768ea9d311aa9b')
 
     def test_spikes_rejects_repeat_and_cannot_use_slick_contract(self):
         raw,_=select_hair((ROOT/'public/animations/bjj/standing_stance.glb').read_bytes(),'Spikes')

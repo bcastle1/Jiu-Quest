@@ -11,15 +11,16 @@ PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parents[1]
 sys.path.insert(0, str(PROJECT / 'Content/Python'))
 from pilot_look import (MeshFile, face_offset, cloth_relief, cloth_offset, refine_look,
-                        dot, rigid_frame, panel_at, shoulder_offset, folded_ridge, jacket_fit_offset, MAX_CLOTH_OFFSET,
+                        dot, rigid_frame, panel_at, shoulder_offset, folded_ridge, jacket_fit_offset,
+                        lower_leg_offset, MAX_CLOTH_OFFSET,
                         MAX_CLOTH_BOUNDS_EXPANSION)
 
 
-def jacket_fit_allowlist(mesh, node, primitive):
-    """Independent regional allowlist; shading may change only one face away.
+def lower_leg_allowlist(mesh, node, primitive):
+    """Independently classify the permitted outer/front lower-leg region.
 
-    Positions outside the two fit regions stay at the accepted result. Normals
-    and UV tangents may follow adjacent triangles and their smooth UV copies.
+    All accepted jacket attributes stay fixed. Trouser shading may follow only
+    incident triangles and their smooth UV copies, ending below the upper leg.
     """
     attrs = primitive['attributes']
     skin = mesh.doc['skins'][node['skin']]
@@ -27,14 +28,31 @@ def jacket_fit_allowlist(mesh, node, primitive):
     rows, translation = rigid_frame(mesh.read(skin['inverseBindMatrices'])[root])
     points, normals = mesh.read(attrs['POSITION']), mesh.read(attrs['NORMAL'])
     joints, weights = mesh.read(attrs['JOINTS_0']), mesh.read(attrs['WEIGHTS_0'])
+    landmarks = {}
+    binds = mesh.read(skin['inverseBindMatrices'])
+    for index,j in enumerate(skin['joints']):
+        name = mesh.doc['nodes'][j]['name']
+        if name in ('thigh_l','thigh_r','foot_l','foot_r'):
+            rotation, origin = rigid_frame(binds[index])
+            world = tuple(-sum(rotation[k][axis]*origin[k] for k in range(3)) for axis in range(3))
+            landmarks[name] = tuple(dot(row,world)+translation[k] for k,row in enumerate(rows))
     allowed = set()
     for i,(point,uv) in enumerate(zip(points,mesh.read(attrs['TEXCOORD_1']))):
         x,y,z = tuple(dot(row,point)+translation[j] for j,row in enumerate(rows))
         panel,u,v = panel_at(uv)
-        if ((panel=='sleeve' and .50<u<.98 and .43<v<.66 and abs(x)>.29)
-            or (panel=='torso' and .37<v<.78 and .045<u<.955 and z<1.405
-                and not (-y>=.070 and abs(x)<=.105))):
+        side = 'l' if x>0 else 'r'
+        hip,ankle = landmarks['thigh_'+side],landmarks['foot_'+side]
+        t = min(1.,max(0.,(hip[2]-z)/(hip[2]-ankle[2])))
+        dx,dy = x-(hip[0]+t*(ankle[0]-hip[0])),y-(hip[1]+t*(ankle[1]-hip[1]))
+        radius = math.hypot(dx,dy)
+        if (panel=='pants' and .19<v<.52 and .06<u<.94 and radius>0
+            and dx*(1 if x>0 else -1)>-.10*radius and dy<.70*radius):
             allowed.add(i)
+    # A source UV seam can duplicate a physical point. Preserve identical
+    # movement for those copies without extending the physical region.
+    position_keys = [(point,joints[i],weights[i]) for i,point in enumerate(points)]
+    movable_keys = {position_keys[i] for i in allowed}
+    allowed = {i for i,key in enumerate(position_keys) if key in movable_keys}
     adjacent = set()
     indices = [row[0] for row in mesh.read(primitive['indices'])]
     for offset in range(0,len(indices),3):
@@ -48,6 +66,24 @@ def jacket_fit_allowlist(mesh, node, primitive):
 
 
 class LookTests(unittest.TestCase):
+    def test_lower_leg_folds_protect_inner_leg_upper_lining_and_cuff(self):
+        landmarks = {'thigh_l':(.1143,.036,.9712),'foot_l':(.1143,.0875,.0865)}
+        for panel,p,u,v in (
+            ('sleeve',(.4,.08,1.5),.75,.4), ('torso',(.2,.1,1.3),.25,.4),
+            ('pants',(.19,.02,.6),.65,.58), ('pants',(.19,.02,.62),.65,.52),
+            ('pants',(.19,.02,.3),.65,.19), ('pants',(.19,.02,.5),.04,.4),
+            ('pants',(.19,.02,.5),.96,.4), ('pants',(.02,.04,.5),.3,.4),
+            ('pants',(.13,.17,.5),.8,.4)):
+            self.assertEqual(lower_leg_offset(panel,p,u,v,landmarks),(0.,0.,0.))
+        samples=[]
+        for v in (.26,.32,.38,.44,.49):
+            change=lower_leg_offset('pants',(.18,.0,.129+.95*v),.65,v,landmarks)
+            self.assertEqual(change[2],0.,'Do not move the knee or ankle along the leg')
+            self.assertLessEqual(math.sqrt(dot(change,change)),.005)
+            samples.append(change[0])
+        self.assertGreater(max(samples),.001)
+        self.assertLess(min(samples),-.001,'A supported valley must accompany the crest')
+
     def test_athletic_fit_is_inward_and_excludes_contact_boundaries(self):
         landmarks = {'upperarm_l':(.212,.0654,1.4555),'hand_l':(.7065,.0654,1.4555)}
         for panel,point,u,v in (
@@ -164,6 +200,8 @@ class LookTests(unittest.TestCase):
             self.assertGreater(proof['maximumClothOffsetMeters'], .012)
             self.assertGreater(proof['maximumJacketFitOffsetMeters'], .0049)
             self.assertLessEqual(proof['maximumJacketFitOffsetMeters'], .005000001)
+            self.assertGreater(proof['maximumLowerLegOffsetMeters'],.003)
+            self.assertLessEqual(proof['maximumLowerLegOffsetMeters'],.005000001)
             self.assertEqual(len(proof['changes']), 6)
             self.assertTrue(all(row['verticesMoved'] > 10 for row in proof['changes']))
             allowed = set()
@@ -173,10 +211,15 @@ class LookTests(unittest.TestCase):
                     continue
                 for primitive in before.doc['meshes'][node['mesh']]['primitives']:
                     attributes = primitive['attributes']
-                    if node['name'].endswith('_GiJacket'):
-                        fit_positions, fit_frames = jacket_fit_allowlist(before,node,primitive)
-                        self.assertGreater(len(fit_positions),2000)
-                        self.assertLess(len(fit_positions),3000)
+                    if node['name'].endswith('_GiPantsMesh'):
+                        fit_positions, fit_frames = lower_leg_allowlist(before,node,primitive)
+                        self.assertGreater(len(fit_positions),250)
+                        self.assertLess(len(fit_positions),500)
+                        protected_upper = {i for i,uv in enumerate(before.read(attributes['TEXCOORD_1']))
+                                           if panel_at(uv)[2]>=.58}
+                        self.assertGreater(len(protected_upper),1700)
+                        self.assertFalse(protected_upper & fit_positions)
+                        self.assertFalse(protected_upper & fit_frames,'Keep upper lining shading exact too')
                     else:
                         fit_positions, fit_frames = set(),set()
                     for semantic in ('POSITION','NORMAL','TANGENT'):
@@ -248,12 +291,12 @@ class LookTests(unittest.TestCase):
             self.assertTrue(all(a == b or i+before.start in allowed for i,(a,b) in
                                 enumerate(zip(raw[before.start:],result[after.start:]))))
             self.assertEqual(refine_look(raw)[0], result, 'Sculpt must be deterministic from original bytes')
-        # Actual accepted 010008 recipe (3389b381), evaluated independently on
-        # the three pinned sources. All Body/Pants P/N/T stay exact, including
-        # the upper-leg lining. Only the allowlisted jacket positions and their
-        # incident shading frames are excluded from this accepted-data digest.
+        # Actual accepted 035210 recipe (ae6a4a61), independently evaluated on
+        # the three pinned sources. All Body/Jacket P/N/T stay exact, including
+        # the protected inner elbow and shoulder. Only lower-leg positions and
+        # incident shading frames are excluded; upper trousers remain exact.
         self.assertEqual(accepted_regions.hexdigest(),
-            '65dd76d801f55bc97975802153faaaa68a1d764460fd62977499ca52f8a80f9c')
+            'cdf864cc1a9c73a3610e507d38c2214b7b4d6b654d4636a812c0184bf38bd886')
 
 
 if __name__ == '__main__':

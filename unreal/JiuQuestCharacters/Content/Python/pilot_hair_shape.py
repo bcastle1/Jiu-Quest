@@ -1,7 +1,7 @@
 """Bounded style-specific Slick and Spikes sub-clumps in import derivatives.
 
 Scalp, side/rear locks, lower hairline, terminal tips, skinning and motion stay
-exact. Unequal shallow channels break up broad locks without separate strands.
+exact. Crown profiles are authored before detail; the accepted fringe is retained.
 """
 import copy
 import hashlib
@@ -440,6 +440,94 @@ def refine_hair_shape(raw):
         'scope':'Six primary Slick locks with unequal swept sub-clumps; scalp/other locks/hairline/tips retained; render pending'}
 
 
+def author_spikes_crowns(positions, normals, faces, components, crowns, root_centers, scalp_component, weld, rings, find):
+    """Re-author exposed source rings before detail; preserve root/tip anchors."""
+    scalp_triangles=[]
+    for face in faces:
+        if find(weld[face[0]])!=scalp_component:continue
+        a,b,c=(positions[i] for i in face); normal=unit(cross(sub(b,a),sub(c,a)))
+        if dot(normal,tuple(sum(normals[i][k] for i in face) for k in range(3)))<0:normal=mul(normal,-1.)
+        scalp_triangles.append((a,b,c,normal))
+    scalp=ScalpSurface(scalp_triangles);output=list(positions);widths=[];displacements=[];vertex_margins=[]
+    for order,component in enumerate(sorted(crowns,key=lambda c:root_centers[c][0])):
+        ids=components[component];grid={rings[weld[i]]:positions[i] for i in ids};moves={}
+        for row in (1,2):
+            center=mul(add(grid[(row,0)],grid[(row,3)]),.5)
+            across=unit(sub(grid[(row,0)],grid[(row,3)]))
+            raised=sub(grid[(row,1)],center);outward=unit(sub(raised,mul(across,dot(raised,across))))
+            width=((.78,.72,.76,.74,.82) if row==1 else (.82,.78,.80,.76,.84))[order]
+            depth=.92 if row==1 else .94
+            for column in range(6):
+                original=grid[(row,column)];relative=sub(original,center)
+                delta=add(mul(across,dot(relative,across)*(width-1.)),
+                          mul(outward,dot(relative,outward)*(depth-1.)+(.003 if row==1 else 0.)))
+                candidate=add(original,delta);base,_=clearance(original,scalp)
+                margin=clearance(candidate,scalp)[0]-min(base,.003)
+                require(margin>=-1e-7,'Authored crown vertex crossed original scalp floor')
+                moves[original]=candidate;displacements.append(math.dist(candidate,original));vertex_margins.append(margin)
+        widths.append(math.dist(grid[(1,0)],grid[(1,3)])-math.dist(moves[grid[(1,0)]],moves[grid[(1,3)]]))
+        for i in ids:
+            if positions[i] in moves:output[i]=moves[positions[i]]
+    minimum_area=minimum_normal=1.;margins=[]
+    for face in faces:
+        if find(weld[face[0]]) not in crowns:continue
+        a,b,c=(positions[i] for i in face);x,y,z=(output[i] for i in face)
+        before=cross(sub(b,a),sub(c,a));after=cross(sub(y,x),sub(z,x))
+        area=math.sqrt(dot(after,after)/dot(before,before));normal=dot(unit(before),unit(after))
+        require(area>=.65 and normal>=.75,'Authored crown compressed or tilted a source triangle')
+        minimum_area=min(minimum_area,area);minimum_normal=min(minimum_normal,normal)
+        for ia in range(9):
+            for ib in range(9-ia):
+                weights=(ia/8.,ib/8.,(8-ia-ib)/8.)
+                original=tuple(sum(positions[i][axis]*w for i,w in zip(face,weights)) for axis in range(3))
+                candidate=tuple(sum(output[i][axis]*w for i,w in zip(face,weights)) for axis in range(3))
+                base,_=clearance(original,scalp);minimum=.003 if base>=.003 else min(base,0.)
+                margin=clearance(candidate,scalp)[0]-minimum
+                require(margin>=-2e-6,'Authored crown transition crossed original scalp floor')
+                margins.append(margin)
+    require(max(displacements)<=.0081,'Authored crown source-ring movement exceeds 8.1 mm')
+    return output,{'taperedCrownLocks':5,'profileAuthoredBeforeSubdivision':True,
+        'maximumAuthoredCrownDisplacementMeters':max(displacements),
+        'crownShoulderWidthReductionsMeters':widths,'minimumAuthoredCrownVertexMarginMeters':min(vertex_margins),
+        'authoredSourceTriangleAreaMinimum':minimum_area,'authoredSourceTriangleNormalDotMinimum':minimum_normal,
+        'checkedAuthoredTrianglePoints':len(margins),'minimumAuthoredTrianglePointMarginMeters':min(margins)}
+
+
+def linear_subdivision_reference(reference, faces):
+    """Mirror index creation only, retaining the original barycentric source."""
+    result=list(reference);seen=set()
+    for (a,b,c),_ in faces:
+        for i,j in ((a,b),(b,c),(c,a)):
+            key=tuple(sorted((i,j)))
+            if key in seen:continue
+            seen.add(key);result.append(mul(add(reference[i],reference[j]),.5))
+    return result
+
+
+def crown_source_audit(output, faces, reference, layers, crown_layers, scalp):
+    maximum=0.;margins=[];vertices={i for f,_ in faces if layers[f[0]] in crown_layers for i in f}
+    for i in vertices:
+        original=reference[i];candidate=output['POSITION'][i]
+        maximum=max(maximum,math.dist(original,candidate))
+        base,_=clearance(original,scalp);minimum=min(base,.003)
+        margin=clearance(candidate,scalp)[0]-minimum
+        require(margin>=-2e-6,'Refined crown vertex crossed original source clearance floor')
+        margins.append(margin)
+    centroid_margins=[]
+    for face,_ in faces:
+        if layers[face[0]] not in crown_layers:continue
+        original=tuple(sum(reference[i][axis] for i in face)/3. for axis in range(3))
+        candidate=tuple(sum(output['POSITION'][i][axis] for i in face)/3. for axis in range(3))
+        base,_=clearance(original,scalp);minimum=.003 if base>=.003 else min(base,0.)
+        margin=clearance(candidate,scalp)[0]-minimum
+        require(margin>=-2e-6,'Refined crown interior crossed original source clearance floor')
+        centroid_margins.append(margin)
+    require(maximum<=.009000001,'Crown profile exceeds separate 9 mm source envelope')
+    return {'maximumCrownTotalSourceDeviationMeters':maximum,'crownSourceEnvelopeMeters':.009,
+        'checkedCrownPositions':len(vertices),'minimumCrownVertexClearanceMarginMeters':min(margins),
+        'checkedCrownTriangleCentroids':len(centroid_margins),'minimumCrownCentroidClearanceMarginMeters':min(centroid_margins)}
+
+
 def shape_spikes(values, indices, canonical, head_joint):
     require(len(values['POSITION']) == 1775 and len(indices) == 1408*3, 'Expected original Spikes topology; repeat shaping is unsupported')
     p,n,t,uv,joints,weights = (values[k] for k in ('POSITION','NORMAL','TANGENT','TEXCOORD_0','JOINTS_0','WEIGHTS_0'))
@@ -478,12 +566,13 @@ def shape_spikes(values, indices, canonical, head_joint):
                 rings[weld[i]] = label
         require(len({weld[i] for i in ids if weld[i] in rings}) == 24,'Incomplete four-by-six primary lock grid')
     require(len(scalp) == 1 and len(selected) == 9,'Expected exactly nine Spikes crown/fringe locks')
-    crown_count = fringe_count = 0
+    crown_count = fringe_count = 0; crowns=set()
     for component in selected:
         ids = components[component]
         tips = [i for i in ids if abs(uv[i][1]) < 1e-6]
         center = tuple(sum(canonical[i][axis] for i in tips)/len(tips) for axis in range(3))
-        if center[1] > .03 and center[2] > 1.79: crown_count += 1
+        if center[1] > .03 and center[2] > 1.79:
+            crown_count += 1; crowns.add(component)
         elif center[1] < -.10 and center[2] < 1.70: fringe_count += 1
     require((crown_count,fringe_count) == (5,4),'Spikes crown/fringe layout changed')
     def closed_lock_edges(triangles, positions):
@@ -496,7 +585,10 @@ def shape_spikes(values, indices, canonical, head_joint):
         return len(edges)
     original_closed_edges = closed_lock_edges([f for f in faces if find(weld[f[0]]) in selected],p)
     layer_numbers = {component:i for i,component in enumerate(sorted(selected,key=lambda c:root_centers[c][0]))}
-    bevel_frames = {}
+    source_positions=list(p)
+    p,profile_proof=author_spikes_crowns(p,n,faces,components,crowns,root_centers,scalp[0],weld,rings,find)
+    remap=dict(zip(source_positions,p));keys=[remap[q] for q in keys]
+    bevel_frames = {}; crown_layers={layer_numbers[c] for c in crowns}
     for component,layer in layer_numbers.items():
         grid = {label:keys[w] for w,label in rings.items() if find(w)==component}
         center = lambda row: tuple(sum(grid[(row,c)][axis] for c in range(6))/6. for axis in range(3))
@@ -530,8 +622,10 @@ def shape_spikes(values, indices, canonical, head_joint):
     smooth = {i:unit(total) for i,total in sums.items()}
     scalp_triangles = ScalpSurface(scalp_triangles)
     output = {k:list(v) for k,v in values.items()}; output_indices = []
+    output["POSITION"]=list(p)
+    source_reference=list(source_positions)
     reference = list(p); layers = [layer_numbers.get(find(weld[i]),-1) for i in range(len(p))]
-    bevel_parameters = [(1.,0.) for _ in weld]
+    bevel_parameters = [(rings[w][0]/3.,0.) if w in rings else (1.,0.) for w in weld]
     midpoint_position = {}; midpoint_export = {}; bounds = []; output_selected = []
     def midpoint(a,b):
         wa,wb = weld[a],weld[b]; edge = tuple(sorted((wa,wb)))
@@ -540,7 +634,7 @@ def shape_spikes(values, indices, canonical, head_joint):
         linear = mul(add(p[a],p[b]),.5)
         if edge not in midpoint_position:
             ra,ca = rings[wa]; rb,cb = rings[wb]
-            limit = .002
+            limit = .0006 if find(wa) in crowns else .002
             if ra == rb == 3: limit = 0.
             if ra == rb == 0: limit = 0.
             upper_root = ra == rb == 0 and limit > 0.
@@ -565,7 +659,7 @@ def shape_spikes(values, indices, canonical, head_joint):
                            'clearanceChangeMeters':clearance(candidate,scalp_triangles)[0]-base})
         index = len(output['POSITION']); midpoint_export[export_edge] = index
         output['POSITION'].append(midpoint_position[edge])
-        reference.append(linear); layers.append(layers[a])
+        reference.append(linear); source_reference.append(mul(add(source_positions[a],source_positions[b]),.5)); layers.append(layers[a])
         bevel_parameters.append(mul(add(bevel_parameters[a],bevel_parameters[b]),.5))
         output['TEXCOORD_0'].append(mul(add(uv[a],uv[b]),.5))
         require(joints[a] == joints[b] and weights[a] == weights[b],'Primary edge changes skinning')
@@ -583,7 +677,13 @@ def shape_spikes(values, indices, canonical, head_joint):
             q = output['POSITION']; new_normal = cross(sub(q[child[1]],q[child[0]]),sub(q[child[2]],q[child[0]]))
             require(dot(old_normal,new_normal)>0.,'Hair subdivision inverted a triangle')
             output_indices.extend(child); output_selected.append((child,f in side_faces))
+    source_reference=linear_subdivision_reference(source_reference,output_selected)
     output_selected,detail_proof = finer_clumps(output,output_selected,reference,layers,scalp_triangles,bevel_parameters,bevel_frames,exposed_only=True)
+    require(len(source_reference)==len(output['POSITION']),'Original-source reference indexing changed')
+    taper_proof=crown_source_audit(output,output_selected,source_reference,layers,crown_layers,scalp_triangles)
+    detail_proof['maximumRefinementFromAuthoredMeters']=detail_proof['maximumTotalSourceDeviationMeters']
+    detail_proof['maximumTotalSourceDeviationMeters']=max(detail_proof['maximumTotalSourceDeviationMeters'],taper_proof['maximumCrownTotalSourceDeviationMeters'])
+    reference=source_reference
     output_indices = [i for f,face in enumerate(faces) if f not in chosen_faces for i in face]
     output_indices.extend(i for face,side in output_selected for i in face)
     final_closed_edges = closed_lock_edges([f for f,_ in output_selected],output['POSITION'])
@@ -596,7 +696,7 @@ def shape_spikes(values, indices, canonical, head_joint):
         area = math.sqrt(dot(new_cross,new_cross)/dot(old_cross,old_cross))
         normal = dot(unit(old_cross),unit(new_cross))
         minimum_area = min(minimum_area,area); minimum_normal = min(minimum_normal,normal)
-        require(area >= .65 and normal >= .75,'Spikes subdivision compressed or tilted a source child triangle')
+        require(area >= .65 and normal >= .75,f'Spikes subdivision compressed or tilted a source child triangle: area={area:.6f}, normal={normal:.6f}, layer={layers[face[0]]}, t={[bevel_parameters[i][0] for i in face]}')
     # Weld shading across UV copies on sides, but retain a distinct cap fan.
     sums = {}; selected_vertices = set(); domains = {}
     for face,side in output_selected:
@@ -615,16 +715,17 @@ def shape_spikes(values, indices, canonical, head_joint):
         output['TANGENT'][i] = unit(tangent)+(output['TANGENT'][i][3],)
     protected = [i for i in range(len(p)) if find(weld[i]) not in selected or rings[weld[i]][0]==3
                  or rings[weld[i]][0]==0]
-    require(all(output['POSITION'][i] == p[i] for i in protected),'Protected scalp/hairline/tip vertex moved')
+    require(all(p[i] == source_positions[i] for i in protected),'Authored crown changed a protected source anchor')
+    require(all(output['POSITION'][i] == source_positions[i] for i in protected),'Protected scalp/hairline/tip vertex moved')
     require(max(row['deviationMeters']-row['limitMeters'] for row in bounds)<1e-10,'Hair shape exceeded local bound')
     return output,output_indices,{'primaryLockCount':9,'crownLocks':5,'fringeLocks':4,'originalClosedEdges':original_closed_edges,'finalClosedEdges':final_closed_edges,'minimumSourceChildAreaRatio':minimum_area,'minimumSourceChildNormalDot':minimum_normal,'originalVertices':len(p),'newVertices':len(output['POSITION'])-len(p),
         'originalTriangles':len(faces),'resultTriangles':len(output_indices)//3,
         'protectedOriginalVertices':len(protected),'protectedOriginalVerticesExact':True,
-        'movedOriginalPrimaryVertices':sum(output['POSITION'][i]!=p[i] for i in range(len(p))),
+        'movedOriginalPrimaryVertices':sum(output['POSITION'][i]!=source_positions[i] for i in range(len(p))),
         'maximumDeviationMeters':max(r['deviationMeters'] for r in bounds),
         'maximumUpperRootDeviationMeters':max((r['deviationMeters'] for r in bounds if r['upperRoot']),default=0.),
         'minimumScalpClearanceChangeMeters':min(r['clearanceChangeMeters'] for r in bounds),
-        'allRootAndTerminalEdgesExact':True,'unchangedTriangleCount':len(faces)-len(chosen_faces),**detail_proof}
+        'allRootAndTerminalEdgesExact':True,'unchangedTriangleCount':len(faces)-len(chosen_faces),**detail_proof,**profile_proof,**taper_proof}
 
 
 def refine_spikes_shape(raw):
@@ -674,4 +775,4 @@ def refine_spikes_shape(raw):
     result = struct.pack('<III',0x46546c67,2,28+len(encoded)+len(binary))+struct.pack('<II',len(encoded),0x4e4f534a)+encoded+struct.pack('<II',len(binary),0x004e4942)+binary
     return bytes(result),{'sourceSha256':hashlib.sha256(raw).hexdigest(),'importSha256':hashlib.sha256(result).hexdigest(),
         'originalBinaryPrefixUnchanged':True,'otherMeshesRigAndMotionExact':True,'roles':rows,
-        'scope':'Nine original Spikes crown/fringe locks with rounded side planes and unequal shallow sub-clumps; scalp/other locks/all roots/tips retained; render pending'}
+        'scope':'Five source crown profiles narrowed unevenly before subdivision within a separate 9 mm source envelope; original scalp/fringe/other locks/all roots/tips retained; render pending'}
