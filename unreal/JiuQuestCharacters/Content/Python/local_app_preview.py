@@ -34,7 +34,7 @@ class LocalPreview:
         self.phase='prepare';self.busy=False;self.input=None;self.current=None
         self.scene=None;self.active=None;self.players={};self.gate=SessionGate()
         self.pending=[];self.started=time.monotonic();self.last_state=0.
-        self.completed=False;self.orbit_angle=0.;self.request_started=0.
+        self.completed=False;self.endpoint_requested=False;self.orbit_angle=0.;self.request_started=0.
         self.level=None;self.editor=None;self.actors=None;self.world=None
         self.camera=None;self.controller=None;self.source_files=None
         self.streamer=None;self.capture_actor=None;self.capture_component=None
@@ -282,10 +282,22 @@ class LocalPreview:
         check(abs(gamma-2.2)<1e-5,'Capture display gamma readback failed')
         check(self.capture_component.get_editor_property('post_process_blend_weight')==1.,'Capture post-process blend differs')
         check(self.capture_component.get_editor_property('always_persist_rendering_state'),'Capture needs persistent Lumen state')
+        # The capture constructor disables TemporalAA, otherwise downgrading
+        # the project's temporal method. Preserve every unrelated local flag.
+        flags=list(self.capture_component.show_flag_settings)
+        settings=[(flag.get_editor_property('show_flag_name'),bool(flag.get_editor_property('enabled'))) for flag in flags]
+        desired=[(name,True if name=='TemporalAA' else enabled) for name,enabled in settings]
+        if not any(name=='TemporalAA' for name,_ in desired):desired.append(('TemporalAA',True))
+        self.capture_component.show_flag_settings=[
+            unreal.EngineShowFlagsSetting(show_flag_name=name,enabled=enabled) for name,enabled in desired]
+        actual_flags=[(flag.get_editor_property('show_flag_name'),bool(flag.get_editor_property('enabled')))
+                      for flag in self.capture_component.show_flag_settings]
+        check(actual_flags==desired,'Capture show-flag readback changed requested settings')
         self.report['captureLighting']={'dynamicGlobalIllumination':str(gi),
             'reflectionMethod':str(reflection),'targetGamma':gamma,
             'postProcessBlendWeight':1.,'persistentRenderingState':True,
-            'acceptedExposureAndBloomPreserved':exposure_preserved}
+            'acceptedExposureAndBloomPreserved':exposure_preserved,
+            'temporalAAEnabled':True,'showFlags':[{'name':name,'enabled':enabled} for name,enabled in actual_flags]}
 
     def activate(self, move):
         for name,entry in self.players.items():
@@ -303,6 +315,12 @@ class LocalPreview:
         self.active=move
         self.seek(0.)
 
+    def mark_capture_cut(self):
+        # The engine clears this flag after capture. Continuous orbit ticks do
+        # not set it, allowing their temporal history to accumulate normally.
+        if self.capture_component is not None:
+            self.capture_component.set_editor_property('camera_cut_this_frame',True)
+
     def seek(self, fraction):
         entry=self.players[self.active];player=entry['player'];rate=player.get_frame_rate()
         display_frames=fraction*entry['duration']*rate.numerator/rate.denominator
@@ -312,11 +330,21 @@ class LocalPreview:
         player.set_playback_position(unreal.MovieSceneSequencePlaybackParams(
             frame=unreal.FrameTime(frame_number=unreal.FrameNumber(value=whole),sub_frame=sub),
             position_type=unreal.MovieScenePositionType.FRAME,update_method=unreal.UpdatePositionMethod.JUMP))
+        self.endpoint_requested=fraction>=1.
+        self.mark_capture_cut()
 
     def state(self):
         entry=self.players[self.active];player=entry['player']
         seconds=float(unreal.TimeManagementLibrary.conv_qualified_frame_time_to_seconds(player.get_current_time()))
-        return min(1.,max(0.,seconds/entry['duration'])),bool(player.is_playing())
+        progress=min(1.,max(0.,seconds/entry['duration']));playing=bool(player.is_playing())
+        # UE may clamp an endpoint seek to the last authored sample (53/54 in
+        # standing). Normalize only an explicit endpoint seek/completion, never
+        # a user's ordinary pause at that same raw sample.
+        if self.endpoint_requested and not playing:
+            rate=player.get_frame_rate()
+            final_frame=rate.denominator/(rate.numerator*entry['duration'])
+            if progress>=1.-final_frame-1e-5:progress=1.
+        return progress,playing
 
     def set_camera(self, mode, compact):
         # Exact stage-centered presets for both athletes; no mouse/console input.
@@ -345,7 +373,8 @@ class LocalPreview:
         if kind!='play' and (self.scene is None or command['moveId']!=self.active):
             self.current=command;self.send('error',moveId=command['moveId'],message='Load the requested animation before controlling it.')
             return
-        self.current=command;self.completed=False
+        self.current=command
+        if kind in ('play','seek','reset'):self.completed=False
         if kind=='play':
             self.stripe_counts={role:command[
                 command['performerSide'] if role=='Attacker' else
@@ -366,7 +395,9 @@ class LocalPreview:
         player=self.players[self.active]['player']
         if kind in ('play','seek','reset'):self.seek(command['progress'])
         if kind in ('play','setSpeed'):player.set_play_rate(command['speed'])
-        if kind in ('play','setCamera','setViewport'):self.set_camera(command['camera'],command['compactViewport'])
+        if kind in ('play','setCamera','setViewport'):
+            self.set_camera(command['camera'],command['compactViewport'])
+            self.mark_capture_cut()
         if kind in ('play','pause','resume','seek','reset'):
             if command['paused']:player.pause()
             elif self.state()[0]<1.:player.play()

@@ -44,7 +44,7 @@ class LocalPreviewTests(unittest.TestCase):
             render_target=None, video_producer=None, last_capture=0.,
             input=None, input_bound=False, source_files=None, handle=7, keep=Mock(),
             players={}, material_copies={}, material_proof=[], pending=[], current=None,
-            scene=None, active=None, completed=False, had_viewer=False, last_peer_poll=0.,
+            scene=None, active=None, completed=False, endpoint_requested=False, had_viewer=False, last_peer_poll=0.,
             stripe_counts={'Attacker': 0, 'Defender': 0})
         value.save = Mock()
         return value
@@ -138,6 +138,11 @@ class LocalPreviewTests(unittest.TestCase):
             def __init__(self, **properties):self.properties=properties
             def get_editor_property(self, name):return copy.deepcopy(self.properties[name])
             def set_editor_property(self, name, value):self.properties[name]=copy.deepcopy(value)
+            @property
+            def show_flag_settings(self):return self.get_editor_property('show_flag_settings')
+            @show_flag_settings.setter
+            def show_flag_settings(self, value):self.set_editor_property('show_flag_settings',value)
+        self.unreal.EngineShowFlagsSetting=Properties
         self.unreal.DynamicGlobalIlluminationMethod=types.SimpleNamespace(LUMEN='Lumen GI')
         self.unreal.ReflectionMethod=types.SimpleNamespace(LUMEN='Lumen reflection')
         original=dict(override_auto_exposure_method=True,auto_exposure_method='manual',
@@ -150,7 +155,10 @@ class LocalPreviewTests(unittest.TestCase):
             unrelated_color_grading=[.93,1.02,1.07])
         value=self.preview()
         value.camera=types.SimpleNamespace(camera_component=Properties(post_process_settings=Properties(**original)))
-        value.capture_component=Properties(always_persist_rendering_state=True)
+        value.capture_component=Properties(always_persist_rendering_state=True,show_flag_settings=[
+            Properties(show_flag_name='MotionBlur',enabled=False),
+            Properties(show_flag_name='TemporalAA',enabled=False),
+            Properties(show_flag_name='Atmosphere',enabled=False)])
         value.render_target=Properties(target_gamma=0.)
         return value,original
 
@@ -178,6 +186,22 @@ class LocalPreviewTests(unittest.TestCase):
         value,_=self.capture_lighting_fixture()
         value.capture_component.set_editor_property('always_persist_rendering_state',False)
         with self.assertRaisesRegex(RuntimeError,'persistent Lumen state'):
+            value.configure_capture_lighting()
+
+    def test_capture_temporal_flag_preserves_other_flags_and_requires_readback(self):
+        value,_=self.capture_lighting_fixture()
+        value.configure_capture_lighting()
+        flags=value.report['captureLighting']['showFlags']
+        self.assertEqual(flags,[{'name':'MotionBlur','enabled':False},
+            {'name':'TemporalAA','enabled':True},{'name':'Atmosphere','enabled':False}])
+        value,_=self.capture_lighting_fixture()
+        value.capture_component.set_editor_property('show_flag_settings',[])
+        value.configure_capture_lighting()
+        self.assertEqual(value.report['captureLighting']['showFlags'],[{'name':'TemporalAA','enabled':True}])
+        value,_=self.capture_lighting_fixture()
+        setter=value.capture_component.set_editor_property
+        value.capture_component.set_editor_property=lambda name,data:None if name=='show_flag_settings' else setter(name,data)
+        with self.assertRaisesRegex(RuntimeError,'show-flag readback'):
             value.configure_capture_lighting()
 
     def ready_completion_fixture(self, progress, paused=False):
@@ -220,6 +244,104 @@ class LocalPreviewTests(unittest.TestCase):
         self.assertIsNone(value.current)
         self.assertEqual(value.scene['progress'],53/54)
         value.seek.assert_not_called();value.send.assert_not_called()
+
+    def clamped_player_fixture(self, progress=53/54):
+        value,_=self.ready_completion_fixture(progress)
+        del value.state;del value.seek
+        self.unreal.TimeManagementLibrary=types.SimpleNamespace(
+            conv_qualified_frame_time_to_seconds=lambda seconds:seconds)
+        for name in ('MovieSceneSequencePlaybackParams','FrameTime','FrameNumber'):
+            setattr(self.unreal,name,types.SimpleNamespace)
+        self.unreal.MovieScenePositionType=types.SimpleNamespace(FRAME='frame')
+        self.unreal.UpdatePositionMethod=types.SimpleNamespace(JUMP='jump')
+        position=[progress*1.8];playing=[False]
+        def set_position(params):
+            requested=(params.frame.frame_number.value+params.frame.sub_frame)/30.
+            position[0]=min(53/30.,requested)
+        player=types.SimpleNamespace(
+            pause=Mock(side_effect=lambda:playing.__setitem__(0,False)),
+            play=Mock(side_effect=lambda:playing.__setitem__(0,True)),set_play_rate=Mock(),
+            get_current_time=lambda:position[0],is_playing=lambda:playing[0],
+            get_frame_rate=lambda:types.SimpleNamespace(numerator=30,denominator=1),
+            set_playback_position=Mock(side_effect=set_position))
+        value.players['standing_stance']['player']=player
+        value.players['standing_stance']['components']=[]
+        value.gate=types.SimpleNamespace(accept=lambda command:True)
+        value.set_camera=Mock()
+        return value,player,position,playing
+
+    def test_actual_state_distinguishes_clamped_endpoint_from_user_pause(self):
+        value,_,position,playing=self.clamped_player_fixture()
+        self.assertAlmostEqual(value.state()[0],53/54)
+        value.scene['paused']=True
+        self.assertAlmostEqual(value.state()[0],53/54)
+        value.seek(1.)
+        self.assertAlmostEqual(position[0],53/30.)
+        self.assertFalse(value.completed)
+        self.assertEqual(value.state(),(1.,False))
+        position[0]=.9
+        self.assertEqual(value.state(),(.5,False))
+        position[0]=53/30.;playing[0]=True
+        self.assertAlmostEqual(value.state()[0],53/54)
+
+    def test_periodic_state_and_nonposition_controls_keep_completed_endpoint(self):
+        value,_,_,_=self.clamped_player_fixture()
+        value.tick(0.);value.tick(0.)
+        self.assertNotIn('error',value.report)
+        self.assertTrue(value.completed);self.assertTrue(value.endpoint_requested)
+        self.assertEqual(value.state(),(1.,False))
+        states=[call for call in value.send.call_args_list if call.args[0]=='state']
+        self.assertTrue(states)
+        self.assertTrue(all(call.kwargs['progress']==1. for call in states))
+        for number,kind in enumerate(('setCamera','setSpeed','requestState','setViewport'),1):
+            # Stale UI progress must not replace the actual endpoint marker.
+            command=dict(type=kind,moveId='standing_stance',requestId='control:'+str(number),
+                performerSide='fighter',progress=53/54,paused=False,speed=.5,
+                camera='side',compactViewport=False)
+            value.command(command);value.last_state=0.;value.tick(0.)
+            self.assertNotIn('error',value.report)
+            self.assertTrue(value.completed)
+            self.assertEqual(value.state(),(1.,False))
+        completed=[call for call in value.send.call_args_list if call.args[0]=='completed']
+        states=[call for call in value.send.call_args_list if call.args[0]=='state']
+        self.assertEqual(len(completed),1)
+        self.assertTrue(all(call.kwargs['progress']==1. for call in states))
+
+    def test_seek_and_reset_clear_endpoint_and_report_actual_position(self):
+        for kind,progress in (('seek',.5),('seek',53/54),('reset',0.),('play',0.)):
+            with self.subTest(kind=kind):
+                value,_,_,_=self.clamped_player_fixture()
+                value.tick(0.)
+                value.command(dict(type=kind,moveId='standing_stance',requestId='control:1',
+                    performerSide='fighter',fighter={'stripes':0},opponent={'stripes':0},
+                    progress=progress,paused=True,speed=1.,
+                    camera='side',compactViewport=False))
+                self.assertFalse(value.endpoint_requested)
+                self.assertFalse(value.completed)
+                self.assertAlmostEqual(value.state()[0],progress)
+                self.assertFalse(value.state()[1])
+                self.assertLess(value.state()[0],1.)
+                self.assertAlmostEqual(value.send.call_args.kwargs['progress'],progress)
+
+    def test_capture_history_resets_on_discontinuities_not_continuous_orbit(self):
+        value,_,_,_=self.clamped_player_fixture(.4)
+        value.capture_component=types.SimpleNamespace(set_editor_property=Mock())
+        cut=value.capture_component.set_editor_property
+        value.seek(.3)
+        cut.assert_called_once_with('camera_cut_this_frame',True)
+        for kind in ('setCamera','setViewport','play'):
+            cut.reset_mock()
+            # This test isolates camera jumps; playback seek behavior is above.
+            if kind=='play':value.activate=Mock()
+            value.command(dict(type=kind,moveId='standing_stance',requestId='control:1',
+                performerSide='fighter',fighter={'stripes':0},opponent={'stripes':0},
+                progress=.3,paused=True,speed=1.,camera='orbit',compactViewport=False))
+            self.assertTrue(cut.called)
+            self.assertTrue(all(call.args==('camera_cut_this_frame',True) for call in cut.call_args_list))
+        cut.reset_mock();value.orbit_angle=0.;value.last_state=0.
+        value.tick(.02);value.tick(.02)
+        self.assertNotIn('error',value.report)
+        cut.assert_not_called()
 
     def test_performer_identity_controls_exact_stripe_mesh_visibility(self):
         value = self.preview(); components = {}
