@@ -251,8 +251,8 @@ float dx = (folds.height(panel+float2(epsilon,0),isSleeve)
 float dy = (folds.height(panel+float2(0,epsilon),isSleeve)
           - folds.height(panel-float2(0,epsilon),isSleeve)) / (2.0*epsilon);
 // Atlas V is opposite the imported UV1 V; preserve that derivative sign.
-float2 extra = mask * float2(-dx, dy);
-extra *= min(1.0, 0.35 / max(length(extra), 0.000001));
+float2 extra = 1.45 * mask * float2(-dx, dy);
+extra *= min(1.0, 0.40 / max(length(extra), 0.000001));
 return float3(FineNormal.xy + extra, FineNormal.z);
 """)
             check(set(edit.get_material_expression_input_names(fold_detail)) ==
@@ -337,7 +337,7 @@ return float3(FineNormal.xy + extra, FineNormal.z);
         "roughnessChannel": "G", "skinDefaultProfileUntuned": skin,
         "skinBaseColorScale": .82 if skin else None,
         "jacketFoldRelief": ({"source": "authored broad crease height field", "uv": 1,
-                              "derivativeStep": .002, "extraXYLimit": .35,
+                              "derivativeStep": .002, "creaseGain": 1.45, "extraXYLimit": .40,
                               "scope": "torso interior and outer/back sleeve; openings and inner elbow excluded"}
                              if name.endswith("_GiTop") else None),
         "hairStrandRelief": ({'source': 'original grayscale colour atlas', 'uv': 0,

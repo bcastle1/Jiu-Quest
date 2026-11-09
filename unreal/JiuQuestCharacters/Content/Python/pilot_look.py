@@ -318,6 +318,45 @@ def lower_leg_offset(panel, p, u, v, landmarks):
     return tuple(amount*q for q in outward)
 
 
+def jacket_tension_offset(panel, p, u, v, landmarks):
+    """Oblique cotton pulls on the exposed upper sleeve and lateral waist.
+
+    Pull the broad panels inward instead of adding volume to their crests.
+    The unequal neighboring flank leaves a folded plane rather than a ring.
+    Both cloth surfaces receive the same field; the inner elbow, shoulder
+    overlap, cuffs, lapels, front opening and all trousers remain excluded.
+    """
+    x, y, z = p
+    if panel == 'sleeve':
+        support = window(.40, .47, .63, .73, v) * window(.52, .64, .88, .96, u)
+        support *= smooth(.31, .40, abs(x))
+        if support == 0.:
+            return (0., 0., 0.)
+        side = 'l' if x > 0. else 'r'
+        shoulder, wrist = (landmarks[name+'_'+side] for name in ('upperarm', 'hand'))
+        axis = unit(sub(wrist, shoulder))
+        start = tuple(shoulder[k]-.155*axis[k] for k in range(3))
+        center = tuple(start[k]+(wrist[k]-start[k])*v*.97 for k in range(3))
+        radial = sub(p, center)
+        outward = unit(sub(radial, tuple(dot(radial, axis)*q for q in axis)))
+        pull = folded_ridge(u-.735-.24*(v-.53), .070, -.0054)
+        pull += folded_ridge(v-.54+.24*(u-.73), .050, -.0022) * window(.60, .66, .79, .85, u)
+        amount = .005*math.tanh((pull-.0008)*support/.005)
+        return tuple(amount*q for q in outward)
+    if panel == 'torso':
+        support = window(.14, .22, .78, .86, u) * window(.39, .47, .65, .73, v)
+        support *= 1.-smooth(1.325, 1.365, z)
+        support *= 1.-smooth(.020, .070, -y)*(1.-smooth(.105, .140, abs(x)))
+        if support == 0.:
+            return (0., 0., 0.)
+        outward = unit((x, y-.018, 0.))
+        pull = folded_ridge(u-.29+.22*(v-.48), .050, -.0045)
+        pull += folded_ridge(u-.73-.16*(v-.48), .060, -.0037)
+        amount = .005*math.tanh((pull-.0006)*support/.005)
+        return tuple(amount*q for q in outward)
+    return (0., 0., 0.)
+
+
 def panel_at(uv):
     # glTF flips the Blender UV vertical axis on export.
     x, y = uv[0], 1.-uv[1]
@@ -439,8 +478,9 @@ def refine_look(raw):
     mesh_file = MeshFile(raw)
     doc = mesh_file.doc
     original_doc = copy.deepcopy(doc)
-    proof = {'version': 7, 'changes': [], 'maximumFaceOffsetMeters': 0., 'maximumClothOffsetMeters': 0.,
+    proof = {'version': 8, 'changes': [], 'maximumFaceOffsetMeters': 0., 'maximumClothOffsetMeters': 0.,
              'maximumJacketFitOffsetMeters': 0., 'jacketFitOffsetLimitMeters': .005,
+             'maximumJacketTensionOffsetMeters': 0., 'jacketTensionOffsetLimitMeters': .005,
              'maximumLowerLegOffsetMeters': 0., 'lowerLegOffsetLimitMeters': .005,
              'clothOffsetLimitMeters': MAX_CLOTH_OFFSET,
              'clothBoundsExpansionLimitMeters': MAX_CLOTH_BOUNDS_EXPANSION}
@@ -494,6 +534,7 @@ def refine_look(raw):
                             shared_panels[seam_key] = (panel, u, v)
                 result = []; moved = 0; maximum = 0.; panel_maxima = {}
                 fitted = 0; fit_maximum = 0.
+                tension_count = 0; tension_maximum = 0.
                 lower_leg_count = 0; lower_leg_maximum = 0.
                 for i, p in enumerate(positions):
                     canonical = tuple(dot(row, p)+translation[j] for j, row in enumerate(rows))
@@ -512,6 +553,14 @@ def refine_look(raw):
                                 fitted += 1
                                 fit_maximum = max(fit_maximum, fit_distance)
                                 delta = tuple(delta[k]+fit[k] for k in range(3))
+                            tension = jacket_tension_offset(panel, canonical, u, v, landmarks)
+                            tension_distance = math.sqrt(dot(tension, tension))
+                            if tension_distance > .005000001:
+                                raise ValueError('Jacket tension exceeded its separate 5 mm bound')
+                            if tension_distance > 1e-10:
+                                tension_count += 1
+                                tension_maximum = max(tension_maximum, tension_distance)
+                                delta = tuple(delta[k]+tension[k] for k in range(3))
                         if part == 'GiPantsMesh':
                             lower_leg = lower_leg_offset(panel, canonical, u, v, landmarks)
                             lower_leg_distance = math.sqrt(dot(lower_leg, lower_leg))
@@ -557,9 +606,11 @@ def refine_look(raw):
                 proof['changes'].append({'role': role, 'part': part, 'verticesMoved': moved,
                     'maximumOffsetMeters': maximum, 'panelMaximumOffsetsMeters': panel_maxima,
                     'jacketFitVertices': fitted, 'maximumJacketFitOffsetMeters': fit_maximum,
+                    'jacketTensionVertices': tension_count, 'maximumJacketTensionOffsetMeters': tension_maximum,
                     'lowerLegVertices': lower_leg_count, 'maximumLowerLegOffsetMeters': lower_leg_maximum,
                     'maximumOriginalBoundsExpansionMeters': expansion, **audit})
                 proof['maximumJacketFitOffsetMeters'] = max(proof['maximumJacketFitOffsetMeters'], fit_maximum)
+                proof['maximumJacketTensionOffsetMeters'] = max(proof['maximumJacketTensionOffsetMeters'], tension_maximum)
                 proof['maximumLowerLegOffsetMeters'] = max(proof['maximumLowerLegOffsetMeters'], lower_leg_maximum)
                 bound = 'maximumFaceOffsetMeters' if part == 'Body' else 'maximumClothOffsetMeters'
                 proof[bound] = max(proof[bound], maximum)
@@ -581,7 +632,7 @@ def refine_look(raw):
     proof.update(sourceSha256=hashlib.sha256(raw).hexdigest(), importSha256=hashlib.sha256(result).hexdigest(),
         scopedPositionBoundsOnly=True, positionBoundsAccessors=updated_bounds,
         protectedBinaryBytesUnchanged=True, binaryByteLengthUnchanged=True,
-        scope='Accepted face and full jacket retained; bounded outer/front lower-knee and calf drape below the exact upper trousers; original source retained',
+        scope='Accepted face and full trousers retained; bounded oblique outer-sleeve and lateral-waist pulls outside protected jacket overlaps; original source retained',
         limitations=['Rest-pose triangle/frame checks do not establish every posed contact or skin clearance.',
                      'Covered body skin, hands, cuffs, lapels, rig, motion and texture coordinates are not reauthored.',
                      'Baked cloth shapes suggest anatomy; no dynamic cloth or muscle simulation.'])

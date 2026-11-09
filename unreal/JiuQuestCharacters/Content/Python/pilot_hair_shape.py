@@ -440,7 +440,7 @@ def refine_hair_shape(raw):
         'scope':'Six primary Slick locks with unequal swept sub-clumps; scalp/other locks/hairline/tips retained; render pending'}
 
 
-def author_spikes_crowns(positions, normals, faces, components, crowns, root_centers, scalp_component, weld, rings, find):
+def author_spikes_crowns(positions, normals, faces, components, crowns, root_centers, scalp_component, weld, rings, find, canonical_rotation):
     """Re-author exposed source rings before detail; preserve root/tip anchors."""
     scalp_triangles=[]
     for face in faces:
@@ -461,7 +461,13 @@ def author_spikes_crowns(positions, normals, faces, components, crowns, root_cen
                 original=grid[(row,column)];relative=sub(original,center)
                 delta=add(mul(across,dot(relative,across)*(width-1.)),
                           mul(outward,dot(relative,outward)*(depth-1.)+(.003 if row==1 else 0.)))
-                candidate=add(original,delta);base,_=clearance(original,scalp)
+                candidate=add(original,delta)
+                # Lower the second raised ring; the terminal ring stays exact.
+                # A level ridge beside that tip reads as a square upright cap.
+                if row==2:
+                    drop=(.0042,.0050,.0046,.0048,.0040)[order]
+                    candidate=add(candidate,tuple(-canonical_rotation[2][axis]*drop for axis in range(3)))
+                base,_=clearance(original,scalp)
                 margin=clearance(candidate,scalp)[0]-min(base,.003)
                 require(margin>=-1e-7,'Authored crown vertex crossed original scalp floor')
                 moves[original]=candidate;displacements.append(math.dist(candidate,original));vertex_margins.append(margin)
@@ -488,6 +494,7 @@ def author_spikes_crowns(positions, normals, faces, components, crowns, root_cen
     require(max(displacements)<=.0081,'Authored crown source-ring movement exceeds 8.1 mm')
     return output,{'taperedCrownLocks':5,'profileAuthoredBeforeSubdivision':True,
         'maximumAuthoredCrownDisplacementMeters':max(displacements),
+        'upperShoulderDropMeters':[.0042,.0050,.0046,.0048,.0040],
         'crownShoulderWidthReductionsMeters':widths,'minimumAuthoredCrownVertexMarginMeters':min(vertex_margins),
         'authoredSourceTriangleAreaMinimum':minimum_area,'authoredSourceTriangleNormalDotMinimum':minimum_normal,
         'checkedAuthoredTrianglePoints':len(margins),'minimumAuthoredTrianglePointMarginMeters':min(margins)}
@@ -528,7 +535,7 @@ def crown_source_audit(output, faces, reference, layers, crown_layers, scalp):
         'checkedCrownTriangleCentroids':len(centroid_margins),'minimumCrownCentroidClearanceMarginMeters':min(centroid_margins)}
 
 
-def shape_spikes(values, indices, canonical, head_joint):
+def shape_spikes(values, indices, canonical, head_joint, canonical_rotation):
     require(len(values['POSITION']) == 1775 and len(indices) == 1408*3, 'Expected original Spikes topology; repeat shaping is unsupported')
     p,n,t,uv,joints,weights = (values[k] for k in ('POSITION','NORMAL','TANGENT','TEXCOORD_0','JOINTS_0','WEIGHTS_0'))
     require(all(sum(w for j,w in zip(js,ws) if j == head_joint) == 1. and sum(ws) == 1.
@@ -586,7 +593,7 @@ def shape_spikes(values, indices, canonical, head_joint):
     original_closed_edges = closed_lock_edges([f for f in faces if find(weld[f[0]]) in selected],p)
     layer_numbers = {component:i for i,component in enumerate(sorted(selected,key=lambda c:root_centers[c][0]))}
     source_positions=list(p)
-    p,profile_proof=author_spikes_crowns(p,n,faces,components,crowns,root_centers,scalp[0],weld,rings,find)
+    p,profile_proof=author_spikes_crowns(p,n,faces,components,crowns,root_centers,scalp[0],weld,rings,find,canonical_rotation)
     remap=dict(zip(source_positions,p));keys=[remap[q] for q in keys]
     bevel_frames = {}; crown_layers={layer_numbers[c] for c in crowns}
     for component,layer in layer_numbers.items():
@@ -680,6 +687,10 @@ def shape_spikes(values, indices, canonical, head_joint):
     source_reference=linear_subdivision_reference(source_reference,output_selected)
     output_selected,detail_proof = finer_clumps(output,output_selected,reference,layers,scalp_triangles,bevel_parameters,bevel_frames,exposed_only=True)
     require(len(source_reference)==len(output['POSITION']),'Original-source reference indexing changed')
+    # Keep the silhouette authoring dominant over earlier rounded micro-relief.
+    for i in {i for face,_ in output_selected if layers[face[0]] in crown_layers for i in face}:
+        output['POSITION'][i]=add(reference[i],mul(sub(output['POSITION'][i],reference[i]),.5))
+    detail_proof['crownDetailRetention']=.5
     taper_proof=crown_source_audit(output,output_selected,source_reference,layers,crown_layers,scalp_triangles)
     detail_proof['maximumRefinementFromAuthoredMeters']=detail_proof['maximumTotalSourceDeviationMeters']
     detail_proof['maximumTotalSourceDeviationMeters']=max(detail_proof['maximumTotalSourceDeviationMeters'],taper_proof['maximumCrownTotalSourceDeviationMeters'])
@@ -751,7 +762,7 @@ def refine_spikes_shape(raw):
         attributes = primitive['attributes']; values = {k:source.read(v) for k,v in attributes.items()}
         require(set(values)=={'POSITION','NORMAL','TANGENT','TEXCOORD_0','JOINTS_0','WEIGHTS_0'},'Unexpected Spikes attributes')
         canonical = [tuple(dot(row,p)+translation[k] for k,row in enumerate(rotation)) for p in values['POSITION']]
-        shaped,indices,proof = shape_spikes(values,[i[0] for i in source.read(primitive['indices'])],canonical,head[0])
+        shaped,indices,proof = shape_spikes(values,[i[0] for i in source.read(primitive['indices'])],canonical,head[0],rotation)
         for key,values in shaped.items():
             if key=='POSITION':
                 values = [struct.unpack('<3f',struct.pack('<3f',*p)) for p in values]
@@ -775,4 +786,4 @@ def refine_spikes_shape(raw):
     result = struct.pack('<III',0x46546c67,2,28+len(encoded)+len(binary))+struct.pack('<II',len(encoded),0x4e4f534a)+encoded+struct.pack('<II',len(binary),0x004e4942)+binary
     return bytes(result),{'sourceSha256':hashlib.sha256(raw).hexdigest(),'importSha256':hashlib.sha256(result).hexdigest(),
         'originalBinaryPrefixUnchanged':True,'otherMeshesRigAndMotionExact':True,'roles':rows,
-        'scope':'Five source crown profiles narrowed unevenly before subdivision within a separate 9 mm source envelope; original scalp/fringe/other locks/all roots/tips retained; render pending'}
+        'scope':'Five crown profiles narrowed with uneven 4-5 mm upper-ring drops before subdivision, within the existing 9 mm source envelope; original scalp/fringe/other locks/all roots/tips retained; render pending'}
