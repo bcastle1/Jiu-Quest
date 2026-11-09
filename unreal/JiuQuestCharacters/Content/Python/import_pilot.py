@@ -165,7 +165,11 @@ def make_material(spec, images, stage, folder, cache):
 
     # Fixed review palette; no saved app appearance or runtime tint controls.
     factor = list(spec["baseColor"])
-    if "_Defender_Gi" in name:
+    if skin:
+        # Keep the source skin hue while retaining facial planes under the
+        # fixed review lights. This is linear albedo, not camera exposure.
+        factor[:3] = [channel * .82 for channel in factor[:3]]
+    elif "_Defender_Gi" in name:
         factor = [.025, .045, .09, 1.]
     elif "_Attacker_Gi" in name:
         factor = [.65, .67, .69, 1.]
@@ -260,6 +264,7 @@ def make_material(spec, images, stage, folder, cache):
                         "UV1 derivative world space" if cloth and spec["normalTexture"] else "mesh tangent space"),
         "roughnessUV": (spec["roughnessTexture"] or {}).get("uv"),
         "roughnessChannel": "G", "skinDefaultProfileUntuned": skin,
+        "skinBaseColorScale": .82 if skin else None,
         "hairStrandRelief": ({'source': 'original grayscale colour atlas', 'uv': 0,
                               'tiling': [4., 1.], 'normalIntensity': 3., 'uvOffset': .0039}
                              if name.endswith('_Hair') else None)})
