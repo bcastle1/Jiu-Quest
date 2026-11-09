@@ -21,7 +21,8 @@ export default function UnityGrapplingStage({ moveId, moveLabel, performerSide =
   const [status, setStatus] = useState({ phase: 'loading', loaded: 0, message: '' });
   const [playback, setPlayback] = useState({ playing: false, progress: 0 });
   const [speed, setSpeed] = useState(1);
-  const [camera, setCamera] = useState(UNITY_DEFAULT_CAMERA);
+  const [selectedCamera, setCamera] = useState(null);
+  const camera = selectedCamera ?? (moveId === 'rear_naked_choke' ? 'front' : UNITY_DEFAULT_CAMERA);
   const [fullScreenAvailable, setFullScreenAvailable] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const [stageMessage, setStageMessage] = useState('');
