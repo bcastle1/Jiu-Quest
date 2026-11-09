@@ -33,7 +33,9 @@ jobs:
   offline-validation:
     name: Protocol and source preservation (no Unreal rendering)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Dense source/candidate scalp and contact audits exceed the former budget.
+    # Keep their complete coverage; this cap is unrelated to runtime readiness.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v5
