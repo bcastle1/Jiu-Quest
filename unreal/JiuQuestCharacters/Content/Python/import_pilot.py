@@ -16,6 +16,46 @@ from pilot_look import refine_look
 from pilot_hair import refine_hair
 from pilot_hair_shape import refine_hair_shape, refine_spikes_shape
 
+# Frozen from the visually reviewed material-only pilot. Keep the HLSL exact:
+# this changes normal shading, never mesh positions, cloth physics or pairing.
+PANTS_NORMAL_SHA256 = "08584b75c79a341263c518472da109e6053f50d8be541d1f506578e9e43d5be5"
+PANTS_NORMAL_CODE = r'''
+struct TrouserFolds {
+  float ridge(float d, float width) {
+    float r=d/width;
+    float a=sqrt(r*r+0.01)-0.1;
+    float h=1.0-a;
+    float crest=0.5*(h+sqrt(h*h+0.0036))*(1.0-smoothstep(1.08,1.40,a));
+    float q=(r+1.2)/0.62;
+    return crest-0.46*exp(-q*q);
+  }
+  float height(float2 p) {
+    float angle=p.x*6.28318530718;
+    float front=pow(max(0.0,-cos(angle)),4.0);
+    float side=pow(max(0.0,-sin(angle)),2.0);
+    float h=0.0065*ridge(p.y-0.35-0.065*sin(angle),0.032);
+    h+=0.0080*ridge(p.y-0.445+0.048*sin(angle),0.038);
+    h+=0.0045*ridge(p.y-0.545-0.030*sin(angle),0.047);
+    h*=front;
+    h+=0.0040*ridge(p.y-0.73-0.12*sin(angle),0.045)*side;
+    float edge=smoothstep(0.07,0.13,min(p.x,1.0-p.x));
+    float vertical=smoothstep(0.12,0.21,p.y)*(1.0-smoothstep(0.79,0.89,p.y));
+    return h*edge*vertical;
+  }
+};
+TrouserFolds folds;
+float2 atlas=float2(AtlasUV.x,1.0-AtlasUV.y);
+float2 cell=floor(atlas*2.0);
+float2 panel=(atlas-cell*0.5-0.008)/0.484;
+float mask=(1.0-step(0.5,cell.x))*step(0.5,cell.y);
+float epsilon=0.002;
+float dx=(folds.height(panel+float2(epsilon,0))-folds.height(panel-float2(epsilon,0)))/(2.0*epsilon);
+float dy=(folds.height(panel+float2(0,epsilon))-folds.height(panel-float2(0,epsilon)))/(2.0*epsilon);
+float2 extra=1.45*mask*float2(-dx,dy);
+extra*=min(1.0,0.40/max(length(extra),0.000001));
+return float3(FineNormal.xy+extra,FineNormal.z);
+'''
+
 PROJECT = Path(__file__).resolve().parents[2]
 STAGING = PROJECT / "Saved/PilotStaging"
 REVIEW = PROJECT / "Saved/PilotReview"
@@ -268,6 +308,23 @@ return float3(FineNormal.xy + extra, FineNormal.z);
                   {"FineNormal", "AtlasUV"}, "Jacket fold inputs changed")
             connect(normal, "RGB", fold_detail, "FineNormal")
             normal_source, normal_output = fold_detail, ""
+        elif name.endswith("_GiPants"):
+            check(digest(PANTS_NORMAL_CODE.encode("utf-8")) == PANTS_NORMAL_SHA256,
+                  "Frozen pants normal shader changed")
+            fold_detail = node(unreal.MaterialExpressionCustom)
+            fold_detail.set_editor_property("description", "Directional trouser fold relief")
+            fold_detail.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT3)
+            inputs = []
+            for input_name in ("FineNormal", "AtlasUV"):
+                item = unreal.CustomInput()
+                item.set_editor_property("input_name", input_name)
+                inputs.append(item)
+            fold_detail.set_editor_property("inputs", inputs)
+            fold_detail.set_editor_property("code", PANTS_NORMAL_CODE)
+            check(set(edit.get_material_expression_input_names(fold_detail)) ==
+                  {"FineNormal", "AtlasUV"}, "Trouser fold inputs changed")
+            connect(normal, "RGB", fold_detail, "FineNormal")
+            normal_source, normal_output = fold_detail, ""
         scaled = multiply(normal_source, normal_output, color([strength, strength, 1.]))
         normalized = node(unreal.MaterialExpressionNormalize)
         # Normalize has one input; the documented empty-name convention selects
@@ -337,6 +394,16 @@ return float3(FineNormal.xy + extra, FineNormal.z);
     edit.layout_material_expressions(material)
     edit.recompile_material(material)
     unreal.EditorAssetLibrary.save_loaded_asset(material)
+    if name.endswith("_GiPants") and spec["normalTexture"]:
+        actual_code = fold_detail.get_editor_property("code")
+        check(actual_code == PANTS_NORMAL_CODE, "Trouser shader readback changed")
+        actual_hash = digest(actual_code.encode("utf-8"))
+        check(actual_hash == PANTS_NORMAL_SHA256, "Trouser shader readback hash changed")
+        REPORT.setdefault("pantsReliefGraphs", []).append({"source": name,
+            "material": material.get_path_name(), "node": fold_detail.get_path_name(),
+            "actualCodeMatchesFrozenShader": True, "shaderSha256": PANTS_NORMAL_SHA256,
+            "readbackSha256": actual_hash,
+            "inputs": sorted(edit.get_material_expression_input_names(fold_detail))})
     REPORT["materialGraphs"].append({"source": name, "asset": material.get_path_name(),
         "colorUV": (spec["colorTexture"] or {}).get("uv"),
         "normalUV": 0 if name.endswith('_Hair') else (spec["normalTexture"] or {}).get("uv"),
@@ -351,6 +418,11 @@ return float3(FineNormal.xy + extra, FineNormal.z);
                               "planeBlend": .75, "planeScale": .88,
                               "scope": "torso interior and outer/back sleeve; openings and inner elbow excluded"}
                              if name.endswith("_GiTop") else None),
+        "pantsFoldRelief": ({"source": "frozen directional trouser crease height field", "uv": 1,
+                             "shaderSha256": PANTS_NORMAL_SHA256, "derivativeStep": .002,
+                             "creaseGain": 1.45, "extraXYLimit": .40,
+                             "scope": "GiPants normal shading only; geometry and fine weave retained"}
+                            if name.endswith("_GiPants") and spec["normalTexture"] else None),
         "hairStrandRelief": ({'source': 'original grayscale colour atlas', 'uv': 0,
                               'tiling': [4., 1.], 'normalIntensity': 3., 'uvOffset': .0039}
                              if name.endswith('_Hair') else None)})

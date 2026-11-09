@@ -1,6 +1,6 @@
 # JiuQuest Unreal character pilot
 
-This is a separate, content-only Unreal Engine **5.8** project for the original JiuQuest fighters. Unreal **5.8.4** is installed locally and the three original scenes now import and render in the actual Editor. This remains a local character pilot, not a packaged production build. No C++ compiler, paid content, MetaHuman conversion, app route or public host is required. The existing application is unchanged.
+This is a separate, content-only Unreal Engine **5.8** project for the original JiuQuest fighters. Unreal **5.8.4** is installed locally and the three original scenes import and render in the actual Editor. This remains a local character pilot, not a packaged production build. The development app now includes a guarded local Unreal renderer option; production gameplay remains Unity. No public GPU host or vendor purchase is supplied by this project.
 
 The first comparison uses standing stance, rear naked choke and armbar from source commit `abb747c2772bc690fc7e2aa8ec4cb8e477a082b9`. `pilot-assets.json` pins their sizes and SHA-256 values. Source assets and license records remain in `public/animations/bjj` and `tools/assets/jiuquest-realistic/README.md`; no second tracked copy is added.
 
@@ -8,7 +8,7 @@ The first comparison uses standing stance, rear naked choke and armbar from sour
 
 The preparer can verify/stage source files and extract their existing embedded textures without Unreal. Source-selection tests can establish exact preservation of binary animation, geometry and image data. They cannot establish successful Unreal import, shader compilation, correct paired poses, acceptable appearance, cooking, performance or streaming. Those require the actual Editor and rendered review. Do not describe a staging success or an Editor process ID as a working Unreal preview.
 
-Python is an Editor production tool. A saved LevelSequence supplies one local playback clock for parent transforms and all skeletal parts. This project does **not** implement a runtime JiuQuest Pixel Streaming command receiver, connected React state bridge, seek/replay UI or multiplayer. Pixel Streaming 2 is enabled for the local pilot and matching infrastructure. No live endpoint is configured.
+Python is an Editor production tool. A saved LevelSequence supplies one local playback clock for parent transforms and all skeletal parts. The separate `local_app_preview.py` receiver and guarded React iframe support a local Editor integration with playback controls. Only `standing_stance`, `rear_naked_choke` and generic `armbar` are imported; this is not the full curriculum, multiplayer or a public engine migration. The exact Rear Naked Choke lesson can map to its clip; generic armbar cannot stand in for a different named technique. Actual receiver acknowledgement and presented video are required before controls become available. See [local streaming setup](../../docs/unreal-local-streaming.md). No public runtime endpoint is configured.
 
 ## Prepare and import
 
@@ -125,6 +125,18 @@ Results are isolated under ignored `Saved/PilotReview/captures/<UTC timestamp>/`
 The Slate callback has a three-minute deadline per image and a fifteen-minute overall deadline, with listener and keep-alive cleanup on completion or failure. Deadlines are checked between Editor calls; the supervising caller must monitor the returned process ID and terminate a hung native load or graphics driver call. The launcher starts the process and returns its ID; it does not provide a watchdog. A failed run retains its partial evidence and records `failed`. Do not treat process creation, a queued screenshot or a partial image as a successful capture.
 
 ## What the recipe builds
+
+The pants normal-relief branch retains the exact visually selected HLSL SHA-256
+`08584b75c79a341263c518472da109e6053f50d8be541d1f506578e9e43d5be5`.
+It adds modest directional creases only to GiPants normal shading, with a 0.002
+derivative step, 1.45 gain and 0.40 added-XY cap before the existing source-strength
+and normalization path. The same UV1 derivative basis and fine normal texture are
+retained. Geometry, silhouette, base color, roughness, lighting and paired motion are
+unchanged by this material branch; it is not simulated cloth or displacement.
+The shader lives in the already-hashed `import_pilot.py` recipe. Each generated pants
+material checks the compiled/saved node's code readback and records its exact hash in
+`pantsReliefGraphs`. Offline graph tests protect that routing and reject changed
+readback or the wrong UV channel; fresh imported images remain a separate review.
 
 - Four composed, import-only character passes run after hair selection, with separate guarded shape routines for Spikes and Slick. `ready_hands.py` modifies only the standing clip's existing wrist/finger rotation samples: fingertips face the opponent with a loose curl and open thumb web, while wrist positions, arm poses, key times, hierarchy and all non-hand channels remain exact. Other clips pass through this step byte-for-byte. The wrist swing is bounded to 55 degrees; the original white fighter's downward palm required approximately 51–54 degrees, while the other fighter required about 6 degrees. This is an authored ready gesture, not a simulated grip on clothing.
 - `pilot_look.py` adds inward, oblique cotton pulls to the outer upper sleeves and lateral waist, within a separate 5 mm limit (measured 4.56 mm). Sampled upper-arm depth decreases from 133.67 to 129.26 mm while retaining its other dimension. The accepted face, shoulder fit and full trousers, including the corrected lower-leg drape, remain exact. A baseline-derived regression digest protects their positions, normals and tangents and all jacket regions outside the narrow deformation and incident-shading mask. The 612 inner-elbow vertices per role, shoulder overlaps, cuffs, lapels and front opening remain excluded. The combined cloth bound remains 22 mm (measured 18.07 mm), and the whole-mesh bounds limit remains 3 mm (measured 1.81 mm). Source topology, UVs, weights, images, rig and animation stay exact. Seam copies share deformation and smooth normals while retaining separate UV tangents. Triangle area/orientation checks cover the rest shape, not every posed contact.

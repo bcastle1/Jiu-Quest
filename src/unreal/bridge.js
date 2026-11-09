@@ -112,7 +112,14 @@ export function createUnrealBridge({ instanceId, onEvent = () => {}, onStatus = 
     },
     command(type, values = {}) {
       const update = unrealControl(type, values);
-      if (!canControl() || update === null) return null;
+      if (phase === 'disposed' || update === null) return null;
+      if (!canControl()) {
+        // Visibility/reduced-motion pauses and composition hints may arrive
+        // before the handshake. Queue them without sending a scene command or
+        // resetting the last confirmed position retained for reconnect.
+        if (scene && ['pause', 'setViewport'].includes(type)) scene = { ...scene, ...update };
+        return null;
+      }
       scene = { ...scene, ...update };
       return send(type);
     },

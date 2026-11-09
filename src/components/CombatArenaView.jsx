@@ -4,8 +4,8 @@ import { TechniqueStep } from './TechniqueText.js';
 import { allMoves, beltLabels, trainingStartPositions } from "../data/curriculum.js";
 import { createArenaState, getArenaPositionLabel, getPositionForSide } from "../arena/outcome.js";
 import GrapplingSnapshotStage from "./GrapplingSnapshotStage.jsx";
-import UnityGrapplingStage from "./UnityGrapplingStage.jsx";
-import { isUnityEnabled, resolveArenaUnityPlayback } from "../unity/bridge.js";
+import GrapplingStage from "./GrapplingStage.jsx";
+import { resolveArenaUnityPlayback } from "../unity/bridge.js";
 
 function startsFrom(move, position) {
   return move.id === "protect-position" || move.starts?.includes(position);
@@ -189,7 +189,8 @@ export default function CombatArenaView({
           </div>
 
           <div className={`mat-window cinematic-mode ${combat.result ? "result-mode" : ""}`}>
-            {isUnityEnabled(window.location.search) ? <UnityGrapplingStage
+            <GrapplingStage
+              idleStanding={!combat.result && combat.position === 'standing'}
               moveId={unityPlayback?.moveId}
               performerSide={unityPlayback?.performerSide}
               moveLabel={combat.result?.techniqueName}
@@ -199,14 +200,7 @@ export default function CombatArenaView({
               opponent={opponent}
               unavailableReason={!combat.result ? 'The settled position is shown until a supported exchange succeeds.' : 'This exchange has no matching successful Unity animation yet.'}
               fallback={<GrapplingSnapshotStage state={combat} fighter={fighter} fighterBelt={beltStatus} opponent={opponent} result={combat.result} onReplay={() => announce(`Reviewing the settled position: ${positionLabel.toLowerCase()}.`)} />}
-            /> : <GrapplingSnapshotStage
-              state={combat}
-              fighter={fighter}
-              fighterBelt={beltStatus}
-              opponent={opponent}
-              result={combat.result}
-              onReplay={() => announce(`Reviewing the settled position: ${positionLabel.toLowerCase()}.`)}
-            />}
+            />
           </div>
 
           {combat.result && (

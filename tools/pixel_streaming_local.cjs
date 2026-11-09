@@ -16,6 +16,7 @@ const HOST = '127.0.0.1';
 const PLAYER_PORT = 49080;
 const STREAMER_PORT = 49088;
 const ORIGIN = `http://${HOST}:${PLAYER_PORT}`;
+const APP_ORIGIN = 'http://127.0.0.1:5178';
 // UE5.8's native WebSocket client sends this host-only Origin on loopback.
 const NATIVE_STREAMER_ORIGIN = `http://${HOST}`;
 const PACKAGES = {
@@ -55,7 +56,26 @@ function loadInfrastructure() {
     assert.equal(SignallingProtocol.SIGNALLING_VERSION, '1.3.0');
     const publicRoot = fs.realpathSync(path.join(INFRA, 'SignallingWebServer', 'www'));
     for (const name of ['player.html', 'player.js']) assert.ok(fs.statSync(path.join(publicRoot, name)).isFile());
+    // Build our isolated client from the checked, pinned Epic library. Generated
+    // code stays outside both tracked trees and is never included in dist.
+    const appRequire = createRequire(require.resolve('vite/package.json'));
+    appRequire('esbuild').buildSync({ entryPoints: [path.join(ROOT, 'tools', 'unreal_embed.js')], bundle: true,
+        format: 'esm', platform: 'browser', target: 'es2022', logLevel: 'silent',
+        alias: { '@epicgames-ps/lib-pixelstreamingfrontend-ue5.8': path.join(INFRA, 'Frontend', 'library', 'dist', 'esm', 'pixelstreamingfrontend.js') },
+        outfile: path.join(PILOT, 'jiuquest-embed.js') });
     return { SignallingServer, InitLogging, publicRoot, versions, protocol: SignallingProtocol.SIGNALLING_VERSION };
+}
+
+function embeddedFile(url) {
+    let pathname;
+    try { pathname = new URL(url, ORIGIN).pathname; } catch { return null; }
+    const routes = {
+        '/jiuquest/embed': ['tools/unreal_embed.html', 'text/html; charset=utf-8'],
+        '/jiuquest/embed.js': ['tmp/unreal-pilot/jiuquest-embed.js', 'application/javascript'],
+        '/jiuquest/embed.css': ['tools/unreal_embed.css', 'text/css'],
+    };
+    if (!Object.hasOwn(routes, pathname)) return null;
+    return { file: path.join(ROOT, routes[pathname][0]), type: routes[pathname][1] };
 }
 
 function checkGuards(publicRoot) {
@@ -141,6 +161,13 @@ async function main(args = process.argv.slice(2)) {
             return;
         }
         try {
+            const embedded = embeddedFile(req.url);
+            if (embedded) {
+                res.setHeader('Content-Security-Policy', `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://127.0.0.1:49080; media-src 'self' blob:; img-src 'self' data:; frame-ancestors ${APP_ORIGIN}; base-uri 'none'; form-action 'none'`);
+                const bytes = fs.readFileSync(embedded.file);
+                res.writeHead(200, { 'Content-Type': embedded.type, 'Content-Length': bytes.length });
+                res.end(req.method === 'HEAD' ? undefined : bytes); return;
+            }
             const candidate = fileFor(req.url, sdk.publicRoot);
             const file = candidate && fs.realpathSync(candidate);
             if (!file || !file.startsWith(sdk.publicRoot + path.sep) || !fs.statSync(file).isFile()) {
@@ -180,5 +207,5 @@ async function main(args = process.argv.slice(2)) {
     } catch (error) { await shutdown(1, error); }
 }
 
-module.exports = { HOST, PLAYER_PORT, STREAMER_PORT, ORIGIN, loopback, acceptPlayer, acceptStreamer, fileFor, checkGuards, listen, closeSockets, makeSignallingConfig, main };
+module.exports = { HOST, PLAYER_PORT, STREAMER_PORT, ORIGIN, APP_ORIGIN, loopback, acceptPlayer, acceptStreamer, fileFor, embeddedFile, checkGuards, listen, closeSockets, makeSignallingConfig, main };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });

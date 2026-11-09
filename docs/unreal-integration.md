@@ -1,12 +1,12 @@
 # Unreal renderer pilot inside JiuQuest
 
-This is an offline integration foundation for an Unreal Pixel Streaming renderer inside the existing jiuquest.com app. It does not activate an Unreal route, load an Epic SDK, connect to a service, change the production renderer, or provide new character graphics. The Unreal receiver described below is not implemented by this JavaScript adapter. A working Unreal project, imported assets, receiver, stream and browser rendering still require direct verification.
+The local development app can select an Unreal Pixel Streaming preview in its actual Training and Arena views. This is restricted to a Vite development build at `http://127.0.0.1:5178`; use `?engine=unreal` or the local **Character graphics** selector. Production renderer selection is unchanged. The local iframe loads the pinned Epic UE5.8 library from the loopback service described in `docs/unreal-local-streaming.md`. This integration does not supply a public GPU host. A working Unreal receiver, actual imported characters, controls and presented video must be verified together; protocol tests alone do not prove rendering.
 
 ## Ownership and integration seams
 
 React remains authoritative for curriculum ordering, training reps, unlocks, match outcomes, scores, ownership of positions, and persistence. `App.jsx` resolves training tests and Arena turns before renderer playback. Renderer messages describe playback only; a completed animation must never call `updateProgress`, resolve another Arena turn, or write saved state.
 
-The future embedded surface belongs where `UnityGrapplingStage` is currently used in `App.jsx` and `CombatArenaView.jsx`. It should preserve those controls and the existing fallback behavior. This pilot adds no calls at those seams. `src/unreal/contract.js` reuses the current exact move mapping and cosmetic sanitizer from `src/unity/bridge.js`; no Unity behavior is changed.
+`GrapplingStage` selects the renderer at the existing `App.jsx` and `CombatArenaView.jsx` seams. `UnrealGrapplingStage` owns only playback and connection state. Existing Unity and position-snapshot paths remain available. `src/unreal/contract.js` reuses the exact move mapping and cosmetic sanitizer from `src/unity/bridge.js`; no technique is renamed or substituted. Arena may show `standing_stance` before an exchange only when its actual position is standing. Other positions retain snapshots until an exact supported result is available.
 
 The current 1 vs 1 view is a paired, authored player/NPC technique. This integration does not add network multiplayer. `performerSide` follows the resolved technique actor (`actorIsPlayer`), which can differ from the eventual match winner. Both characters must use a single playback clock.
 
@@ -18,7 +18,7 @@ The injected interface matches Epic's [UE5.8 PixelStreaming frontend implementat
 - `addResponseEventListener(name, listener)` receives Unreal response strings; `removeResponseEventListener(name)` removes that listener.
 - `addEventListener` and `removeEventListener` register lifecycle callbacks. The adapter invalidates its session on `webRtcDisconnected`, `webRtcFailed`, `streamPreDisconnect`, or `streamReconnect`.
 
-No `emitCommand`, console command or arbitrary URL is exposed. A future frontend dependency must match the installed Unreal version and be pinned and checked then; this interface check does not establish that Unreal is installed or compatible with this project's assets.
+No `emitCommand`, console command or arbitrary URL is exposed. The local frontend uses infrastructure commit `4afd64170216002070a42fa52a87a44d4e97e77c`, matching UE5.8, checked by the loopback launcher. Package and interface checks do not establish that imported assets render correctly.
 
 The caller owns the Epic client, connection, video element and teardown. Create the bridge with a fresh unique ID for each mounted surface (for example `crypto.randomUUID()`). After the client's data channel can send, call `attach(client)`. A send rejection immediately returns the bridge to offline. Retry by attaching after the actual connection is usable, rather than treating a socket connection as success.
 
@@ -40,7 +40,7 @@ bridge.attach(client);
 // On unmount: bridge.dispose(), then the owner tears down its Epic client.
 ```
 
-This example is not wired into the app and does not fabricate a stream. Caller callbacks must only update connection/playback UI. The frontend must also observe an actual displayed video frame and enforce its own video-start deadline before declaring the graphics available. `receiverReady` means only that the application-level Unreal handshake succeeded; it does not prove visible video, correct assets, quality or performance.
+This illustrates the bridge used by `UnrealGrapplingStage`. Its callbacks only update connection/playback UI. The iframe reports an open data channel only after Epic's actual `isDataChannelOpen()` returns true. After each `play`, it waits for a matching receiver `state` acknowledgement and two subsequent `requestVideoFrameCallback` presentations with nonzero video dimensions. The parent accepts that proof only for its current play request. A 45-second initial deadline prevents an endless startup state. `receiverReady` alone does not enable the stage controls or prove visible video, correct assets, quality or performance.
 
 ## Receiver protocol, version 1
 
@@ -95,10 +95,17 @@ All responses are JSON strings limited to 8,192 UTF-8 bytes. IDs are bounded and
 ## Disconnect and lifecycle behavior
 
 - A missing application handshake times out after 15 seconds. Transport connectivity never enables controls by itself.
+- Visibility/reduced-motion pauses and viewport hints received before readiness update the queued scene without sending a control early or resetting saved playback progress.
 - Stream loss, rejected sends and receiver errors disable controls and freeze the last confirmed progress with playing false.
 - Reattach changes the session, repeats the handshake and sends the latest scene paused at its last confirmed position. It does not resolve another turn or award a rep.
 - Dispose removes response/lifecycle listeners and rejects late callbacks and all subsequent controls. It does not own or disconnect a shared Epic client; that client must be stopped by its owner when appropriate.
-- The eventual UI must pause on a hidden tab, respect reduced motion, and preserve the current app state if video never arrives or disconnects. These UI behaviors remain unimplemented for Unreal.
+- The local stage pauses on a hidden tab, respects reduced motion for automatic playback, and preserves app state if video never arrives or disconnects. Explicit Play/Replay remains available after genuine readiness. Retry replaces the iframe and nonce, advances the bridge session, and restores the last confirmed position paused. It requires new receiver/video proof; no playback callback awards a rep or resolves an exchange.
+
+## Local browser boundary
+
+The embedded page is fixed at `http://127.0.0.1:49080/jiuquest/embed`. Parent and child check the exact peer origin, window source, fresh per-mount UUID nonce and a bounded JSON-string envelope. Only protocol v1 scene commands, validated receiver responses, transport lifecycle and actual video-frame proof can cross that boundary. The frame CSP permits only the exact development app as an ancestor. Signalling remains on the original loopback ports, and the stock `/` frontend remains unchanged. Keyboard, mouse, touch, gamepad, camera and microphone capture are disabled in the embedded Epic client; app controls send the bounded JiuQuest protocol only.
+
+Only advertised imported clips can play. The initial receiver targets `standing_stance`, `rear_naked_choke` and the generic `armbar` pilot; the armbar is not an exact guide mapping. The local preview currently has one imported spiked hairstyle and labels that limitation. A public runtime, authenticated session allocation, hosted stream URL, production engine switch and additional hairstyles are outside this local mode.
 
 ## Actual pilot and hosting still required
 

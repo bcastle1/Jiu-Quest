@@ -8,8 +8,15 @@ on:
       - "src/unreal/**"
       - "src/unity/bridge.js"
       - "tests/unrealBridge.test.js"
+      - "tests/unrealLocalTransport.test.js"
+      - "tests/unrealLocalSession.test.js"
+      - "src/components/UnrealGrapplingStage*"
+      - "src/components/GrapplingStage.jsx"
+      - "vite.config.js"
       - "tools/prepare_unreal_pilot*.mjs"
       - "tools/unreal_pilot.ps1"
+      - "tools/unreal_local_app.ps1"
+      - "tools/unreal_embed.*"
       - "tools/unreal_pilot_guard.test.ps1"
       - "tools/pixel_streaming_local*.cjs"
       - "tools/audit_unreal_capture.py"
@@ -55,7 +62,13 @@ jobs:
       # These tests use only standard libraries and an injected fake transport.
       # No SDK, GPU runtime, network service or deployment is started.
       - name: Verify adapter and source staging
-        run: node --test tests/unrealBridge.test.js tools/prepare_unreal_pilot.test.mjs tools/pixel_streaming_local.test.cjs
+        run: node --test tests/unrealBridge.test.js tests/unrealLocalTransport.test.js tests/unrealLocalSession.test.js tools/prepare_unreal_pilot.test.mjs tools/pixel_streaming_local.test.cjs
+
+      - name: Verify local receiver contract without Unreal
+        run: python -m unittest discover -s unreal/JiuQuestCharacters/Tests -p 'test_local_*.py'
+
+      - name: Verify frozen pants normal material graph without Unreal
+        run: python unreal/JiuQuestCharacters/Tests/test_pants_material.py
 
       - name: Verify original source preservation
         run: python unreal/JiuQuestCharacters/Tests/test_pilot_source.py

@@ -53,7 +53,7 @@ import {
   getStorageStatus,
 } from "./storage";
 import GrapplingSnapshotStage from "./components/GrapplingSnapshotStage";
-import UnityGrapplingStage from "./components/UnityGrapplingStage.jsx";
+import GrapplingStage from "./components/GrapplingStage.jsx";
 import UnityCombatPreview from "./components/UnityCombatPreview.jsx";
 import { isUnityEnabled, resolveUnityMove } from "./unity/bridge.js";
 import { TechniqueStep, RichText } from './components/TechniqueText.js';
@@ -1407,8 +1407,8 @@ function Training({
           </div>
         </div>
         <div className="training-animation-card">
-          <div className="training-animation-head"><span><h3>{isUnityEnabled(window.location.search) ? 'Movement preview' : 'Position reference'}</h3><p>{isUnityEnabled(window.location.search) ? 'Review the draft movement where a matching animation is available. Follow the technique steps for the required setup.' : 'A reference for the starting position. Follow the steps below for the exact setup and full sequence.'}</p></span></div>
-          {isUnityEnabled(window.location.search) ? <UnityGrapplingStage moveId={resolveUnityMove(selectedMove.id)} moveLabel={selectedMove.name} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact fallback={<GrapplingSnapshotStage state={trainingPosition} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact />} /> : <GrapplingSnapshotStage state={trainingPosition} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact />}
+          <div className="training-animation-head"><span><h3>Movement study</h3><p>Review the starting position and available draft movement. Follow the technique steps below for the exact setup and full sequence.</p></span></div>
+          <GrapplingStage moveId={resolveUnityMove(selectedMove.id)} moveLabel={selectedMove.name} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact fallback={<GrapplingSnapshotStage state={trainingPosition} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact />} />
         </div>
         {selectedMove.scenario && <div className="scenario-box">
           <h3>Starting scenario</h3>
