@@ -1,7 +1,7 @@
 """Audit actual UE capture files and six world joints against pinned glTF data.
 
 Standard-library-only; run after capture_pilot.py in a real Editor. This checks
-three paused times per clip plus two standing closeups, not all-frame motion.
+three paused times per clip plus four standing closeups, not all-frame motion.
 """
 import argparse
 import bisect
@@ -134,11 +134,11 @@ def audit(capture, tolerance):
     durations = {name: max(max(channel[3]) for channel in source.channels)
                  for name, source in sources.items()}
     expected = {(clip, frame) for clip in sources for frame in ("first", "mid", "finish")}
-    expected |= {("standing_stance", role + "-face") for role in ROLES}
+    expected |= {("standing_stance", role + detail) for role in ROLES for detail in ('-face', '-hands', '-torso', '-legs')}
     shots = report["captures"]
     require(len(shots) == len(expected) and {(s["clip"], s["frame"]) for s in shots} == expected,
             "Capture inventory changed")
-    rows = []
+    rows = []; grip_rows = []
     for shot in shots:
         require(Path(shot["file"]).name == shot["file"], "Capture image path escaped its directory")
         image = (capture / shot["file"]).read_bytes()
@@ -157,6 +157,18 @@ def audit(capture, tolerance):
         require(shot["skeletalComponentCount"] == inventory["skeletalBindingCount"] == 22,
                 "Expected fighter components are not bound")
         require(len(inventory["parentBindings"]) == 2, "Expected source parent bindings are missing")
+        if shot['clip'] == 'standing_stance':
+            fingers = shot.get('readyHandDirections', [])
+            expected_fingers = {(role, side, digit) for role in ROLES for side in ('l', 'r')
+                                for digit in ('index', 'middle', 'ring', 'pinky')}
+            require(len(fingers) == 16 and {(f['role'],f['side'],f['digit']) for f in fingers} == expected_fingers,
+                    'Standing grip direction inventory changed')
+            for finger in fingers:
+                pitch, forward = finger['pitchDegrees'], finger['forwardDot']
+                require(math.isfinite(pitch) and math.isfinite(forward), 'Non-finite grip direction')
+                require(-5. <= pitch <= 25. and forward >= .85,
+                        'Standing fingers are not directed forward in a ready grip')
+                grip_rows.append({'frame': shot['frame'], **finger})
         expected_positions = sources[shot["clip"]].world_positions(seconds)
         require(set(shot["evaluatedBoneTransforms"]) == set(ROLES), "Evaluated fighter roles changed")
         for role in ROLES:
@@ -175,8 +187,13 @@ def audit(capture, tolerance):
         "baselineCommit": pinned["baselineCommit"], "sourceFingerprint": fingerprint,
         "imageIntegrity": "passed", "imageCount": len(shots), "sampleCount": len(rows),
         "maximumWorldPositionErrorCm": maximum, "toleranceCm": tolerance, "samples": rows,
-        "limits": ["Six joints: head and both hands for each fighter, at three paused times per clip plus two standing closeups",
+        "gripDirectionSamples": len(grip_rows),
+        "minimumGripPitchDegrees": min(row['pitchDegrees'] for row in grip_rows),
+        "maximumGripPitchDegrees": max(row['pitchDegrees'] for row in grip_rows),
+        "minimumGripForwardDot": min(row['forwardDot'] for row in grip_rows),
+        "limits": ["Six joints: head and both hands for each fighter, at three paused times per clip plus eight standing closeups",
                    "Not an all-frame, full-rig, cloth collision or paired-contact audit",
+                   "Grip direction uses knuckle-to-distal-joint vectors; it does not prove cloth contact or finger collision clearance",
                    "World positions compared; recorded rotations are not numerically validated here",
                    "Does not establish browser streaming, app integration or production behavior"]}
 

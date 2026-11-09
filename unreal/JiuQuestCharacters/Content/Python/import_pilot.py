@@ -11,6 +11,10 @@ import math
 import traceback
 import unreal
 from pilot_source import select_hair
+from ready_hands import refine_ready_hands
+from pilot_look import refine_look
+from pilot_hair import refine_hair
+from pilot_hair_shape import refine_hair_shape, refine_spikes_shape
 
 PROJECT = Path(__file__).resolve().parents[2]
 STAGING = PROJECT / "Saved/PilotStaging"
@@ -20,8 +24,9 @@ REPORT = {"status": "not_started", "renderValidated": False,
           "clips": [], "materialGraphs": [], "limits": [
               "Editor-only import and material/scene setup; no runtime web receiver",
               "Imported poses, pairing, timing, hair selection and material output require visual review",
-              "Default Subsurface Profile needs tuning; no new face detail was fabricated",
-              "Existing authored gi folds; no Chaos cloth simulation"]}
+              "Original lower-face/cotton sculpt and selected hair shading require visual comparison",
+              "Standing-only wrist/finger presentation; no cloth grasp simulation",
+              "Authored gi folds; no Chaos cloth simulation"]}
 
 
 def check(condition, message):
@@ -44,9 +49,32 @@ def save_report():
     (REVIEW / "editor-import.json").write_text(json.dumps(REPORT, indent=2) + "\n")
 
 
-def glb_with_selected_hair(source, destination, style="Slick"):
-    """Local display derivative only: unchanged BIN, skin and animation data."""
-    result, proof = select_hair(source.read_bytes(), style)
+def glb_with_selected_hair(source, destination, style="Spikes"):
+    """Compose audited import-only passes; the approved source file stays exact."""
+    check(style in ("Slick", "Spikes"), "Hair style has not passed the pilot shading review")
+    original = source.read_bytes()
+    result, selection = select_hair(original, style)
+    result, hands = refine_ready_hands(result, source.stem)
+    result, sculpt = refine_look(result)
+    result, hair = refine_hair(result, style)
+    applied = ['pilot_source.select_hair', 'ready_hands.refine_ready_hands',
+               'pilot_look.refine_look', 'pilot_hair.refine_hair']
+    if style == "Slick":
+        result, shape = refine_hair_shape(result)
+        shape.update(applied=True, selectedHair=style)
+        applied.append('pilot_hair_shape.refine_hair_shape')
+    else:
+        # Separate inventory and bounds; the six-lock Slick guard stays exact.
+        result, shape = refine_spikes_shape(result)
+        shape.update(applied=True, selectedHair=style)
+        applied.append('pilot_hair_shape.refine_spikes_shape')
+    proof = {'sourceSha256': digest(original), 'importSha256': digest(result),
+             'selectedHair': style, 'appliedHelpers': applied,
+             'selection': selection, 'readyHands': hands, 'sculpt': sculpt, 'hairShading': hair, 'hairShape': shape,
+             'recipeFiles': {name: digest(Path(__file__).with_name(name).read_bytes()) for name in
+                             ('import_pilot.py', 'pilot_source.py', 'ready_hands.py', 'pilot_look.py', 'pilot_hair.py', 'pilot_hair_shape.py')},
+             'derivedSource': str(destination),
+             'scope': 'Original source retained; selected hair shading, explicit style-specific shape handling, face/gi sculpt and standing grip derivative'}
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(result)
     return proof
@@ -129,14 +157,17 @@ def make_material(spec, images, stage, folder, cache):
         connect(b, "", n, "B")
         return n
 
-    def sample(info, usage):
+    def texture_asset(info, usage):
         check(info["uv"] in (0, 1), "Unexpected source UV channel")
         image = images[info["image"]]
         key = (image["sha256"], usage)
         if key not in cache:
             cache[key] = import_texture(inside(stage, image["file"]), folder + "/Textures/" + usage, usage)
+        return cache[key]
+
+    def sample(info, usage):
         n = node(unreal.MaterialExpressionTextureSample)
-        n.set_editor_property("texture", cache[key])
+        n.set_editor_property("texture", texture_asset(info, usage))
         n.set_editor_property("const_coordinate", info["uv"])
         sampler = {"color": unreal.MaterialSamplerType.SAMPLERTYPE_COLOR,
                    "normal": unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL,
@@ -146,8 +177,14 @@ def make_material(spec, images, stage, folder, cache):
 
     # Fixed review palette; no saved app appearance or runtime tint controls.
     factor = list(spec["baseColor"])
-    if "_Defender_Gi" in name:
+    if skin:
+        # Keep the source skin hue while retaining facial planes under the
+        # fixed review lights. This is linear albedo, not camera exposure.
+        factor[:3] = [channel * .82 for channel in factor[:3]]
+    elif "_Defender_Gi" in name:
         factor = [.025, .045, .09, 1.]
+    elif "_Attacker_Gi" in name:
+        factor = [.65, .67, .69, 1.]
     elif name.endswith("_Hair"):
         factor = [.009, .006, .004, 1.]
     elif name.endswith("_Belt"):
@@ -156,7 +193,7 @@ def make_material(spec, images, stage, folder, cache):
     if spec["colorTexture"]:
         base = multiply(sample(spec["colorTexture"], "color"), "RGB", base)
     prop(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
-    rough = scalar(.74 if name.endswith("_Hair") else spec["roughness"])
+    rough = scalar(.82 if name.endswith("_Hair") else spec["roughness"])
     if spec["roughnessTexture"]:
         rough = multiply(sample(spec["roughnessTexture"], "data"), "G", rough)
     prop(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
@@ -193,7 +230,39 @@ def make_material(spec, images, stage, folder, cache):
         prop(scalar(.2), "", unreal.MaterialProperty.MP_OPACITY)
         prop(scalar(.25), "", unreal.MaterialProperty.MP_SPECULAR)
     elif name.endswith("_Hair"):
-        prop(scalar(.2), "", unreal.MaterialProperty.MP_SPECULAR)
+        prop(scalar(.1), "", unreal.MaterialProperty.MP_SPECULAR)
+        # Reuse the original painted strand values as shallow shading relief.
+        # Four repeats across UV0 add finer flow without a new bitmap or any
+        # vertex displacement. The ordinary colour atlas stays at its old UVs.
+        check(spec['colorTexture'] and spec['colorTexture']['uv'] == 0,
+              'Hair detail requires the original UV0 strand atlas')
+        check(not spec['normalTexture'], 'Review how an existing hair normal should be blended')
+        hair_texture = node(unreal.MaterialExpressionTextureObject)
+        hair_texture.set_editor_property('texture', texture_asset(spec['colorTexture'], 'data'))
+        hair_texture.set_editor_property('sampler_type', unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
+        coordinates = node(unreal.MaterialExpressionTextureCoordinate)
+        coordinates.set_editor_property('coordinate_index', 0)
+        coordinates.set_editor_property('u_tiling', 4.)
+        coordinates.set_editor_property('v_tiling', 1.)
+        function = unreal.load_asset('/Engine/Functions/Engine_MaterialFunctions03/Procedurals/NormalFromHeightmap')
+        check(function is not None, 'Engine NormalFromHeightmap function is missing')
+        detail = node(unreal.MaterialExpressionMaterialFunctionCall)
+        check(detail.set_material_function(function), 'Could not bind strand normal function')
+        check(set(edit.get_material_expression_input_names(detail)) ==
+              {'Height Map', 'Coordinates', 'Height Map UV Offset', 'Normal Map Intensity', 'Height Map Channel Selector'},
+              'NormalFromHeightmap inputs changed; review the installed function')
+        connect(hair_texture, '', detail, 'Height Map')
+        connect(coordinates, '', detail, 'Coordinates')
+        connect(scalar(.0039), '', detail, 'Height Map UV Offset')
+        connect(scalar(3.), '', detail, 'Normal Map Intensity')
+        basis_function = unreal.load_asset('/Engine/Functions/Engine_MaterialFunctions01/Texturing/DeriveTangentBasis')
+        check(basis_function is not None, 'Engine DeriveTangentBasis function is missing')
+        basis = node(unreal.MaterialExpressionMaterialFunctionCall)
+        check(basis.set_material_function(basis_function), 'Could not bind hair UV0 tangent basis')
+        connect(coordinates, '', basis, 'UVs')
+        connect(detail, 'Result', basis, 'Normal')
+        material.set_editor_property('tangent_space_normal', False)
+        prop(basis, 'World Space Normal', unreal.MaterialProperty.MP_NORMAL)
     elif cloth:
         prop(color([.08, .08, .07]), "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
         connect(scalar(.16), "", attributes, "ClearCoat")
@@ -202,10 +271,15 @@ def make_material(spec, images, stage, folder, cache):
     unreal.EditorAssetLibrary.save_loaded_asset(material)
     REPORT["materialGraphs"].append({"source": name, "asset": material.get_path_name(),
         "colorUV": (spec["colorTexture"] or {}).get("uv"),
-        "normalUV": (spec["normalTexture"] or {}).get("uv"),
-        "normalBasis": "UV1 derivative world space" if cloth and spec["normalTexture"] else "mesh tangent space",
+        "normalUV": 0 if name.endswith('_Hair') else (spec["normalTexture"] or {}).get("uv"),
+        "normalBasis": ("UV0 derivative world space" if name.endswith('_Hair') else
+                        "UV1 derivative world space" if cloth and spec["normalTexture"] else "mesh tangent space"),
         "roughnessUV": (spec["roughnessTexture"] or {}).get("uv"),
-        "roughnessChannel": "G", "skinDefaultProfileUntuned": skin})
+        "roughnessChannel": "G", "skinDefaultProfileUntuned": skin,
+        "skinBaseColorScale": .82 if skin else None,
+        "hairStrandRelief": ({'source': 'original grayscale colour atlas', 'uv': 0,
+                              'tiling': [4., 1.], 'normalIntensity': 3., 'uvOffset': .0039}
+                             if name.endswith('_Hair') else None)})
     return material
 
 
@@ -338,7 +412,7 @@ def import_clip(clip, stage, content, level, actors, game_mode):
     settings = world.get_world_settings()
     settings.set_editor_property("default_game_mode", game_mode)
     check(settings.get_editor_property("default_game_mode") == game_mode, "Review game mode assignment failed")
-    derived = REVIEW / "ImportSources" / (clip["name"] + ".glb")
+    derived = REVIEW / "ImportSources" / content.rsplit('/', 1)[-1] / (clip["name"] + ".glb")
     selection = glb_with_selected_hair(stage / (clip["name"] + ".glb"), derived)
     parameters = unreal.ImportAssetParameters()
     parameters.set_editor_property("is_automated", True)
@@ -393,7 +467,7 @@ def import_clip(clip, stage, content, level, actors, game_mode):
     return {"name": clip["name"], "map": map_path, "camera": camera.get_path_name(),
             "gameMode": game_mode.get_path_name(),
             "sharedSequence": shared_sequence,
-            "hairSelection": selection, "components": components,
+            "characterRefinement": selection, "components": components,
             "animationBindingsAssigned": True, "pairedMotionValidated": False,
             "requiredReview": "Check shared sequence playback against source world/root transforms and all-frame paired contact"}
 

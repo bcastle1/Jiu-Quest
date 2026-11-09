@@ -378,7 +378,7 @@ try {
   checks.push('Standalone playback does not write saved progression.');
   await checkpoint('training:starting');
   await page.goto(base); await page.getByRole('button', { name: 'Training', exact: true }).click(); await ready();
-  await selectedCamera('Side');
+  await selectedCamera('Front');
   assert.equal(new URL(page.url()).searchParams.has('engine'), false);
   const priorTrainingInstance = await page.evaluate(() => window.__unityEvents.findLast((event) => event.type === 'ready').instanceId);
   await page.getByRole('button', { name: /Kimura Armlock/ }).click(); await page.getByRole('region', { name: 'Unity preview unavailable' }).waitFor();
@@ -392,7 +392,7 @@ try {
     && window.__unityEvents.some((event) => event.type === 'state' && event.instanceId !== prior && event.moveId === 'rear_naked_choke'), priorTrainingInstance, { timeout: 95000 });
   await ready();
   assert.equal(await page.evaluate(() => new Set(window.__unityEvents.filter((event) => event.type === 'ready').map((event) => event.instanceId)).size), 2);
-  await selectedCamera('Side');
+  await selectedCamera('Front');
   trainingLifecycle = await page.evaluate(() => window.__unityLifecycle);
   assert.equal(trainingLifecycle.length, 2);
   assert.equal(trainingLifecycle[0].quitCompleted, true);

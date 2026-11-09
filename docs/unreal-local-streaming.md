@@ -102,6 +102,25 @@ After launch, inspect the owning Node process with `Get-NetTCPConnection`: the t
 listeners must be `127.0.0.1:49080` and `127.0.0.1:49088`. The launcher also checks
 actual bind addresses before constructing the SDK.
 
+The project and launcher disable automatic Editor/Simulate streaming. UE5.8
+otherwise starts its own embedded web/signalling listeners on wildcard ports
+80 and 8888, separately from this Node service. Import/Capture explicitly pass
+`-PixelStreamingEditorAutoStreamPIE=false`,
+`-PixelStreamingEditorStartOnLaunch=false`,
+`-PixelStreamingEditorUseRemoteSignallingServer=true` and
+`-PixelStreamingAutoStartStream=false`. Only `Preview -StreamLocal` enables
+runtime autostart with the fixed loopback URL above. Fifteen listener samples
+during the final seventeen-view Simulate capture showed no 80/8888 listeners;
+the subsequent local game preview also had none. Repeat that ownership check
+after changing the engine or streaming configuration.
+
+These settings do not constrain every socket in the installed Editor. Its
+separate TraceLog control listener was observed on wildcard TCP 1985; the
+installed source has no verified runtime flag to change that binding.
+`-notraceserver -traceautostart=0` suppresses separate trace-server startup and
+automatic recording, but does not prove that 1985 is closed. No firewall rule is
+created or widened by this project. This Editor pilot is not a production host.
+
 - Browser: `http://127.0.0.1:49080`
 - Local health: `http://127.0.0.1:49080/healthz`
 - Unreal launch argument: `-PixelStreamingURL=ws://127.0.0.1:49088`
