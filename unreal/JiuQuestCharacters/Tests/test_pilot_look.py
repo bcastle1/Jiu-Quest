@@ -12,12 +12,12 @@ ROOT = PROJECT.parents[1]
 sys.path.insert(0, str(PROJECT / 'Content/Python'))
 from pilot_look import (MeshFile, face_offset, cloth_relief, cloth_offset, refine_look,
                         dot, rigid_frame, panel_at, shoulder_offset, folded_ridge, jacket_fit_offset,
-                        lower_leg_offset, jacket_tension_offset, MAX_CLOTH_OFFSET,
+                        lower_leg_offset, jacket_tension_offset, shoulder_crown_offset, MAX_CLOTH_OFFSET,
                         MAX_CLOTH_BOUNDS_EXPANSION)
 
 
-def jacket_tension_allowlist(mesh, node, primitive):
-    """Independently classify the permitted outer sleeve and waist regions.
+def shoulder_crown_allowlist(mesh, node, primitive):
+    """Independently classify the narrow high-shoulder region and shading.
 
     All accepted Body/Pants attributes stay fixed. Jacket shading may follow
     only incident triangles and their smooth UV copies, away from overlaps.
@@ -32,9 +32,7 @@ def jacket_tension_allowlist(mesh, node, primitive):
     for i,(point,uv) in enumerate(zip(points,mesh.read(attrs['TEXCOORD_1']))):
         x,y,z = tuple(dot(row,point)+translation[j] for j,row in enumerate(rows))
         panel,u,v = panel_at(uv)
-        if ((panel=='sleeve' and .40<v<.73 and .52<u<.96 and abs(x)>.31)
-            or (panel=='torso' and .14<u<.86 and .39<v<.73 and z<1.365
-                and (y>-.070 or abs(x)>.105))):
+        if panel in ('torso','sleeve') and .175<abs(x)<.295 and z>1.455:
             allowed.add(i)
     # A source UV seam can duplicate a physical point. Preserve identical
     # movement for those copies without extending the physical region.
@@ -54,6 +52,23 @@ def jacket_tension_allowlist(mesh, node, primitive):
 
 
 class LookTests(unittest.TestCase):
+    def test_shoulder_plane_preserves_boundaries_and_lining_slope(self):
+        for p in ((.125,.05,1.53),(.175,.05,1.53),(.295,.05,1.53),
+                  (.2,.05,1.425),(.09,-.10,1.5),(.4,.05,1.5),(.65,.05,1.5)):
+            self.assertEqual(shoulder_crown_offset(p),(0.,0.,0.))
+        moved=shoulder_crown_offset((.23,.0654,1.53))
+        self.assertEqual(moved[:2],(0.,0.))
+        self.assertTrue(-.0035<=moved[2]<-.002)
+        # This is a soft attraction, not a projection that would flatten the
+        # two lining surfaces onto the same plane. Check its vertical mapping
+        # through the complete activation ramp, independent of mesh rows.
+        step=1e-5
+        for x in (.18,.20,.23,.26,.28,.294):
+            for z in (1.46+i*.002 for i in range(46)):
+                a=shoulder_offset((x,.0654,z-step))
+                b=shoulder_offset((x,.0654,z+step))
+                self.assertGreater(1.+(b[2]-a[2])/(2*step),.60)
+
     def test_jacket_pulls_exclude_overlaps_and_do_not_shorten_limbs(self):
         landmarks = {'upperarm_l':(.212,.0654,1.4555),'hand_l':(.7065,.0654,1.4555)}
         for panel,p,u,v in (
@@ -213,6 +228,8 @@ class LookTests(unittest.TestCase):
             self.assertLessEqual(proof['maximumLowerLegOffsetMeters'],.005000001)
             self.assertGreater(proof['maximumJacketTensionOffsetMeters'],.0044)
             self.assertLessEqual(proof['maximumJacketTensionOffsetMeters'],.005000001)
+            self.assertGreater(proof['maximumShoulderCrownOffsetMeters'],.0023)
+            self.assertLessEqual(proof['maximumShoulderCrownOffsetMeters'],.003500001)
             self.assertEqual(len(proof['changes']), 6)
             self.assertTrue(all(row['verticesMoved'] > 10 for row in proof['changes']))
             allowed = set()
@@ -223,9 +240,9 @@ class LookTests(unittest.TestCase):
                 for primitive in before.doc['meshes'][node['mesh']]['primitives']:
                     attributes = primitive['attributes']
                     if node['name'].endswith('_GiJacket'):
-                        fit_positions, fit_frames = jacket_tension_allowlist(before,node,primitive)
-                        self.assertGreater(len(fit_positions),2400)
-                        self.assertLess(len(fit_positions),2500)
+                        fit_positions, fit_frames = shoulder_crown_allowlist(before,node,primitive)
+                        self.assertGreater(len(fit_positions),800)
+                        self.assertLess(len(fit_positions),900)
                         protected_elbow = {i for i,uv in enumerate(before.read(attributes['TEXCOORD_1']))
                             if panel_at(uv)[0]=='sleeve' and .05<=panel_at(uv)[1]<=.30
                             and .40<=panel_at(uv)[2]<=.75}
@@ -248,6 +265,31 @@ class LookTests(unittest.TestCase):
                     index = next(i for i,j in enumerate(skin['joints']) if before.doc['nodes'][j]['name']=='root')
                     rows, translation = rigid_frame(before.read(skin['inverseBindMatrices'])[index])
                     old, new = (m.read(primitive['attributes']['POSITION']) for m in (before, after))
+                    if node['name'].endswith('_GiJacket'):
+                        panels=[panel_at(uv) for uv in before.read(attributes['TEXCOORD_1'])]
+                        original_canonical=[tuple(dot(row,p)+translation[j] for j,row in enumerate(rows)) for p in old]
+                        protected={i for i,(p,(panel,u,v)) in enumerate(zip(original_canonical,panels))
+                            if panel=='trim' or (panel=='sleeve' and (v>=.82 or p[2]<=1.425))
+                            or (panel=='torso' and (abs(p[0])<=.125 or (p[1]<=-.07 and abs(p[0])<=.14)))}
+                        self.assertFalse(protected&fit_positions)
+                        self.assertFalse(protected&fit_frames,'Keep boundary shading outside the shoulder patch')
+                        # Corresponding UV points on opposing cloth surfaces
+                        # must retain signed order and nonzero thickness.
+                        groups={}; normals=before.read(attributes['NORMAL'])
+                        for i,uv in enumerate(before.read(attributes['TEXCOORD_1'])):
+                            groups.setdefault(uv,[]).append(i)
+                        paired=set(); ratios=[]
+                        for ids in groups.values():
+                            for offset,i in enumerate(ids):
+                                for j in ids[offset+1:]:
+                                    if not(i in fit_positions or j in fit_positions):continue
+                                    key=tuple(sorted((old[i],old[j])))
+                                    a=tuple(y-x for x,y in zip(old[i],old[j]));length=math.sqrt(dot(a,a))
+                                    if key in paired or not .0001<length<.008 or dot(normals[i],normals[j])>-.5:continue
+                                    paired.add(key);b=tuple(y-x for x,y in zip(new[i],new[j]))
+                                    ratios.append(dot(a,b)/dot(a,a))
+                        self.assertGreater(len(ratios),300)
+                        self.assertGreater(min(ratios),.60,'Shoulder lining order/thickness collapsed')
                     if clip=='standing_stance' and node['name']=='JQ_Attacker_GiJacket':
                         canonical=[tuple(dot(row,p)+translation[j] for j,row in enumerate(rows)) for p in new]
                         panels=[panel_at(uv) for uv in before.read(attributes['TEXCOORD_1'])]
@@ -261,6 +303,15 @@ class LookTests(unittest.TestCase):
                         self.assertTrue(.400 < max(p[0] for p in waist)-min(p[0] for p in waist) < .403)
                         self.assertTrue(.128 < max(p[1] for p in arm)-min(p[1] for p in arm) < .131)
                         self.assertTrue(.123 < max(p[2] for p in arm)-min(p[2] for p in arm) < .127)
+                        for target,accepted_sag in ((.2291667,.01373137018),(.2708333,.01192434065),(.3125,.01244110256)):
+                            ids=[i for i,(p,(panel,u,v)) in enumerate(zip(original_canonical,panels))
+                                 if panel=='sleeve' and p[0]<0 and abs(v-target)<1e-6]
+                            def top_at(u):
+                                options=[i for i in ids if abs(panels[i][1]-u)<1e-6]
+                                return max(canonical[i][2] for i in options)
+                            sag=top_at(0.)-(top_at(.1111111)+top_at(.8888889))/2.
+                            self.assertTrue(.09<(accepted_sag-sag)/accepted_sag<.15,
+                                            'Require a bounded reduction of the actual rounded crest')
                     old_n, new_n = (m.read(primitive['attributes']['NORMAL']) for m in (before, after))
                     new_t = after.read(primitive['attributes']['TANGENT'])
                     joints = before.read(primitive['attributes']['JOINTS_0'])
@@ -303,12 +354,12 @@ class LookTests(unittest.TestCase):
             self.assertTrue(all(a == b or i+before.start in allowed for i,(a,b) in
                                 enumerate(zip(raw[before.start:],result[after.start:]))))
             self.assertEqual(refine_look(raw)[0], result, 'Sculpt must be deterministic from original bytes')
-        # Approved PR15 recipe 6e77e34a (merge 12f9fd2), independently evaluated
+        # Approved PR16 recipe 422043f4 (merge0857911), independently evaluated
         # on all three pinned sources before the candidate. Complete Body/Pants
-        # P/N/T stay exact. Only allowed jacket positions and directly incident
-        # shading are excluded; inner elbow, shoulder, cuff and trim stay exact.
+        # P/N/T and accepted jacket fit stay exact outside only this high-shoulder
+        # patch and incident shading. Neck, inner elbow, cuff and trim stay exact.
         self.assertEqual(accepted_regions.hexdigest(),
-            '3c26c2874178b0dcbf1a02b5971f439dbb03ad3b5444b8b616e8f328d0233bd6')
+            'a2bde78839a89c5393942eb239599a7a570103d1e1756c175df23beb5b1a33e3')
 
 
 if __name__ == '__main__':

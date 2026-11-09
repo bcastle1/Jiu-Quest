@@ -219,10 +219,19 @@ def make_material(spec, images, stage, folder, cache):
             fold_detail.set_editor_property("inputs", inputs)
             fold_detail.set_editor_property("code", """
 struct CottonFolds {
+    float roundedPlane(float r) {
+        float a = sqrt(r*r + 0.01) - 0.1;
+        float h = 1.0 - a;
+        return 0.5 * (h + sqrt(h*h + 0.0036))
+            * (1.0 - smoothstep(1.08, 1.40, a));
+    }
     float ridge(float distance, float width) {
         float r = distance / width;
         float q = (r+1.25) / 0.62;
-        return exp(-r*r) - 0.48 * exp(-q*q);
+        float curved = exp(-r*r) - 0.48 * exp(-q*q);
+        float folded = roundedPlane(r) - 0.52 * roundedPlane((r+1.38)/0.72);
+        // Rounded crests with flatter sides, at the existing relief strength.
+        return 0.25 * curved + 0.66 * folded;
     }
     float height(float2 p, float sleeve) {
         float torsoHeight = 0.007 * ridge(p.x - 0.24 - 0.30*(p.y-0.42), 0.048);
@@ -338,6 +347,8 @@ return float3(FineNormal.xy + extra, FineNormal.z);
         "skinBaseColorScale": .82 if skin else None,
         "jacketFoldRelief": ({"source": "authored broad crease height field", "uv": 1,
                               "derivativeStep": .002, "creaseGain": 1.45, "extraXYLimit": .40,
+                              "profile": "rounded planar crests blended with curved shoulders",
+                              "planeBlend": .75, "planeScale": .88,
                               "scope": "torso interior and outer/back sleeve; openings and inner elbow excluded"}
                              if name.endswith("_GiTop") else None),
         "hairStrandRelief": ({'source': 'original grayscale colour atlas', 'uv': 0,

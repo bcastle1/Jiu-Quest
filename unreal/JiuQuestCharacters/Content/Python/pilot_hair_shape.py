@@ -535,6 +535,67 @@ def crown_source_audit(output, faces, reference, layers, crown_layers, scalp):
         'checkedCrownTriangleCentroids':len(centroid_margins),'minimumCrownCentroidClearanceMarginMeters':min(centroid_margins)}
 
 
+def author_swept_crown_plane(output, faces, reference, original, layers, target, scalp):
+    """Author a directional plane split on the existing coarse midpoint grid."""
+    def smooth(a,b,x):
+        x=max(0.,min(1.,(x-a)/(b-a)));return x*x*(3.-2.*x)
+    positions=output['POSITION'];uv=output['TEXCOORD_0'];normals={};across={}
+    target_faces=[]
+    for face,side in faces:
+        if not side or layers[face[0]]!=target:continue
+        if not all(1./3.-1e-6 <= uv[i][0] <= .5+1e-6 for i in face):continue
+        target_faces.append(face)
+        a,b,c=(reference[i] for i in face);normal=cross(sub(b,a),sub(c,a))
+        # Recover local increasing-u direction from the affine source UVs.
+        du1,dv1=sub(uv[face[1]],uv[face[0]]);du2,dv2=sub(uv[face[2]],uv[face[0]])
+        det=du1*dv2-du2*dv1
+        direction=unit(mul(sub(mul(sub(b,a),dv2),mul(sub(c,a),dv1)),1./det))
+        for i in face:
+            key=reference[i];normals[key]=add(normals.get(key,(0.,0.,0.)),normal)
+            across[key]=add(across.get(key,(0.,0.,0.)),direction)
+    require(len(target_faces)==24,'Expected one original broad crown wall on the coarse grid')
+    before=list(positions);moves={};margins=[]
+    for i in {i for face in target_faces for i in face}:
+        u,v=uv[i];longitudinal=1.-v
+        if u<=1./3.+1e-6 or u>=.5-1e-6:continue
+        cross_support=max(0.,1.-abs((u-5./12.)/(1./12.)))
+        support=smooth(.10,.27,longitudinal)*(1.-smooth(.60,.86,longitudinal))*cross_support
+        if support<1e-8:continue
+        key=reference[i]
+        # The lateral bias varies along the sweep so the two planes differ.
+        bias=.0010*(.35+.65*smooth(.2,.7,longitudinal))
+        delta=add(mul(unit(normals[key]),-.0030*support),mul(unit(across[key]),bias*support))
+        moves[key]=delta
+    for i in {i for face in target_faces for i in face}:
+        delta=moves.get(reference[i])
+        if delta is None:continue
+        reference[i]=add(reference[i],delta);positions[i]=add(positions[i],delta)
+    minimum_area=minimum_normal=1.;maximum=0.
+    for face in target_faces:
+        a,b,c=(original[i] for i in face);old_cross=cross(sub(b,a),sub(c,a))
+        a,b,c=(reference[i] for i in face);new_cross=cross(sub(b,a),sub(c,a))
+        area=math.sqrt(dot(new_cross,new_cross)/dot(old_cross,old_cross));normal=dot(unit(new_cross),unit(old_cross))
+        minimum_area=min(minimum_area,area);minimum_normal=min(minimum_normal,normal)
+        require(area>=.65 and normal>=.75,f'Swept coarse plane triangle failed {area} {normal}')
+        for ia in range(5):
+            for ib in range(5-ia):
+                ws=(ia/4.,ib/4.,(4-ia-ib)/4.)
+                a=tuple(sum(original[i][k]*w for i,w in zip(face,ws)) for k in range(3))
+                b=tuple(sum(reference[i][k]*w for i,w in zip(face,ws)) for k in range(3))
+                base,_=clearance(a,scalp);floor=.003 if base>=.003 else min(base,0.)
+                margin=clearance(b,scalp)[0]-floor;margins.append(margin)
+                require(margin>=-2e-6,'Swept coarse plane crossed original scalp floor')
+        maximum=max(maximum,max(math.dist(original[i],reference[i]) for i in face))
+    require(maximum<=.0081,'Swept authored plane exceeds 8.1 mm source cap')
+    moved=[i for i in range(len(positions)) if positions[i]!=before[i]]
+    require(all(i>=1775 for i in moved),'Swept split changed original anchors')
+    maximum_delta=max((math.dist(positions[i],before[i]) for i in moved),default=0.)
+    require(maximum_delta<=.0032,'Swept plane exceeds its 3.2 mm local authoring limit')
+    return {'sweptCrownLayers':1,'sweptCoarseVertices':len(moved),'maximumSweptPlaneDeltaMeters':maximum_delta,
+            'maximumSweptAuthoredSourceDeviationMeters':maximum,'minimumSweptCoarseAreaRatio':minimum_area,'minimumSweptCoarseNormalDot':minimum_normal,
+            'checkedSweptCoarsePoints':len(margins),'minimumSweptCoarseClearanceMarginMeters':min(margins)}
+
+
 def shape_spikes(values, indices, canonical, head_joint, canonical_rotation):
     require(len(values['POSITION']) == 1775 and len(indices) == 1408*3, 'Expected original Spikes topology; repeat shaping is unsupported')
     p,n,t,uv,joints,weights = (values[k] for k in ('POSITION','NORMAL','TANGENT','TEXCOORD_0','JOINTS_0','WEIGHTS_0'))
@@ -684,6 +745,7 @@ def shape_spikes(values, indices, canonical, head_joint, canonical_rotation):
             q = output['POSITION']; new_normal = cross(sub(q[child[1]],q[child[0]]),sub(q[child[2]],q[child[0]]))
             require(dot(old_normal,new_normal)>0.,'Hair subdivision inverted a triangle')
             output_indices.extend(child); output_selected.append((child,f in side_faces))
+    swept_proof=author_swept_crown_plane(output,output_selected,reference,source_reference,layers,layer_numbers[sorted(crowns,key=lambda c:root_centers[c][0])[2]],scalp_triangles)
     source_reference=linear_subdivision_reference(source_reference,output_selected)
     output_selected,detail_proof = finer_clumps(output,output_selected,reference,layers,scalp_triangles,bevel_parameters,bevel_frames,exposed_only=True)
     require(len(source_reference)==len(output['POSITION']),'Original-source reference indexing changed')
@@ -736,7 +798,7 @@ def shape_spikes(values, indices, canonical, head_joint, canonical_rotation):
         'maximumDeviationMeters':max(r['deviationMeters'] for r in bounds),
         'maximumUpperRootDeviationMeters':max((r['deviationMeters'] for r in bounds if r['upperRoot']),default=0.),
         'minimumScalpClearanceChangeMeters':min(r['clearanceChangeMeters'] for r in bounds),
-        'allRootAndTerminalEdgesExact':True,'unchangedTriangleCount':len(faces)-len(chosen_faces),**detail_proof,**profile_proof,**taper_proof}
+        'allRootAndTerminalEdgesExact':True,'unchangedTriangleCount':len(faces)-len(chosen_faces),**detail_proof,**profile_proof,**taper_proof,**swept_proof}
 
 
 def refine_spikes_shape(raw):
@@ -786,4 +848,4 @@ def refine_spikes_shape(raw):
     result = struct.pack('<III',0x46546c67,2,28+len(encoded)+len(binary))+struct.pack('<II',len(encoded),0x4e4f534a)+encoded+struct.pack('<II',len(binary),0x004e4942)+binary
     return bytes(result),{'sourceSha256':hashlib.sha256(raw).hexdigest(),'importSha256':hashlib.sha256(result).hexdigest(),
         'originalBinaryPrefixUnchanged':True,'otherMeshesRigAndMotionExact':True,'roles':rows,
-        'scope':'Five crown profiles narrowed with uneven 4-5 mm upper-ring drops before subdivision, within the existing 9 mm source envelope; original scalp/fringe/other locks/all roots/tips retained; render pending'}
+        'scope':'Five narrowed crown profiles retain uneven 4-5 mm upper-ring drops; one central sidewall receives a coarse swept plane split before final detail, within the existing 9 mm source envelope; scalp/fringe/other locks/roots/tips retained; render pending'}
