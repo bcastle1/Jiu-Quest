@@ -12,11 +12,108 @@ ROOT = PROJECT.parents[1]
 sys.path.insert(0,str(PROJECT/'Content/Python'))
 from pilot_source import select_hair
 from pilot_hair import refine_hair, dot
-from pilot_hair_shape import refine_hair_shape, closest, clump_relief, root_bevel, ScalpSurface
+from pilot_hair_shape import refine_hair_shape, refine_spikes_shape, closest, clump_relief, root_bevel, ScalpSurface
 from pilot_look import MeshFile, rigid_frame
 
 
 class HairShapeTests(unittest.TestCase):
+    def test_spikes_three_clips_keep_caps_scalp_uv_weights_and_nonhair_exact(self):
+        for clip in ('standing_stance','rear_naked_choke','armbar'):
+            with self.subTest(clip=clip):
+                original=(ROOT/'public/animations/bjj'/f'{clip}.glb').read_bytes()
+                raw,_=select_hair(original,'Spikes');raw,_=refine_hair(raw,'Spikes')
+                result,proof=refine_spikes_shape(raw)
+                old,new=MeshFile(raw),MeshFile(result)
+                self.assertEqual(result[new.start:new.start+len(raw)-old.start],raw[old.start:])
+                expected=copy.deepcopy(old.doc)
+                for row in proof['roles']:
+                    a=old.doc['meshes'][row['mesh']]['primitives'][0]
+                    b=new.doc['meshes'][row['mesh']]['primitives'][0]
+                    expected['meshes'][row['mesh']]['primitives'][0]=b
+                    before={k:old.read(v) for k,v in a['attributes'].items()}
+                    after={k:new.read(v) for k,v in b['attributes'].items()}
+                    count=len(before['POSITION'])
+                    self.assertEqual(count,1775)
+                    self.assertEqual(row['primaryLockCount'],9)
+                    self.assertEqual((row['crownLocks'],row['fringeLocks']),(5,4))
+                    self.assertEqual(row['unchangedTriangleCount'],1012)
+                    self.assertEqual(row['originalClosedEdges'],594)
+                    self.assertEqual(row['finalClosedEdges'],9504)
+                    self.assertLessEqual(row['maximumTotalSourceDeviationMeters'],.005)
+                    self.assertGreater(row['maximumTotalSourceDeviationMeters'],.002)
+                    self.assertGreaterEqual(row['minimumSourceChildAreaRatio'],.65)
+                    self.assertGreaterEqual(row['minimumSourceChildNormalDot'],.75)
+                    self.assertGreaterEqual(row['minimumCentroidClearanceMarginMeters'],-2e-6)
+                    self.assertEqual(row['checkedTriangleCentroids'],6336)
+                    for key in ('TEXCOORD_0','JOINTS_0','WEIGHTS_0'):
+                        self.assertEqual(after[key][:count],before[key])
+                    # Independently find islands and cap copies by source geometry.
+                    idx=[v[0] for v in old.read(a['indices'])]
+                    neighbors={p:set() for p in before['POSITION']}
+                    for k in range(0,len(idx),3):
+                        face=[before['POSITION'][i] for i in idx[k:k+3]]
+                        for p in face:neighbors[p].update(face)
+                    unseen=set(neighbors);islands=[]
+                    while unseen:
+                        pending=[unseen.pop()];island=set(pending)
+                        while pending:
+                            for p in neighbors[pending.pop()]:
+                                if p in unseen:unseen.remove(p);island.add(p);pending.append(p)
+                        islands.append(island)
+                    self.assertEqual(len(islands),23)
+                    node=next(n for n in old.doc['nodes'] if n.get('name')=='JQ_'+row['role']+'_HairSpikes')
+                    skin=old.doc['skins'][node['skin']]
+                    root=next(i for i,j in enumerate(skin['joints']) if old.doc['nodes'][j]['name']=='root')
+                    rotation,translation=rigid_frame(old.read(skin['inverseBindMatrices'])[root])
+                    protected_islands=0
+                    for island in islands:
+                        ids=[i for i,p in enumerate(before['POSITION']) if p in island]
+                        roots=[i for i in ids if before['TEXCOORD_0'][i][1]==1.]
+                        primary=len(island)==24 and roots and sum(dot(rotation[1],before['POSITION'][i])+translation[1] for i in roots)/len(roots)<0.
+                        if not primary:
+                            protected_islands+=1
+                            for key in before:
+                                self.assertEqual([after[key][i] for i in ids],[before[key][i] for i in ids])
+                        else:
+                            endpoints={before['POSITION'][i] for i in ids if before['TEXCOORD_0'][i][1] in (0.,1.)}
+                            for i in ids:
+                                if before['POSITION'][i] in endpoints:
+                                    self.assertEqual(after['POSITION'][i],before['POSITION'][i])
+                    self.assertEqual(protected_islands,14)
+                    # Cap/side duplicates still share positions after shaping.
+                    seen={}
+                    for p,q in zip(before['POSITION'],after['POSITION'][:count]):
+                        if p in seen:self.assertEqual(seen[p],q)
+                        seen[p]=q
+                    uv_samples=set()
+                    for k in range(0,len(idx),3):
+                        triangle=[before['TEXCOORD_0'][i] for i in idx[k:k+3]]
+                        for wa in range(5):
+                            for wb in range(5-wa):
+                                value=tuple((wa*triangle[0][axis]+wb*triangle[1][axis]+(4-wa-wb)*triangle[2][axis])/4. for axis in range(2))
+                                uv_samples.add(struct.unpack('<2f',struct.pack('<2f',*value)))
+                    for uv in after['TEXCOORD_0'][count:]:self.assertIn(uv,uv_samples)
+                    for normal,tangent in zip(after['NORMAL'][count:],after['TANGENT'][count:]):
+                        self.assertAlmostEqual(dot(normal,normal),1.,places=6)
+                        self.assertLess(abs(dot(normal,tangent[:3])),2e-6)
+                    for js,ws in zip(after['JOINTS_0'],after['WEIGHTS_0']):
+                        self.assertEqual(sum(ws),1.)
+                        self.assertEqual(sum(w>0 for w in ws),1)
+                    for key,operation in (('min',min),('max',max)):
+                        self.assertEqual(new.doc['accessors'][b['attributes']['POSITION']][key],
+                            [operation(p[axis] for p in after['POSITION']) for axis in range(3)])
+                expected['accessors']+=new.doc['accessors'][len(old.doc['accessors']):]
+                expected['bufferViews']+=new.doc['bufferViews'][len(old.doc['bufferViews']):]
+                expected['buffers'][0]['byteLength']=new.doc['buffers'][0]['byteLength']
+                self.assertEqual(new.doc,expected)
+
+    def test_spikes_rejects_repeat_and_cannot_use_slick_contract(self):
+        raw,_=select_hair((ROOT/'public/animations/bjj/standing_stance.glb').read_bytes(),'Spikes')
+        raw,_=refine_hair(raw,'Spikes')
+        with self.assertRaisesRegex(ValueError,'Slick attachment'):refine_hair_shape(raw)
+        shaped,_=refine_spikes_shape(raw)
+        with self.assertRaisesRegex(ValueError,'original Spikes topology'):refine_spikes_shape(shaped)
+
     def test_all_three_clips_preserve_protected_hair_motion_and_other_meshes(self):
         for clip in ('standing_stance','rear_naked_choke','armbar'):
             with self.subTest(clip=clip):

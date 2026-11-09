@@ -14,7 +14,7 @@ from pilot_source import select_hair
 from ready_hands import refine_ready_hands
 from pilot_look import refine_look
 from pilot_hair import refine_hair
-from pilot_hair_shape import refine_hair_shape
+from pilot_hair_shape import refine_hair_shape, refine_spikes_shape
 
 PROJECT = Path(__file__).resolve().parents[2]
 STAGING = PROJECT / "Saved/PilotStaging"
@@ -64,12 +64,10 @@ def glb_with_selected_hair(source, destination, style="Spikes"):
         shape.update(applied=True, selectedHair=style)
         applied.append('pilot_hair_shape.refine_hair_shape')
     else:
-        # Spikes has a different crown/fringe topology. Keep its source geometry
-        # rather than apply or relax the six-lock Slick-only shape contract.
-        shape = {'applied': False, 'selectedHair': style,
-                 'sourceSha256': digest(result), 'importSha256': digest(result),
-                 'sourceGeometryUnchanged': True,
-                 'scope': 'Pass-through: original Spikes geometry retained; six-lock Slick sculpt not applied'}
+        # Separate inventory and bounds; the six-lock Slick guard stays exact.
+        result, shape = refine_spikes_shape(result)
+        shape.update(applied=True, selectedHair=style)
+        applied.append('pilot_hair_shape.refine_spikes_shape')
     proof = {'sourceSha256': digest(original), 'importSha256': digest(result),
              'selectedHair': style, 'appliedHelpers': applied,
              'selection': selection, 'readyHands': hands, 'sculpt': sculpt, 'hairShading': hair, 'hairShape': shape,

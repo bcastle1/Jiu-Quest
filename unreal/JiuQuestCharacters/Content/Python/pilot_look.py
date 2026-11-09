@@ -250,6 +250,43 @@ def cloth_offset(panel, p, u, v, landmarks):
     return (0., 0., 0.)
 
 
+def jacket_fit_offset(panel, p, u, v, landmarks):
+    """Small athletic fit outside the accepted shoulder and opening overlaps.
+
+    This adds no bone scaling or new folds. The sleeve field is confined to
+    the outer upper arm, ending before the forearm; waist fitting stays below
+    the shared shoulder warp. Pants and every trim panel are excluded.
+    """
+    x, y, z = p
+    if panel == 'sleeve':
+        support = window(.43, .50, .57, .66, v) * smooth(.29, .39, abs(x))
+        # The accepted inner-elbow shell/lining is close at u=.08-.17.
+        # Leave its complete compression half and neighboring shading faces
+        # fixed; narrow only the exposed outer/back plane, clear of the seam.
+        support *= window(.50, .62, .88, .98, u)
+        if support == 0.:
+            return (0., 0., 0.)
+        side = 'l' if x > 0. else 'r'
+        shoulder, wrist = (landmarks[name+'_'+side] for name in ('upperarm', 'hand'))
+        axis = unit(sub(wrist, shoulder))
+        start = tuple(shoulder[k]-.155*axis[k] for k in range(3))
+        center = tuple(start[k]+(wrist[k]-start[k])*v*.97 for k in range(3))
+        radial = sub(p, center)
+        outward = unit(sub(radial, tuple(dot(radial, axis)*q for q in axis)))
+        return tuple(-.0040*support*q for q in outward)
+    if panel == 'torso':
+        opening = window(.045, .11, .89, .955, u)
+        opening *= 1.-smooth(.020, .070, -y)*(1.-smooth(.105, .140, abs(x)))
+        support = window(.37, .45, .66, .78, v) * opening
+        support *= 1.-smooth(1.355, 1.405, z)
+        if support == 0.:
+            return (0., 0., 0.)
+        outward = unit((x, y-.018, 0.))
+        amount = -.0050*support*(.30+.70*abs(outward[0]))
+        return tuple(amount*q for q in outward)
+    return (0., 0., 0.)
+
+
 def panel_at(uv):
     # glTF flips the Blender UV vertical axis on export.
     x, y = uv[0], 1.-uv[1]
@@ -371,7 +408,8 @@ def refine_look(raw):
     mesh_file = MeshFile(raw)
     doc = mesh_file.doc
     original_doc = copy.deepcopy(doc)
-    proof = {'version': 5, 'changes': [], 'maximumFaceOffsetMeters': 0., 'maximumClothOffsetMeters': 0.,
+    proof = {'version': 6, 'changes': [], 'maximumFaceOffsetMeters': 0., 'maximumClothOffsetMeters': 0.,
+             'maximumJacketFitOffsetMeters': 0., 'jacketFitOffsetLimitMeters': .005,
              'clothOffsetLimitMeters': MAX_CLOTH_OFFSET,
              'clothBoundsExpansionLimitMeters': MAX_CLOTH_BOUNDS_EXPANSION}
     handled = set()
@@ -423,6 +461,7 @@ def refine_look(raw):
                         if previous is None or min(u, 1.-u) > min(previous[1], 1.-previous[1]):
                             shared_panels[seam_key] = (panel, u, v)
                 result = []; moved = 0; maximum = 0.; panel_maxima = {}
+                fitted = 0; fit_maximum = 0.
                 for i, p in enumerate(positions):
                     canonical = tuple(dot(row, p)+translation[j] for j, row in enumerate(rows))
                     if part == 'Body':
@@ -431,6 +470,15 @@ def refine_look(raw):
                         panel, _, _ = panel_at(uvs[i])
                         panel, u, v = shared_panels[(p, joints[i], weights[i], panel)]
                         delta = cloth_offset(panel, canonical, u, v, landmarks)
+                        if part == 'GiJacket':
+                            fit = jacket_fit_offset(panel, canonical, u, v, landmarks)
+                            fit_distance = math.sqrt(dot(fit, fit))
+                            if fit_distance > .005000001:
+                                raise ValueError('Jacket fit exceeded its separate 5 mm bound')
+                            if fit_distance > 1e-10:
+                                fitted += 1
+                                fit_maximum = max(fit_maximum, fit_distance)
+                                delta = tuple(delta[k]+fit[k] for k in range(3))
                     distance = math.sqrt(dot(delta, delta))
                     if part != 'Body':
                         if distance > MAX_CLOTH_OFFSET:
@@ -466,7 +514,9 @@ def refine_look(raw):
                     updated_bounds.append(key)
                 proof['changes'].append({'role': role, 'part': part, 'verticesMoved': moved,
                     'maximumOffsetMeters': maximum, 'panelMaximumOffsetsMeters': panel_maxima,
+                    'jacketFitVertices': fitted, 'maximumJacketFitOffsetMeters': fit_maximum,
                     'maximumOriginalBoundsExpansionMeters': expansion, **audit})
+                proof['maximumJacketFitOffsetMeters'] = max(proof['maximumJacketFitOffsetMeters'], fit_maximum)
                 bound = 'maximumFaceOffsetMeters' if part == 'Body' else 'maximumClothOffsetMeters'
                 proof[bound] = max(proof[bound], maximum)
     binary = bytes(mesh_file.data[mesh_file.start:])
@@ -487,7 +537,7 @@ def refine_look(raw):
     proof.update(sourceSha256=hashlib.sha256(raw).hexdigest(), importSha256=hashlib.sha256(result).hexdigest(),
         scopedPositionBoundsOnly=True, positionBoundsAccessors=updated_bounds,
         protectedBinaryBytesUnchanged=True, binaryByteLengthUnchanged=True,
-        scope='Accepted face, shoulders, jacket and upper trousers retained; bounded angular knee and lower-leg drape only; original source retained',
+        scope='Accepted face, shoulder join, inner-elbow compression and trousers retained; bounded outer/back upper-arm and lateral waist fit; original source retained',
         limitations=['Rest-pose triangle/frame checks do not establish every posed contact or skin clearance.',
                      'Covered body skin, hands, cuffs, lapels, rig, motion and texture coordinates are not reauthored.',
                      'Baked cloth shapes suggest anatomy; no dynamic cloth or muscle simulation.'])

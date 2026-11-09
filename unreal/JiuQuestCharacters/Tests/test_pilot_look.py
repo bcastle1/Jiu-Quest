@@ -11,11 +11,61 @@ PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parents[1]
 sys.path.insert(0, str(PROJECT / 'Content/Python'))
 from pilot_look import (MeshFile, face_offset, cloth_relief, cloth_offset, refine_look,
-                        dot, rigid_frame, panel_at, shoulder_offset, folded_ridge, MAX_CLOTH_OFFSET,
+                        dot, rigid_frame, panel_at, shoulder_offset, folded_ridge, jacket_fit_offset, MAX_CLOTH_OFFSET,
                         MAX_CLOTH_BOUNDS_EXPANSION)
 
 
+def jacket_fit_allowlist(mesh, node, primitive):
+    """Independent regional allowlist; shading may change only one face away.
+
+    Positions outside the two fit regions stay at the accepted result. Normals
+    and UV tangents may follow adjacent triangles and their smooth UV copies.
+    """
+    attrs = primitive['attributes']
+    skin = mesh.doc['skins'][node['skin']]
+    root = next(i for i,j in enumerate(skin['joints']) if mesh.doc['nodes'][j]['name']=='root')
+    rows, translation = rigid_frame(mesh.read(skin['inverseBindMatrices'])[root])
+    points, normals = mesh.read(attrs['POSITION']), mesh.read(attrs['NORMAL'])
+    joints, weights = mesh.read(attrs['JOINTS_0']), mesh.read(attrs['WEIGHTS_0'])
+    allowed = set()
+    for i,(point,uv) in enumerate(zip(points,mesh.read(attrs['TEXCOORD_1']))):
+        x,y,z = tuple(dot(row,point)+translation[j] for j,row in enumerate(rows))
+        panel,u,v = panel_at(uv)
+        if ((panel=='sleeve' and .50<u<.98 and .43<v<.66 and abs(x)>.29)
+            or (panel=='torso' and .37<v<.78 and .045<u<.955 and z<1.405
+                and not (-y>=.070 and abs(x)<=.105))):
+            allowed.add(i)
+    adjacent = set()
+    indices = [row[0] for row in mesh.read(primitive['indices'])]
+    for offset in range(0,len(indices),3):
+        face = indices[offset:offset+3]
+        if any(i in allowed for i in face):
+            adjacent.update(face)
+    keys = [(point,tuple(round(v,6) for v in normals[i]),joints[i],weights[i])
+            for i,point in enumerate(points)]
+    changed_keys = {keys[i] for i in adjacent}
+    return allowed, {i for i,key in enumerate(keys) if key in changed_keys}
+
+
 class LookTests(unittest.TestCase):
+    def test_athletic_fit_is_inward_and_excludes_contact_boundaries(self):
+        landmarks = {'upperarm_l':(.212,.0654,1.4555),'hand_l':(.7065,.0654,1.4555)}
+        for panel,point,u,v in (
+            ('trim',(.2,-.1,1.3),.5,.5), ('pants',(.003,.08,.72),.5,.64),
+            ('sleeve',(.24,.10,1.53),.25,.30), ('sleeve',(.65,.08,1.47),.5,.93),
+            ('sleeve',(.50,.10,1.49),.5,.70), ('torso',(.09,-.10,1.3),.1,.65),
+            ('torso',(.2,.10,1.45),.25,.60), ('torso',(.2,.10,1.10),.25,.25),
+            ('sleeve',(.45,.02,1.50),.10,.625), ('sleeve',(.40,-.01,1.46),.25,.54),
+            ('sleeve',(.40,.07,1.39),.50,.54)):
+            self.assertEqual(jacket_fit_offset(panel,point,u,v,landmarks),(0.,0.,0.))
+        sleeve = jacket_fit_offset('sleeve',(.40,.14,1.46),.75,.54,landmarks)
+        self.assertEqual(sleeve[0],0.,'Do not shorten the arm or move its axis')
+        self.assertLess(sleeve[1],-.0038)
+        self.assertLessEqual(math.sqrt(dot(sleeve,sleeve)),.004)
+        waist = jacket_fit_offset('torso',(.20,.018,1.24),.25,.55,landmarks)
+        self.assertEqual(waist,(-.005,0.,0.))
+        self.assertEqual(jacket_fit_offset('torso',(-.20,.018,1.24),.75,.55,landmarks),(.005,0.,0.))
+
     def test_face_excludes_eyes_lips_neck_and_hands(self):
         for point in ((0., -.08, 1.64), (.03, -.09, 1.643),
                       (0., -.09, 1.577), (.02, -.09, 1.578),
@@ -112,6 +162,8 @@ class LookTests(unittest.TestCase):
             self.assertLessEqual(proof['maximumFaceOffsetMeters'], .0025)
             self.assertLessEqual(proof['maximumClothOffsetMeters'], MAX_CLOTH_OFFSET)
             self.assertGreater(proof['maximumClothOffsetMeters'], .012)
+            self.assertGreater(proof['maximumJacketFitOffsetMeters'], .0049)
+            self.assertLessEqual(proof['maximumJacketFitOffsetMeters'], .005000001)
             self.assertEqual(len(proof['changes']), 6)
             self.assertTrue(all(row['verticesMoved'] > 10 for row in proof['changes']))
             allowed = set()
@@ -121,15 +173,16 @@ class LookTests(unittest.TestCase):
                     continue
                 for primitive in before.doc['meshes'][node['mesh']]['primitives']:
                     attributes = primitive['attributes']
-                    if node['name'].endswith('_GiPantsMesh'):
-                        protected = [p for p,uv in zip(after.read(attributes['POSITION']),
-                            before.read(attributes['TEXCOORD_1'])) if panel_at(uv)[2] >= .58]
-                        self.assertEqual(len(protected),1713)
-                        for point in protected:
-                            accepted_regions.update(struct.pack('<3f',*point))
+                    if node['name'].endswith('_GiJacket'):
+                        fit_positions, fit_frames = jacket_fit_allowlist(before,node,primitive)
+                        self.assertGreater(len(fit_positions),2000)
+                        self.assertLess(len(fit_positions),3000)
                     else:
-                        for semantic in ('POSITION','NORMAL','TANGENT'):
-                            for value in after.read(attributes[semantic]):
+                        fit_positions, fit_frames = set(),set()
+                    for semantic in ('POSITION','NORMAL','TANGENT'):
+                        excluded = fit_positions if semantic=='POSITION' else fit_frames
+                        for i,value in enumerate(after.read(attributes[semantic])):
+                            if i not in excluded:
                                 accepted_regions.update(struct.pack('<'+'f'*len(value),*value))
                     for semantic in ('POSITION', 'NORMAL', 'TANGENT'):
                         index = primitive['attributes'][semantic]
@@ -140,6 +193,19 @@ class LookTests(unittest.TestCase):
                     index = next(i for i,j in enumerate(skin['joints']) if before.doc['nodes'][j]['name']=='root')
                     rows, translation = rigid_frame(before.read(skin['inverseBindMatrices'])[index])
                     old, new = (m.read(primitive['attributes']['POSITION']) for m in (before, after))
+                    if clip=='standing_stance' and node['name']=='JQ_Attacker_GiJacket':
+                        canonical=[tuple(dot(row,p)+translation[j] for j,row in enumerate(rows)) for p in new]
+                        panels=[panel_at(uv) for uv in before.read(attributes['TEXCOORD_1'])]
+                        waist=[p for p,(panel,u,v) in zip(canonical,panels)
+                               if panel=='torso' and abs(p[2]-1.24)<.012]
+                        arm=[p for p,(panel,u,v) in zip(canonical,panels)
+                             if panel=='sleeve' and p[0]>0 and abs(v-.54)<.0105]
+                        # Accepted waist width was 415.14 mm and sleeve depth
+                        # 137.56 mm. Require a visible, bounded taper in the
+                        # actual mesh, not merely a nonzero helper result.
+                        self.assertTrue(.404 < max(p[0] for p in waist)-min(p[0] for p in waist) < .407)
+                        self.assertTrue(.132 < max(p[1] for p in arm)-min(p[1] for p in arm) < .136)
+                        self.assertTrue(.123 < max(p[2] for p in arm)-min(p[2] for p in arm) < .127)
                     old_n, new_n = (m.read(primitive['attributes']['NORMAL']) for m in (before, after))
                     new_t = after.read(primitive['attributes']['TANGENT'])
                     joints = before.read(primitive['attributes']['JOINTS_0'])
@@ -182,12 +248,12 @@ class LookTests(unittest.TestCase):
             self.assertTrue(all(a == b or i+before.start in allowed for i,(a,b) in
                                 enumerate(zip(raw[before.start:],result[after.start:]))))
             self.assertEqual(refine_look(raw)[0], result, 'Sculpt must be deterministic from original bytes')
-        # Actual accepted 003210 recipe, evaluated on the three pinned sources:
-        # complete body/jacket P/N/T plus every upper-pants POSITION at v>=.58.
-        # This catches lining crossover in the original inner-thigh overlap
-        # even when the new rest-space triangles retain their orientation.
+        # Actual accepted 010008 recipe (3389b381), evaluated independently on
+        # the three pinned sources. All Body/Pants P/N/T stay exact, including
+        # the upper-leg lining. Only the allowlisted jacket positions and their
+        # incident shading frames are excluded from this accepted-data digest.
         self.assertEqual(accepted_regions.hexdigest(),
-            'd8d04b9bdd5e26b79189bc299e2529739cad2ad6ebcac21ceadf760d6ba7523c')
+            '65dd76d801f55bc97975802153faaaa68a1d764460fd62977499ca52f8a80f9c')
 
 
 if __name__ == '__main__':
