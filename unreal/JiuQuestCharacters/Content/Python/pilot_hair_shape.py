@@ -535,6 +535,79 @@ def crown_source_audit(output, faces, reference, layers, crown_layers, scalp):
         'checkedCrownTriangleCentroids':len(centroid_margins),'minimumCrownCentroidClearanceMarginMeters':min(centroid_margins)}
 
 
+def author_pointed_crown_taper(output, faces, reference, layers, target, rotation, scalp):
+    """Thin one crown toward its existing tip, preserving all original anchors.
+
+    Only three inserted upper rings move: their across width contracts, their
+    sweep advances slightly, and their upper contour settles toward the tip.
+    The contour must rise continuously to the unchanged terminal ring. Actual
+    closeup and gameplay captures remain the visual acceptance gate.
+    """
+    positions=output['POSITION'];uv=output['TEXCOORD_0'];before=list(positions)
+    vertices={i for face,side in faces if side and layers[face[0]]==target for i in face}
+    centers={}
+    for row in range(5):
+        ring={before[i] for i in vertices if abs(uv[i][1]-row/12.)<1e-6}
+        require(bool(ring),'Missing upper crown ring for pointed taper')
+        centers[row]=tuple(sum(point[k] for point in ring)/len(ring) for k in range(3))
+    sweep=unit(sub(centers[0],centers[4]))
+    across=unit(sub(rotation[0],mul(sweep,dot(rotation[0],sweep))))
+    settle_by_ring=(0.,1.,.8,.4,0.);moved={}
+    for i in vertices:
+        v=uv[i][1]
+        # Float32 UV rounding must not displace either original shoulder.
+        if i<1775 or not 0.<v<1./3.-1e-6:continue
+        row=round(v*12.);support=math.sin(math.pi*row/4.)
+        radius=sub(before[i],centers[row]);width_component=mul(across,dot(radius,across))
+        delta=add(mul(width_component,-.15*support),mul(sweep,.0005*support))
+        narrowed=add(before[i],delta)
+        moved[before[i]]=add(narrowed,mul(rotation[2],-.00275*settle_by_ring[row]))
+    for i in vertices:
+        if before[i] in moved:positions[i]=moved[before[i]]
+    changed={i for i in range(len(positions)) if positions[i]!=before[i]}
+    require(len(changed)==84,'Expected 84 inserted vertices on one upper crown')
+    require(all(i>=1775 and layers[i]==target and 0.<uv[i][1]<1./3.-1e-6 for i in changed),
+            'Pointed taper changed a source anchor or another lock')
+    maximum=max(math.dist(before[i],positions[i]) for i in changed)
+    require(maximum<=.003,'Pointed crown taper exceeds its separate 3 mm local limit')
+    # Audit the eventual stored float32 surface against the unchanged affine
+    # ORIGINAL source correspondence, including edge/interior scalp samples.
+    stored={i:struct.unpack('<3f',struct.pack('<3f',*positions[i])) for i in vertices}
+    profile=[max(dot(rotation[2],stored[i]) for i in vertices if abs(uv[i][1]-row/12.)<1e-6)
+             for row in range(5)]
+    minimum_rise=min(a-b for a,b in zip(profile,profile[1:]))
+    require(minimum_rise>0.,'Pointed crown contour must rise continuously toward its original tip')
+    margins=[];minimum_area=minimum_normal=1.;checked_faces=0;source_maximum=0.
+    for face,side in faces:
+        if not changed.intersection(face):continue
+        require(side and all(i in vertices for i in face),'Pointed taper crossed a cap or lock boundary')
+        checked_faces+=1
+        a,b,c=(reference[i] for i in face);old_cross=cross(sub(b,a),sub(c,a))
+        a,b,c=(stored[i] for i in face);new_cross=cross(sub(b,a),sub(c,a))
+        area=math.sqrt(dot(new_cross,new_cross)/dot(old_cross,old_cross))
+        normal=dot(unit(old_cross),unit(new_cross))
+        minimum_area=min(minimum_area,area);minimum_normal=min(minimum_normal,normal)
+        require(area>=.65 and normal>=.75,'Pointed taper compressed or tilted a source child')
+        source_maximum=max(source_maximum,max(math.dist(reference[i],stored[i]) for i in face))
+        for wa in range(5):
+            for wb in range(5-wa):
+                weights=(wa/4.,wb/4.,(4-wa-wb)/4.)
+                original=tuple(sum(reference[i][k]*w for i,w in zip(face,weights)) for k in range(3))
+                candidate=tuple(sum(stored[i][k]*w for i,w in zip(face,weights)) for k in range(3))
+                base,_=clearance(original,scalp);floor=.003 if base>=.003 else min(base,0.)
+                margin=clearance(candidate,scalp)[0]-floor;margins.append(margin)
+                require(margin>=-2e-6,'Pointed taper crossed original scalp clearance floor')
+    require(checked_faces==192,'Expected 192 existing triangles around the pointed taper')
+    require(source_maximum<=.009,'Stored pointed taper exceeds original 9 mm source envelope')
+    return {'pointedTaperCrownLayers':1,'pointedTaperInsertedVertices':len(changed),
+            'pointedTaperOriginalPositionsExact':positions[:1775]==before[:1775],
+            'pointedTaperUpperContourMonotonic':True,'minimumPointedTaperRingRiseMeters':minimum_rise,
+            'maximumPointedTaperLocalDeltaMeters':maximum,'maximumPointedTaperStoredSourceDeviationMeters':source_maximum,
+            'minimumPointedTaperStoredSourceAreaRatio':minimum_area,'minimumPointedTaperStoredSourceNormalDot':minimum_normal,
+            'checkedPointedTaperStoredTriangles':checked_faces,'checkedPointedTaperStoredScalpPoints':len(margins),
+            'minimumPointedTaperStoredScalpMarginMeters':min(margins)}
+
+
 def author_swept_crown_plane(output, faces, reference, original, layers, target, scalp):
     """Author a directional plane split on the existing coarse midpoint grid."""
     def smooth(a,b,x):
@@ -753,6 +826,8 @@ def shape_spikes(values, indices, canonical, head_joint, canonical_rotation):
     for i in {i for face,_ in output_selected if layers[face[0]] in crown_layers for i in face}:
         output['POSITION'][i]=add(reference[i],mul(sub(output['POSITION'][i],reference[i]),.5))
     detail_proof['crownDetailRetention']=.5
+    pointed_proof=author_pointed_crown_taper(output,output_selected,source_reference,layers,
+        layer_numbers[sorted(crowns,key=lambda c:root_centers[c][0])[2]],canonical_rotation,scalp_triangles)
     taper_proof=crown_source_audit(output,output_selected,source_reference,layers,crown_layers,scalp_triangles)
     detail_proof['maximumRefinementFromAuthoredMeters']=detail_proof['maximumTotalSourceDeviationMeters']
     detail_proof['maximumTotalSourceDeviationMeters']=max(detail_proof['maximumTotalSourceDeviationMeters'],taper_proof['maximumCrownTotalSourceDeviationMeters'])
@@ -798,7 +873,7 @@ def shape_spikes(values, indices, canonical, head_joint, canonical_rotation):
         'maximumDeviationMeters':max(r['deviationMeters'] for r in bounds),
         'maximumUpperRootDeviationMeters':max((r['deviationMeters'] for r in bounds if r['upperRoot']),default=0.),
         'minimumScalpClearanceChangeMeters':min(r['clearanceChangeMeters'] for r in bounds),
-        'allRootAndTerminalEdgesExact':True,'unchangedTriangleCount':len(faces)-len(chosen_faces),**detail_proof,**profile_proof,**taper_proof,**swept_proof}
+        'allRootAndTerminalEdgesExact':True,'unchangedTriangleCount':len(faces)-len(chosen_faces),**detail_proof,**profile_proof,**taper_proof,**swept_proof,**pointed_proof}
 
 
 def refine_spikes_shape(raw):
