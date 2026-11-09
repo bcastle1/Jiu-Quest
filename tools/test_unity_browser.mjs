@@ -439,6 +439,15 @@ try {
   const afterSwap = await sequenceParagraphs.allTextContents();
   assert.equal(afterSwap[0], beforeSwap[1]); assert.equal(afterSwap[1], beforeSwap[0]);
   checks.push('Arena position starts and restart preserve player roles; guide paragraphs and visible bold survive reordering with an extended timer.');
+  await page.setViewportSize({ width: 320, height: 740 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+  await page.getByRole('button', { name: 'Training', exact: true }).click();
+  await page.getByRole('button', { name: /Trap and Roll Escape standard/ }).click();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+  const guideMobileFile = resolve(artifacts, 'blue-belt-guide-mobile.png');
+  const guideMobileImage = await page.locator('.technique-stage').screenshot({ path: guideMobileFile });
+  images.push({ name: 'blue-belt-guide-mobile', path: guideMobileFile, bytes: guideMobileImage.length, sha256: createHash('sha256').update(guideMobileImage).digest('hex') });
+  checks.push('Long guide paragraphs fit a 320-pixel desktop viewport including classic scrollbar space in Training and Arena.');
   await closeContext(desktop, 'desktop');
 
   for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 740 }, { width: 844, height: 390 }]) {
@@ -447,7 +456,7 @@ try {
     await page.goto(`${base}/?preview=unity`); await ready(); await state(0, { moveId: 'double_leg', playing: false });
     await selectedCamera('Side');
     assert.equal(await page.evaluate(() => window.__unityEvents.some((event) => event.type === 'state' && event.playing)), false);
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
     const stage = await page.locator('.unity-viewport').boundingBox(); dimensions.push({ viewport, stage });
     assert.ok(stage.width >= viewport.width - 60);
     assert.ok(stage.height >= (viewport.height > viewport.width ? 360 : 210));
