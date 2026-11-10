@@ -1,5 +1,9 @@
 # Unreal renderer pilot inside JiuQuest
 
+The purchased-gi MetaHuman now has a separately verified local Win64 standalone idle/walk preview. It is not the paired-character Editor receiver described below and does not yet advertise combat moves. The two DGX Sparks have authenticated hardware inventories; their installed-software compatibility gaps and the remaining release checks are recorded in [Unreal Spark hosting](unreal-spark-hosting.md).
+
+The experimental [native character receiver](../unreal/native-runtime/README.md) separates video from local playback commands. Its `jiuquest.characterPreview` channel is limited to the human idle/walk study. It is not connected to this app's combat bridge, and importing its source does not start a listener or change the production renderer. See its validation table for the exact compiled, tested and still-pending boundaries.
+
 The local development app can select an Unreal Pixel Streaming preview in its actual Training and Arena views. This is restricted to a Vite development build at `http://127.0.0.1:5178`; use `?engine=unreal` or the local **Character graphics** selector. Production renderer selection is unchanged. The local iframe loads the pinned Epic UE5.8 library from the loopback service described in `docs/unreal-local-streaming.md`. This integration does not supply a public GPU host. A working Unreal receiver, actual imported characters, controls and presented video must be verified together; protocol tests alone do not prove rendering.
 
 ## Ownership and integration seams
