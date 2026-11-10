@@ -1,4 +1,5 @@
 .unity-stage{min-width:0;overflow:hidden;border:1px solid #808ab32e;border-radius:12px;background:#0a101c;color:var(--text)}
+.unity-canvas-host{position:absolute;inset:0}
 .unity-stage-heading{padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:linear-gradient(110deg,#17192c,#0c1727)}
 .unity-stage-heading h3{margin:5px 0 0;font-size:17px;font-weight:650;line-height:1.35}.unity-stage-heading>div:first-child{min-width:0}
 .unity-stage-heading-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}.unity-eyebrow{font-size:10px;letter-spacing:.16em;color:#ac96f9;font-weight:750}.unity-draft{font-size:10px;border:1px solid #f6c65b40;border-radius:20px;padding:6px 10px;color:#f6d889;white-space:nowrap}

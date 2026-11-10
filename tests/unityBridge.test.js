@@ -192,12 +192,12 @@ test('Unity lifecycle waits for Quit, cancels queued mounts, and releases a fail
   globalThis.document = { createElement: () => ({ remove() {} }), head: { appendChild: (script) => queueMicrotask(() => script.onload()) } };
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ protocolVersion: 1, loaderUrl: './game.loader.js', dataUrl: './game.data', frameworkUrl: './game.framework.js', codeUrl: './game.wasm' }) });
   try {
-    const first = await createUnityPlayer({ id: ':react:id:' });
+    const first = await createUnityPlayer({ id: ':react:id:', remove() {} });
     const abort = new AbortController();
-    const canceled = createUnityPlayer({}, { signal: abort.signal });
+    const canceled = createUnityPlayer({ remove() {} }, { signal: abort.signal });
     const canceledAssertion = assert.rejects(canceled, { name: 'AbortError' });
     abort.abort();
-    const thirdPending = createUnityPlayer({});
+    const thirdPending = createUnityPlayer({ remove() {} });
     await tick();
     assert.equal(createCount, 1, 'route replacements cannot create another WebGL runtime before Quit');
     const disposed = first.dispose();
@@ -212,9 +212,9 @@ test('Unity lifecycle waits for Quit, cancels queued mounts, and releases a fail
     await third.dispose();
     assert.equal(quitCount, 2, 'each instance quits exactly once');
     shouldFail = true;
-    await assert.rejects(createUnityPlayer({}), /simulated creation failure/);
+    await assert.rejects(createUnityPlayer({ remove() {} }), /simulated creation failure/);
     shouldFail = false;
-    const next = await createUnityPlayer({});
+    const next = await createUnityPlayer({ remove() {} });
     await next.dispose();
     assert.equal(createCount, 4, 'a failed loader does not block subsequent retry');
   } finally {
@@ -408,20 +408,23 @@ test('a hung Unity factory reports reload guidance but keeps its lease until eve
       return Promise.resolve({ Quit: async () => { quitCount += 1; } });
     },
   };
-  globalThis.document = { createElement: () => ({ remove() {} }), head: { appendChild: (script) => queueMicrotask(() => script.onload()) } };
+  globalThis.document = {
+    createElement: () => ({ style: {}, setAttribute() {}, appendChild() {}, remove() {} }),
+    body: { appendChild() {} }, head: { appendChild: (script) => queueMicrotask(() => script.onload()) },
+  };
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ protocolVersion: 1, loaderUrl: './game.loader.js', dataUrl: './game.data', frameworkUrl: './game.framework.js', codeUrl: './game.wasm' }) });
   const abort = new AbortController();
   const { state, changes, callbacks } = loadStateHarness({ onInitialTimeout: () => abort.abort() });
   try {
     state.startPlayerLoad();
-    const initialPlayer = createUnityPlayer({}, { signal: abort.signal });
+    const initialPlayer = createUnityPlayer({ style: {}, remove() {}, getBoundingClientRect: () => ({ width: 960, height: 600 }) }, { signal: abort.signal });
     const canceledAssertion = assert.rejects(initialPlayer, { name: 'AbortError' });
     for (let count = 0; count < 10 && createCount === 0; count += 1) await tick();
     assert.equal(createCount, 1);
     callbacks.at(-1)();
     assert.equal(changes.at(-1).phase, 'error');
     assert.equal(changes.at(-1).reloadRequired, true);
-    const replacement = createUnityPlayer({});
+    const replacement = createUnityPlayer({ remove() {} });
     await tick();
     assert.equal(createCount, 1, 'the timed-out but unresolved factory still owns the runtime lease');
     assert.equal(quitCount, 0, 'there is no instance to Quit while the factory is unresolved');
