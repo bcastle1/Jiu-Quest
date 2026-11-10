@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/*.test.js",
+    "test:unreal-native": "node --test unreal/native-runtime/Tests/control-gateway.test.cjs unreal/native-runtime/Tests/browser-control.test.mjs",
     "unity:build": "pwsh -NoProfile -File tools/build_unity_preview.ps1",
     "unity:test": "pwsh -NoProfile -File tools/build_unity_preview.ps1 -TestOnly",
     "optimize:bjj": "powershell -ExecutionPolicy Bypass -File tools/optimize_bjj_glbs.ps1",
