@@ -7,12 +7,14 @@ import { arch, cpus, platform, release, totalmem } from 'node:os';
 import { chromium } from 'playwright';
 import { moves as curriculumMoves } from '../src/data/curriculum.js';
 import { installUnityStartupTelemetry } from './unity_startup_telemetry.mjs';
+import { serveBrowserAsset, prepareBrowserAssets, createBrowserAssetTrace } from './browser_asset_response.mjs';
 
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser');
 await mkdir(artifacts, { recursive: true });
 const checks = [], images = [], moves = [], errors = [], consoleErrors = [], expectedConsoleErrors = [], renderQualityLogs = [], assetFailures = [], dimensions = [], pauses = [];
 const startedAtUtc = new Date().toISOString(), startedAt = Date.now(), checkpoints = [];
 const pageContexts = new WeakMap();
+const serverAssetTrace = createBrowserAssetTrace();
 let contextSequence = 0;
 let browser, server, page, manifest, networkMeasurement, speedMeasurement, trainingLifecycle;
 let expectedMissingManifest = false;
@@ -55,7 +57,7 @@ async function bounded(promise, timeoutMs, label) {
 
 function evidence(extra = {}) {
   return { startedAtUtc, checkedAtUtc: new Date().toISOString(), elapsedMs: Date.now() - startedAt, manifest, checkpoints,
-    checks, moves, images, dimensions, pauses, trainingLifecycle, speedMeasurement, networkMeasurement,
+    checks, moves, images, dimensions, pauses, trainingLifecycle, speedMeasurement, networkMeasurement, serverAssetTrace: serverAssetTrace.evidence,
     pageErrors: errors, consoleErrors, expectedConsoleErrors, renderQualityLogs, assetFailures, environment, ...extra };
 }
 
@@ -79,9 +81,17 @@ async function closeContext(context, label) {
 async function staticSite() {
   const root = resolve('dist');
   await stat(resolve(root, 'index.html'));
+  const sourceManifest = JSON.parse(await readFile(resolve(root, 'unity/build-manifest.json'), 'utf8'));
+  if (!Array.isArray(sourceManifest.supportedMoves) || sourceManifest.supportedMoves.length !== 16
+    || sourceManifest.supportedMoves.some(move => typeof move !== 'string' || !/^[a-z_]+$/.test(move)))
+    throw new Error('Expected the 16 canonical GLBs before starting the browser.');
+  const prepared = await prepareBrowserAssets(sourceManifest.supportedMoves.map(move => resolve(root, 'unity/StreamingAssets/Bjj', move + '.glb')));
+  serverAssetTrace.evidence.preparation = prepared.evidence;
   server = createServer(async (request, response) => {
+    const trace = serverAssetTrace.begin(response);
     try {
       const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+      trace.row.path = pathname;
       const file = resolve(root, `.${pathname.endsWith('/') ? `${pathname}index.html` : pathname}`);
       if (!file.startsWith(`${root}${sep}`)) { response.writeHead(403); response.end(); return; }
       let extension = extname(file);
@@ -90,12 +100,14 @@ async function staticSite() {
         extension = extname(file.slice(0, -extension.length));
       }
       const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm', '.glb': 'model/gltf-binary', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
-      const body = await readFile(file);
-      response.setHeader('Content-Type', types[extension] || 'application/octet-stream');
-      response.setHeader('Content-Length', body.length);
-      response.setHeader('Cache-Control', 'public, max-age=60');
-      response.writeHead(200); response.end(body);
-    } catch { response.writeHead(404); response.end('Not found'); }
+      const cached = prepared.get(file);
+      trace.row.preparedHit = Boolean(cached);
+      let body;
+      if (cached) { body = cached.body; trace.mark('cacheHit'); }
+      else { trace.mark('readStart'); body = await readFile(file); trace.mark('readEnd'); }
+      serveBrowserAsset(response, { file, body, contentType: types[extension] || 'application/octet-stream',
+        acceptEncoding: request.headers['accept-encoding'], prepared: cached, trace });
+    } catch (error) { trace.row.error = String(error.message); trace.mark('headers'); response.writeHead(404); response.end('Not found'); }
   });
   await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
   return `http://127.0.0.1:${server.address().port}`;

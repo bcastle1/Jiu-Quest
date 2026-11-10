@@ -53,10 +53,12 @@ import {
   getStorageStatus,
 } from "./storage";
 import GrapplingSnapshotStage from "./components/GrapplingSnapshotStage";
-import UnityGrapplingStage from "./components/UnityGrapplingStage.jsx";
+import GrapplingStage from "./components/GrapplingStage.jsx";
 import UnityCombatPreview from "./components/UnityCombatPreview.jsx";
 import { isUnityEnabled, resolveUnityMove } from "./unity/bridge.js";
+import { resolveCombatRenderer } from './unreal/renderer.js';
 import { TechniqueStep, RichText } from './components/TechniqueText.js';
+import { selectTrainingSession, updateTrainingOrder, updateTrainingResult } from './trainingSession.js';
 import { groupTechniques, sequenceSeconds } from './data/techniqueSteps.js';
 import CombatArena from "./components/CombatArenaView";
 import GrapplingLab from "./components/GrapplingPositionLab";
@@ -334,9 +336,22 @@ function App() {
   useEffect(() => () => window.clearTimeout(noticeTimer.current), []);
   const [view, setView] = useState("dashboard");
   const [selectedBelt, setSelectedBelt] = useState("blue");
-  const [selectedMoveId, setSelectedMoveId] = useState("rear-naked-choke");
-  const [trainingOrder, setTrainingOrder] = useState([]);
-  const [trainingResult, setTrainingResult] = useState(null);
+  const [trainingSession, setTrainingSession] = useState(() => selectTrainingSession(
+    null,
+    allMoves.find((move) => move.id === "rear-naked-choke") ?? moves[0],
+    shuffle,
+  ));
+  const { moveId: selectedMoveId, order: trainingOrder, result: trainingResult } = trainingSession;
+  const setSelectedMoveId = (moveId) => {
+    const move = allMoves.find((item) => item.id === moveId) ?? moves[0];
+    setTrainingSession((current) => selectTrainingSession(current, move, shuffle));
+  };
+  const setTrainingOrder = (update) => {
+    setTrainingSession((current) => updateTrainingOrder(current, selectedMoveId, update));
+  };
+  const setTrainingResult = (result) => {
+    setTrainingSession((current) => updateTrainingResult(current, selectedMoveId, result));
+  };
   const [adminGateOpen, setAdminGateOpen] = useState(false);
   const [adminAuthed, setAdminAuthed] = useState(false);
   const [adminCode, setAdminCode] = useState("");
@@ -420,13 +435,6 @@ function App() {
       image.src = url;
     });
   }, [fighter.hairStyle, fighter.stance]);
-
-  useEffect(() => {
-    if (!trainingOrder.length || selectedMove.steps.some((step) => !trainingOrder.includes(step))) {
-      setTrainingOrder(shuffle(selectedMove.steps));
-      setTrainingResult(null);
-    }
-  }, [selectedMove, trainingOrder.length]);
 
   useEffect(() => {
     const nextNpc = store.npcs.find((npc) => npc.id === combat.npc?.id);
@@ -1352,6 +1360,8 @@ function Training({
   const lockedFullPath = selectedMove.belt !== "blue" && selectedMove.preview;
   const trainingPosition = createArenaState(selectedMove.starts[0]);
   const techniqueGroups = groupTechniques(beltMoves, blueBeltPositionGroups);
+  const [renderer, setRenderer] = useState(() => resolveCombatRenderer(window.location.href, { development: import.meta.env.DEV }));
+  const movementPreview = renderer !== 'snapshot';
 
   return (
     <section className="training-grid">
@@ -1407,8 +1417,8 @@ function Training({
           </div>
         </div>
         <div className="training-animation-card">
-          <div className="training-animation-head"><span><h3>{isUnityEnabled(window.location.search) ? 'Movement preview' : 'Position reference'}</h3><p>{isUnityEnabled(window.location.search) ? 'Review the draft movement where a matching animation is available. Follow the technique steps for the required setup.' : 'A reference for the starting position. Follow the steps below for the exact setup and full sequence.'}</p></span></div>
-          {isUnityEnabled(window.location.search) ? <UnityGrapplingStage moveId={resolveUnityMove(selectedMove.id)} moveLabel={selectedMove.name} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact fallback={<GrapplingSnapshotStage state={trainingPosition} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact />} /> : <GrapplingSnapshotStage state={trainingPosition} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact />}
+          <div className="training-animation-head"><span><h3>{movementPreview ? 'Movement preview' : 'Position reference'}</h3><p>{movementPreview ? 'Review the draft movement where a matching animation is available. Follow the technique steps for the required setup.' : 'A reference for the starting position. Follow the steps below for the exact setup and full sequence.'}</p></span></div>
+          <GrapplingStage onRendererChange={setRenderer} moveId={resolveUnityMove(selectedMove.id)} moveLabel={selectedMove.name} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact fallback={<GrapplingSnapshotStage state={trainingPosition} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact />} />
         </div>
         {selectedMove.scenario && <div className="scenario-box">
           <h3>Starting scenario</h3>

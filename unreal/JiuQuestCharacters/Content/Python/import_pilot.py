@@ -15,6 +15,114 @@ from ready_hands import refine_ready_hands
 from pilot_look import refine_look
 from pilot_hair import refine_hair
 from pilot_hair_shape import refine_hair_shape, refine_spikes_shape
+from pilot_gi_body import refine_gi_body
+
+# Frozen from the visually reviewed material-only pilot. Keep the HLSL exact:
+# this changes normal shading, never mesh positions, cloth physics or pairing.
+PANTS_NORMAL_SHA256 = "08584b75c79a341263c518472da109e6053f50d8be541d1f506578e9e43d5be5"
+PANTS_NORMAL_CODE = r'''
+struct TrouserFolds {
+  float ridge(float d, float width) {
+    float r=d/width;
+    float a=sqrt(r*r+0.01)-0.1;
+    float h=1.0-a;
+    float crest=0.5*(h+sqrt(h*h+0.0036))*(1.0-smoothstep(1.08,1.40,a));
+    float q=(r+1.2)/0.62;
+    return crest-0.46*exp(-q*q);
+  }
+  float height(float2 p) {
+    float angle=p.x*6.28318530718;
+    float front=pow(max(0.0,-cos(angle)),4.0);
+    float side=pow(max(0.0,-sin(angle)),2.0);
+    float h=0.0065*ridge(p.y-0.35-0.065*sin(angle),0.032);
+    h+=0.0080*ridge(p.y-0.445+0.048*sin(angle),0.038);
+    h+=0.0045*ridge(p.y-0.545-0.030*sin(angle),0.047);
+    h*=front;
+    h+=0.0040*ridge(p.y-0.73-0.12*sin(angle),0.045)*side;
+    float edge=smoothstep(0.07,0.13,min(p.x,1.0-p.x));
+    float vertical=smoothstep(0.12,0.21,p.y)*(1.0-smoothstep(0.79,0.89,p.y));
+    return h*edge*vertical;
+  }
+};
+TrouserFolds folds;
+float2 atlas=float2(AtlasUV.x,1.0-AtlasUV.y);
+float2 cell=floor(atlas*2.0);
+float2 panel=(atlas-cell*0.5-0.008)/0.484;
+float mask=(1.0-step(0.5,cell.x))*step(0.5,cell.y);
+float epsilon=0.002;
+float dx=(folds.height(panel+float2(epsilon,0))-folds.height(panel-float2(epsilon,0)))/(2.0*epsilon);
+float dy=(folds.height(panel+float2(0,epsilon))-folds.height(panel-float2(0,epsilon)))/(2.0*epsilon);
+float2 extra=1.45*mask*float2(-dx,dy);
+extra*=min(1.0,0.40/max(length(extra),0.000001));
+return float3(FineNormal.xy+extra,FineNormal.z);
+'''
+
+# Frozen from the reviewed front chest and forward elbow material pilot.
+# Existing weave, normal strength and garment geometry remain unchanged.
+JACKET_NORMAL_SHA256 = "f8432d90832305cf0a0dc6a5ad8dcaaa3b54d71298e78f2bd20e12ae0332b56d"
+JACKET_NORMAL_CODE = r'''
+struct CottonFolds {
+    float roundedPlane(float r) {
+        float a = sqrt(r*r + 0.01) - 0.1;
+        float h = 1.0 - a;
+        return 0.5 * (h + sqrt(h*h + 0.0036))
+            * (1.0 - smoothstep(1.08, 1.40, a));
+    }
+    float ridge(float distance, float width) {
+        float r = distance / width;
+        float q = (r+1.25) / 0.62;
+        float curved = exp(-r*r) - 0.48 * exp(-q*q);
+        float folded = roundedPlane(r) - 0.52 * roundedPlane((r+1.38)/0.72);
+        // Rounded crests with flatter sides, at the existing relief strength.
+        return 0.25 * curved + 0.66 * folded;
+    }
+    float height(float2 p, float sleeve) {
+        float torsoHeight = 0.007 * ridge(p.x - 0.24 - 0.30*(p.y-0.42), 0.048);
+        torsoHeight += 0.005 * ridge(p.x - 0.67 + 0.20*(p.y-0.42), 0.055);
+        torsoHeight += 0.004 * ridge(p.y - 0.51 - 0.16*(p.x-0.5), 0.045);
+        // The front opening is at u=0/1; u=.5 is the center back.
+        float frontU = min(p.x, 1.0-p.x);
+        float frontSupport = 1.0-smoothstep(0.18,0.25,frontU);
+        float unequal = lerp(1.0,0.78,step(0.5,p.x));
+        torsoHeight += unequal * frontSupport
+            * (0.012 * ridge(frontU-0.105-0.18*(p.y-0.38),0.027)
+             + 0.007 * ridge(p.y-0.43-1.05*frontU,0.030));
+        float sleeveHeight = 0.005 * ridge(p.y - 0.52 + 0.18*(p.x-0.70), 0.040);
+        sleeveHeight += 0.003 * ridge(p.y - 0.67 - 0.14*(p.x-0.70), 0.048);
+        // Both authored sleeve UVs put the forward elbow at u=.25.
+        float forward = 1.0-smoothstep(0.12,0.23,abs(p.x-0.25));
+        sleeveHeight += forward
+            * (0.010 * ridge(p.y-0.535-0.20*(p.x-0.25),0.030)
+             + 0.006 * ridge(p.y-0.665+0.16*(p.x-0.25),0.038)
+             + 0.003 * ridge(p.y-0.755-0.10*(p.x-0.25),0.030));
+        return lerp(torsoHeight, sleeveHeight, sleeve);
+    }
+};
+CottonFolds folds;
+float2 atlas = float2(AtlasUV.x, 1.0 - AtlasUV.y);
+float2 cell = floor(atlas * 2.0);
+float2 panel = (atlas - cell * 0.5 - 0.008) / 0.484;
+float edge = smoothstep(0.06, 0.12, min(panel.x, 1.0 - panel.x));
+float torso = (1.0 - step(0.5, cell.x)) * edge
+    * smoothstep(0.18, 0.28, panel.y) * (1.0 - smoothstep(0.68, 0.76, panel.y));
+float rearSleeve = smoothstep(0.50,0.62,panel.x)
+    * (1.0-smoothstep(0.88,0.98,panel.x));
+float frontSleeve = smoothstep(0.08,0.16,panel.x)
+    * (1.0-smoothstep(0.38,0.46,panel.x));
+float sleeve = step(0.5,cell.x) * saturate(rearSleeve+frontSleeve)
+    * smoothstep(0.34, 0.43, panel.y) * (1.0 - smoothstep(0.76, 0.86, panel.y));
+float mask = saturate(torso + sleeve) * (1.0 - step(0.5, cell.y));
+float isSleeve = step(0.5, cell.x);
+float epsilon = 0.002;
+float dx = (folds.height(panel+float2(epsilon,0),isSleeve)
+          - folds.height(panel-float2(epsilon,0),isSleeve)) / (2.0*epsilon);
+float dy = (folds.height(panel+float2(0,epsilon),isSleeve)
+          - folds.height(panel-float2(0,epsilon),isSleeve)) / (2.0*epsilon);
+// Atlas V is opposite the imported UV1 V; preserve that derivative sign.
+float2 extra = 1.45 * mask * float2(-dx, dy);
+extra *= min(1.0, 0.40 / max(length(extra), 0.000001));
+return float3(FineNormal.xy + extra, FineNormal.z);
+'''
 
 PROJECT = Path(__file__).resolve().parents[2]
 STAGING = PROJECT / "Saved/PilotStaging"
@@ -68,13 +176,16 @@ def glb_with_selected_hair(source, destination, style="Spikes"):
         result, shape = refine_spikes_shape(result)
         shape.update(applied=True, selectedHair=style)
         applied.append('pilot_hair_shape.refine_spikes_shape')
+    result, gi_body = refine_gi_body(result, source.stem, style)
+    applied.append('pilot_gi_body.refine_gi_body')
     proof = {'sourceSha256': digest(original), 'importSha256': digest(result),
              'selectedHair': style, 'appliedHelpers': applied,
              'selection': selection, 'readyHands': hands, 'sculpt': sculpt, 'hairShading': hair, 'hairShape': shape,
+             'giBody': gi_body,
              'recipeFiles': {name: digest(Path(__file__).with_name(name).read_bytes()) for name in
-                             ('import_pilot.py', 'pilot_source.py', 'ready_hands.py', 'pilot_look.py', 'pilot_hair.py', 'pilot_hair_shape.py')},
+                             ('import_pilot.py', 'pilot_source.py', 'ready_hands.py', 'pilot_look.py', 'pilot_hair.py', 'pilot_hair_shape.py', 'pilot_gi_body.py')},
              'derivedSource': str(destination),
-             'scope': 'Original source retained; selected hair shading, explicit style-specific shape handling, face/gi sculpt and standing grip derivative'}
+             'scope': 'Original source retained; selected hair shading, style-specific shape handling, face/gi sculpt, standing grip and pinned standing Spikes trouser fit'}
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(result)
     return proof
@@ -205,6 +316,8 @@ def make_material(spec, images, stage, folder, cache):
         normal_source, normal_output = normal, "RGB"
         fold_detail = None
         if name.endswith("_GiTop"):
+            check(digest(JACKET_NORMAL_CODE.encode("utf-8")) == JACKET_NORMAL_SHA256,
+                  "Frozen jacket normal shader changed")
             # Broad authored creases have their own height field, so increasing
             # fold readability cannot amplify the source texture's fine weave.
             # This is normal relief only; openings and silhouette stay exact.
@@ -217,55 +330,26 @@ def make_material(spec, images, stage, folder, cache):
                 item.set_editor_property("input_name", input_name)
                 inputs.append(item)
             fold_detail.set_editor_property("inputs", inputs)
-            fold_detail.set_editor_property("code", """
-struct CottonFolds {
-    float roundedPlane(float r) {
-        float a = sqrt(r*r + 0.01) - 0.1;
-        float h = 1.0 - a;
-        return 0.5 * (h + sqrt(h*h + 0.0036))
-            * (1.0 - smoothstep(1.08, 1.40, a));
-    }
-    float ridge(float distance, float width) {
-        float r = distance / width;
-        float q = (r+1.25) / 0.62;
-        float curved = exp(-r*r) - 0.48 * exp(-q*q);
-        float folded = roundedPlane(r) - 0.52 * roundedPlane((r+1.38)/0.72);
-        // Rounded crests with flatter sides, at the existing relief strength.
-        return 0.25 * curved + 0.66 * folded;
-    }
-    float height(float2 p, float sleeve) {
-        float torsoHeight = 0.007 * ridge(p.x - 0.24 - 0.30*(p.y-0.42), 0.048);
-        torsoHeight += 0.005 * ridge(p.x - 0.67 + 0.20*(p.y-0.42), 0.055);
-        torsoHeight += 0.004 * ridge(p.y - 0.51 - 0.16*(p.x-0.5), 0.045);
-        float sleeveHeight = 0.005 * ridge(p.y - 0.52 + 0.18*(p.x-0.70), 0.040);
-        sleeveHeight += 0.003 * ridge(p.y - 0.67 - 0.14*(p.x-0.70), 0.048);
-        return lerp(torsoHeight, sleeveHeight, sleeve);
-    }
-};
-CottonFolds folds;
-float2 atlas = float2(AtlasUV.x, 1.0 - AtlasUV.y);
-float2 cell = floor(atlas * 2.0);
-float2 panel = (atlas - cell * 0.5 - 0.008) / 0.484;
-float edge = smoothstep(0.06, 0.12, min(panel.x, 1.0 - panel.x));
-float torso = (1.0 - step(0.5, cell.x)) * edge
-    * smoothstep(0.18, 0.28, panel.y) * (1.0 - smoothstep(0.68, 0.76, panel.y));
-float sleeve = step(0.5, cell.x)
-    * smoothstep(0.50, 0.62, panel.x) * (1.0 - smoothstep(0.88, 0.98, panel.x))
-    * smoothstep(0.34, 0.43, panel.y) * (1.0 - smoothstep(0.76, 0.86, panel.y));
-float mask = saturate(torso + sleeve) * (1.0 - step(0.5, cell.y));
-float isSleeve = step(0.5, cell.x);
-float epsilon = 0.002;
-float dx = (folds.height(panel+float2(epsilon,0),isSleeve)
-          - folds.height(panel-float2(epsilon,0),isSleeve)) / (2.0*epsilon);
-float dy = (folds.height(panel+float2(0,epsilon),isSleeve)
-          - folds.height(panel-float2(0,epsilon),isSleeve)) / (2.0*epsilon);
-// Atlas V is opposite the imported UV1 V; preserve that derivative sign.
-float2 extra = 1.45 * mask * float2(-dx, dy);
-extra *= min(1.0, 0.40 / max(length(extra), 0.000001));
-return float3(FineNormal.xy + extra, FineNormal.z);
-""")
+            fold_detail.set_editor_property("code", JACKET_NORMAL_CODE)
             check(set(edit.get_material_expression_input_names(fold_detail)) ==
                   {"FineNormal", "AtlasUV"}, "Jacket fold inputs changed")
+            connect(normal, "RGB", fold_detail, "FineNormal")
+            normal_source, normal_output = fold_detail, ""
+        elif name.endswith("_GiPants"):
+            check(digest(PANTS_NORMAL_CODE.encode("utf-8")) == PANTS_NORMAL_SHA256,
+                  "Frozen pants normal shader changed")
+            fold_detail = node(unreal.MaterialExpressionCustom)
+            fold_detail.set_editor_property("description", "Directional trouser fold relief")
+            fold_detail.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT3)
+            inputs = []
+            for input_name in ("FineNormal", "AtlasUV"):
+                item = unreal.CustomInput()
+                item.set_editor_property("input_name", input_name)
+                inputs.append(item)
+            fold_detail.set_editor_property("inputs", inputs)
+            fold_detail.set_editor_property("code", PANTS_NORMAL_CODE)
+            check(set(edit.get_material_expression_input_names(fold_detail)) ==
+                  {"FineNormal", "AtlasUV"}, "Trouser fold inputs changed")
             connect(normal, "RGB", fold_detail, "FineNormal")
             normal_source, normal_output = fold_detail, ""
         scaled = multiply(normal_source, normal_output, color([strength, strength, 1.]))
@@ -337,6 +421,26 @@ return float3(FineNormal.xy + extra, FineNormal.z);
     edit.layout_material_expressions(material)
     edit.recompile_material(material)
     unreal.EditorAssetLibrary.save_loaded_asset(material)
+    if name.endswith("_GiTop") and spec["normalTexture"]:
+        actual_code = fold_detail.get_editor_property("code")
+        check(actual_code == JACKET_NORMAL_CODE, "Jacket shader readback changed")
+        actual_hash = digest(actual_code.encode("utf-8"))
+        check(actual_hash == JACKET_NORMAL_SHA256, "Jacket shader readback hash changed")
+        REPORT.setdefault("jacketReliefGraphs", []).append({"source": name,
+            "material": material.get_path_name(), "node": fold_detail.get_path_name(),
+            "actualCodeMatchesFrozenShader": True, "shaderSha256": JACKET_NORMAL_SHA256,
+            "readbackSha256": actual_hash,
+            "inputs": sorted(edit.get_material_expression_input_names(fold_detail))})
+    if name.endswith("_GiPants") and spec["normalTexture"]:
+        actual_code = fold_detail.get_editor_property("code")
+        check(actual_code == PANTS_NORMAL_CODE, "Trouser shader readback changed")
+        actual_hash = digest(actual_code.encode("utf-8"))
+        check(actual_hash == PANTS_NORMAL_SHA256, "Trouser shader readback hash changed")
+        REPORT.setdefault("pantsReliefGraphs", []).append({"source": name,
+            "material": material.get_path_name(), "node": fold_detail.get_path_name(),
+            "actualCodeMatchesFrozenShader": True, "shaderSha256": PANTS_NORMAL_SHA256,
+            "readbackSha256": actual_hash,
+            "inputs": sorted(edit.get_material_expression_input_names(fold_detail))})
     REPORT["materialGraphs"].append({"source": name, "asset": material.get_path_name(),
         "colorUV": (spec["colorTexture"] or {}).get("uv"),
         "normalUV": 0 if name.endswith('_Hair') else (spec["normalTexture"] or {}).get("uv"),
@@ -345,12 +449,18 @@ return float3(FineNormal.xy + extra, FineNormal.z);
         "roughnessUV": (spec["roughnessTexture"] or {}).get("uv"),
         "roughnessChannel": "G", "skinDefaultProfileUntuned": skin,
         "skinBaseColorScale": .82 if skin else None,
-        "jacketFoldRelief": ({"source": "authored broad crease height field", "uv": 1,
+        "jacketFoldRelief": ({"source": "frozen front tension and elbow crease height field", "uv": 1,
+                              "shaderSha256": JACKET_NORMAL_SHA256,
                               "derivativeStep": .002, "creaseGain": 1.45, "extraXYLimit": .40,
-                              "profile": "rounded planar crests blended with curved shoulders",
+                              "profile": "rounded planar crests with unequal front tension folds",
                               "planeBlend": .75, "planeScale": .88,
-                              "scope": "torso interior and outer/back sleeve; openings and inner elbow excluded"}
-                             if name.endswith("_GiTop") else None),
+                              "scope": "torso interior and front/back sleeve; opening, shoulder and cuff masks retained"}
+                             if name.endswith("_GiTop") and spec["normalTexture"] else None),
+        "pantsFoldRelief": ({"source": "frozen directional trouser crease height field", "uv": 1,
+                             "shaderSha256": PANTS_NORMAL_SHA256, "derivativeStep": .002,
+                             "creaseGain": 1.45, "extraXYLimit": .40,
+                             "scope": "GiPants normal shading only; geometry and fine weave retained"}
+                            if name.endswith("_GiPants") and spec["normalTexture"] else None),
         "hairStrandRelief": ({'source': 'original grayscale colour atlas', 'uv': 0,
                               'tiling': [4., 1.], 'normalIntensity': 3., 'uvOffset': .0039}
                              if name.endswith('_Hair') else None)})

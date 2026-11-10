@@ -42,6 +42,15 @@ test('static file resolution rejects encoded traversal and malformed input', () 
     assert.equal(local.fileFor('/..%5c..%5csecret', root), null);
 });
 
+test('embedded player routes are fixed and never alter the stock default route', () => {
+    assert.equal(local.APP_ORIGIN, 'http://127.0.0.1:5178');
+    assert.ok(local.embeddedFile('/jiuquest/embed').file.endsWith(path.join('tools', 'unreal_embed.html')));
+    assert.ok(local.embeddedFile('/jiuquest/embed.js?nonce=ignored').file.endsWith(path.join('tmp', 'unreal-pilot', 'jiuquest-embed.js')));
+    for (const route of ['/', '/jiuquest/', '/jiuquest/embed.js.map', '/jiuquest/%65mbed', '/..%2f..%2fsecret', '/jiuquest/embed/secret']) assert.equal(local.embeddedFile(route), null);
+    const root = path.resolve('isolated-public');
+    assert.equal(local.fileFor('/', root), path.join(root, 'player.html'));
+});
+
 test('SDK reuses owned HTTP servers, has no SFU or external ICE endpoint', () => {
     const player = {}, streamer = {};
     const config = local.makeSignallingConfig(player, streamer);

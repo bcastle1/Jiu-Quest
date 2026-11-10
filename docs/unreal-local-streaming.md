@@ -1,7 +1,7 @@
 # Local Unreal Pixel Streaming preparation
 
 `tools/pixel_streaming_local.cjs` is an original local harness around Epic's UE5.8
-signalling SDK and reference frontend. It does not create a public app endpoint or
+signalling SDK, reference frontend and isolated JiuQuest embedded player. It does not create a public app endpoint or
 replace the live JiuQuest renderer. Verify the native Unreal character preview
 before starting streaming. The project must separately enable Pixel Streaming 2.
 Source import, successful builds, `/healthz`, and streamer registration do not prove
@@ -68,7 +68,10 @@ node --test tools/pixel_streaming_local.test.cjs
 node tools/pixel_streaming_local.cjs --check
 ```
 
-Both commands are socket-free. After native preview verification and any applicable
+Both commands are socket-free. `--check` also builds the original embedded entry from
+the pinned Epic frontend with the repository's installed Vite/esbuild dependency;
+its generated bundle is written only to ignored `tmp/unreal-pilot/jiuquest-embed.js`.
+After native preview verification and any applicable
 tool review, run the service directly in a supervised terminal session:
 
 ```powershell
@@ -152,5 +155,35 @@ all with the `-ue5.8` package suffix. Signalling protocol is **1.3.0**: JSON Web
 messages negotiate config, streamer identity, offer/answer and ICE. Video and input
 then use WebRTC. The stock frontend exposes `window.pixelStreaming` with
 `emitUIInteraction(descriptor)` and `addResponseEventListener(name, listener)` for
-a future explicit UE handler. This harness supplies no JiuQuest gameplay bridge,
-scoring writes, console-command enablement, or remote-control API.
+an explicit UE handler. The stock page remains a standalone preview.
+
+## Actual Training and Arena integration
+
+Start the Vite development app at exactly `http://127.0.0.1:5178` with
+`node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5178 --strictPort`.
+Open `http://127.0.0.1:5178/?engine=unreal`, then use the normal Training or Arena tab.
+The local **Character graphics** selector also switches between Unreal, Unity and
+position snapshots. A production build, another host spelling or another port cannot
+activate Unreal. The public app keeps its existing configured renderer.
+
+The new fixed `/jiuquest/embed` route loads an original isolated player using the
+pinned Epic SDK; it does not load the stock remote-input toolbar. Its CSP allows only
+the exact local app as a frame ancestor. The postMessage proxy checks exact origin,
+source window, per-mount nonce, message size and command/response schema. The parent
+uses the existing protocol v1 bridge, which independently rejects stale sessions and
+requests. No arbitrary URL, console command, gameplay score or persistence action is
+accepted. Camera/microphone and native keyboard/mouse/touch/gamepad inputs are disabled.
+
+The receiver must implement the handshake and bounded controls in
+`docs/unreal-integration.md`. A registered streamer alone is insufficient. The browser
+checks the real data channel, exact `play` acknowledgement and two newly presented video
+frames before exposing playback controls. Verify the actual image and each control in
+the app; source tests, generated bundles and `/healthz` are preparation evidence only.
+The first local receiver supports only its three imported pilot clips. Training uses
+an exact existing Rear Naked Choke mapping; a generic armbar does not replace another
+guide technique. Unsupported lessons show the position snapshot and disable playback.
+
+The app-local receiver launcher and the single-clip native launcher are alternatives;
+do not run two Unreal streamers. Coordinate the existing renderer's shutdown before
+changing modes. The parent app owns its iframe/client cleanup; stopping that browser
+surface does not stop the separately supervised Editor GPU process.
