@@ -3,31 +3,47 @@ import { createServer } from 'node:http';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
-import { serveBrowserAsset } from './browser_asset_response.mjs';
+import { serveBrowserAsset, prepareBrowserAssets, createBrowserAssetTrace } from './browser_asset_response.mjs';
+import { installUnityStartupTelemetry } from './unity_startup_telemetry.mjs';
 
 const root = resolve('dist');
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'startup-unmount');
 await mkdir(artifacts, { recursive: true });
 const errors = [], consoleErrors = [];
+const serverAssetTrace = createBrowserAssetTrace();
 let browser, context, server, page, releaseDownload;
 let evidence = { startedAtUtc: new Date().toISOString(), status: 'running' };
-const save = () => writeFile(resolve(artifacts, 'report.json'), JSON.stringify({ ...evidence, errors, consoleErrors }, null, 2));
+const save = () => writeFile(resolve(artifacts, 'report.json'), JSON.stringify({ ...evidence, serverAssetTrace: serverAssetTrace.evidence, errors, consoleErrors }, null, 2));
 try {
   await readFile(resolve(root, 'index.html'));
+  const manifest = JSON.parse(await readFile(resolve(root, 'unity/build-manifest.json'), 'utf8'));
+  assert.equal(manifest.supportedMoves.length, 16);
+  assert.ok(manifest.supportedMoves.every(move => typeof move === 'string' && /^[a-z_]+$/.test(move)));
+  const prepared = await prepareBrowserAssets(manifest.supportedMoves.map(move => resolve(root, 'unity/StreamingAssets/Bjj', move + '.glb')));
+  serverAssetTrace.evidence.preparation = prepared.evidence;
   server = createServer(async (request, response) => {
+    const trace = serverAssetTrace.begin(response);
     try {
       const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+      trace.row.path = pathname;
       const file = resolve(root, `.${pathname.endsWith('/') ? pathname + 'index.html' : pathname}`);
       if (!file.startsWith(root + sep)) { response.writeHead(403); response.end(); return; }
       const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm', '.glb': 'model/gltf-binary', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
-      serveBrowserAsset(response, { file, body: await readFile(file), contentType: types[extname(file)] || 'application/octet-stream', acceptEncoding: request.headers['accept-encoding'] });
-    } catch { response.writeHead(404); response.end('Not found'); }
+      const cached = prepared.get(file);
+      trace.row.preparedHit = Boolean(cached);
+      let body;
+      if (cached) { body = cached.body; trace.mark('cacheHit'); }
+      else { trace.mark('readStart'); body = await readFile(file); trace.mark('readEnd'); }
+      serveBrowserAsset(response, { file, body, contentType: types[extname(file)] || 'application/octet-stream',
+        acceptEncoding: request.headers['accept-encoding'], prepared: cached, trace });
+    } catch (error) { trace.row.error = String(error.message); trace.mark('headers'); response.writeHead(404); response.end('Not found'); }
   });
   await new Promise(resolveListen => server.listen(0, '127.0.0.1', resolveListen));
   browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'],
     ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}),
     ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) });
   context = await browser.newContext({ reducedMotion: 'reduce' });
+  await context.addInitScript(installUnityStartupTelemetry, { moveId: 'rear_naked_choke' });
   await context.addInitScript(() => {
     window.__canvasLifetimes = [];
     document.addEventListener('load', event => {
@@ -55,7 +71,12 @@ try {
   page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   await page.getByRole('button', { name: 'Training', exact: true }).click();
-  await page.waitForFunction(() => document.querySelector('.unity-stage')?.dataset.unityStatus === 'ready', null, { timeout: 95000 });
+  await page.waitForFunction(() => window.__unityStartupTelemetry?.renderedReadyMs !== null
+    && window.__unityStartupTelemetry?.renderedFrames === 2, null, { timeout: 95000 });
+  evidence.initialStartup = await page.evaluate(() => window.__unityStartupTelemetry);
+  assert.equal(evidence.initialStartup.expectedMoveId, 'rear_naked_choke');
+  assert.equal(evidence.initialStartup.error, null);
+  assert.ok(evidence.initialStartup.renderedReadyMs <= 90000, 'initial RNC must be visibly ready within the existing startup deadline');
   await page.getByRole('button', { name: /Trap and Roll Escape standard/ }).click();
   const before = await page.locator('.progress-orb').innerText();
   await page.getByRole('button', { name: /Trap and Roll Escape punch block variation/ }).click();
@@ -113,6 +134,7 @@ try {
 } catch (error) {
   evidence.status = 'failed'; evidence.failure = error.stack || String(error);
   if (page && !page.isClosed()) {
+    evidence.initialStartup = await page.evaluate(() => window.__unityStartupTelemetry).catch(() => null);
     evidence.lifetimes = await page.evaluate(() => window.__canvasLifetimes).catch(() => null);
     await page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true }).catch(() => {});
   }
