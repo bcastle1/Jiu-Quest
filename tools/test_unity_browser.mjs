@@ -7,6 +7,7 @@ import { arch, cpus, platform, release, totalmem } from 'node:os';
 import { chromium } from 'playwright';
 import { moves as curriculumMoves } from '../src/data/curriculum.js';
 import { installUnityStartupTelemetry } from './unity_startup_telemetry.mjs';
+import { serveBrowserAsset } from './browser_asset_response.mjs';
 
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser');
 await mkdir(artifacts, { recursive: true });
@@ -91,10 +92,8 @@ async function staticSite() {
       }
       const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm', '.glb': 'model/gltf-binary', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
       const body = await readFile(file);
-      response.setHeader('Content-Type', types[extension] || 'application/octet-stream');
-      response.setHeader('Content-Length', body.length);
-      response.setHeader('Cache-Control', 'public, max-age=60');
-      response.writeHead(200); response.end(body);
+      serveBrowserAsset(response, { file, body, contentType: types[extension] || 'application/octet-stream',
+        acceptEncoding: request.headers['accept-encoding'] });
     } catch { response.writeHead(404); response.end('Not found'); }
   });
   await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
