@@ -70,6 +70,12 @@ jobs:
       - name: Verify frozen pants normal material graph without Unreal
         run: python unreal/JiuQuestCharacters/Tests/test_pants_material.py
 
+      - name: Verify reviewed jacket normal material graph without Unreal
+        run: python unreal/JiuQuestCharacters/Tests/test_jacket_material.py
+
+      - name: Verify standing gi body and opening preservation
+        run: python unreal/JiuQuestCharacters/Tests/test_pilot_gi_body.py
+
       - name: Verify original source preservation
         run: python unreal/JiuQuestCharacters/Tests/test_pilot_source.py
 

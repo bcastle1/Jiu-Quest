@@ -33,7 +33,7 @@ def sha256(data):
 
 def validate_character_recipes(clip):
     expected_files = {'import_pilot.py', 'pilot_source.py', 'ready_hands.py',
-                      'pilot_look.py', 'pilot_hair.py', 'pilot_hair_shape.py'}
+                      'pilot_look.py', 'pilot_hair.py', 'pilot_hair_shape.py', 'pilot_gi_body.py'}
     refinement = clip.get('characterRefinement')
     check(isinstance(refinement, dict), 'Character refinement inventory missing; import again')
     recipes = refinement.get('recipeFiles')

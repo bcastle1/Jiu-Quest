@@ -66,7 +66,8 @@ class PantsMaterialTests(unittest.TestCase):
         selected = [node for node in tree.body if
                     isinstance(node, ast.FunctionDef) and node.name in ('check', 'digest', 'make_material')
                     or isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
-                    and node.targets[0].id in ('PANTS_NORMAL_CODE', 'PANTS_NORMAL_SHA256')]
+                    and node.targets[0].id in ('PANTS_NORMAL_CODE', 'PANTS_NORMAL_SHA256',
+                                               'JACKET_NORMAL_CODE', 'JACKET_NORMAL_SHA256')]
         self.namespace = {'unreal': sdk, 'hashlib': hashlib, 'REPORT': {'materialGraphs': []}}
         exec(compile(ast.Module(body=selected, type_ignores=[]), str(SCRIPT), 'exec'), self.namespace)
         self.spec = {'name': 'JQ_Attacker_GiPants', 'doubleSided': False, 'baseColor': [.7,.7,.7,1.],

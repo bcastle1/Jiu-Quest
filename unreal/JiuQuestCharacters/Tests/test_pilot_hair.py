@@ -102,7 +102,8 @@ class PilotHairTests(unittest.TestCase):
         namespace = {'Path':Path,'hashlib':hashlib,'__file__':str(script),
                      'select_hair':select_hair,'refine_hair':refine_hair,
                      'refine_ready_hands':Mock(side_effect=identity),'refine_look':Mock(side_effect=identity),
-                     'refine_hair_shape':shape,'refine_spikes_shape':refine_spikes_shape}
+                     'refine_hair_shape':shape,'refine_spikes_shape':refine_spikes_shape,
+                     'refine_gi_body':Mock(side_effect=identity)}
         exec(compile(ast.Module(body=functions,type_ignores=[]),str(script),'exec'),namespace)
         source = ROOT/'public/animations/bjj/standing_stance.glb'
         original = source.read_bytes()
@@ -129,8 +130,10 @@ class PilotHairTests(unittest.TestCase):
             self.assertEqual(row['protectedOriginalVertices'],1523)
             self.assertTrue(row['allRootAndTerminalEdgesExact'])
         self.assertEqual(proof['appliedHelpers'],['pilot_source.select_hair','ready_hands.refine_ready_hands',
-            'pilot_look.refine_look','pilot_hair.refine_hair','pilot_hair_shape.refine_spikes_shape'])
-        recipes = ('import_pilot.py','pilot_source.py','ready_hands.py','pilot_look.py','pilot_hair.py','pilot_hair_shape.py')
+            'pilot_look.refine_look','pilot_hair.refine_hair','pilot_hair_shape.refine_spikes_shape',
+            'pilot_gi_body.refine_gi_body'])
+        namespace['refine_gi_body'].assert_called_once_with(expected, 'standing_stance', 'Spikes')
+        recipes = ('import_pilot.py','pilot_source.py','ready_hands.py','pilot_look.py','pilot_hair.py','pilot_hair_shape.py','pilot_gi_body.py')
         self.assertEqual(proof['recipeFiles'],{name:hashlib.sha256(script.with_name(name).read_bytes()).hexdigest() for name in recipes})
         # Explicit Slick remains available for the matched baseline comparison.
         shape.side_effect = identity
@@ -140,7 +143,9 @@ class PilotHairTests(unittest.TestCase):
         shape.assert_called_once_with(expected)
         self.assertTrue(slick_proof['hairShape']['applied'])
         self.assertEqual(slick_proof['hairShape']['selectedHair'],'Slick')
-        self.assertEqual(slick_proof['appliedHelpers'],proof['appliedHelpers'][:-1]+['pilot_hair_shape.refine_hair_shape'])
+        self.assertEqual(slick_proof['appliedHelpers'],proof['appliedHelpers'][:-2]+[
+            'pilot_hair_shape.refine_hair_shape','pilot_gi_body.refine_gi_body'])
+        namespace['refine_gi_body'].assert_called_with(expected, 'standing_stance', 'Slick')
 
     def test_only_edge_connected_mild_fans_smooth_and_tangents_follow(self):
         # Two 45-degree side triangles meet along an edge. A third touches only

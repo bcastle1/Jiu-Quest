@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 
 function Assert-JqCharacterRecipes {
     param($ImportedClip, [string]$RecipeDirectory)
-    $jqExpectedRecipes = @('import_pilot.py', 'pilot_source.py', 'ready_hands.py', 'pilot_look.py', 'pilot_hair.py', 'pilot_hair_shape.py')
+    $jqExpectedRecipes = @('import_pilot.py', 'pilot_source.py', 'ready_hands.py', 'pilot_look.py', 'pilot_hair.py', 'pilot_hair_shape.py', 'pilot_gi_body.py')
     if ($null -eq $ImportedClip.characterRefinement -or $null -eq $ImportedClip.characterRefinement.recipeFiles) {
         throw 'The character refinement inventory is missing. Import again before previewing or capturing.'
     }
