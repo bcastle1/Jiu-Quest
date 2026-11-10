@@ -39,6 +39,19 @@ function loadScript(url) {
   return scripts.get(url);
 }
 
+// React owns the host, but not this child. The runtime must retain its canvas
+// selector while asynchronous startup and Quit still use the document.
+export function createUnityCanvas(host, label) {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'unity-canvas';
+  canvas.width = 960;
+  canvas.height = 600;
+  canvas.tabIndex = 0;
+  canvas.setAttribute('aria-label', label);
+  host.appendChild(canvas);
+  return canvas;
+}
+
 // Serialize create/Quit across StrictMode mounts and route changes. Unity owns a
 // WebGL context and must finish disposing before a replacement is initialized.
 export async function createUnityPlayer(canvas, { signal, onProgress, onError } = {}) {
@@ -47,12 +60,40 @@ export async function createUnityPlayer(canvas, { signal, onProgress, onError } 
   const released = new Promise((resolve) => { release = resolve; });
   runtimeTail = previous.catch(() => {}).then(() => released);
   let instance;
-  let disposed = false;
-  const dispose = async () => {
-    if (disposed) return;
-    disposed = true;
-    try { await instance?.Quit(); } finally { release(); }
+  let factoryStarted = false;
+  let retainedHost;
+  let disposal;
+  // A later React mount can reuse useId while an aborted factory is still
+  // running. Give every acquisition a different document selector.
+  canvas.id = `jiuquest-unity-canvas-${++nextCanvasId}`;
+  const retainCanvas = () => {
+    if (!factoryStarted || retainedHost) return;
+    const { width, height } = canvas.getBoundingClientRect();
+    retainedHost = document.createElement('div');
+    retainedHost.setAttribute('data-unity-retained', '');
+    retainedHost.setAttribute('aria-hidden', 'true');
+    retainedHost.inert = true;
+    Object.assign(retainedHost.style, {
+      position: 'fixed', left: '-10000px', top: '0',
+      width: `${width || canvas.width}px`, height: `${height || canvas.height}px`,
+      visibility: 'hidden', pointerEvents: 'none',
+    });
+    // Retired canvases are not active preview surfaces. Keep their selector and
+    // dimensions without exposing them to controls querying the current canvas.
+    canvas.className = 'unity-retained-canvas';
+    Object.assign(canvas.style, { width: '100%', height: '100%', display: 'block' });
+    document.body.appendChild(retainedHost);
+    retainedHost.appendChild(canvas);
   };
+  signal?.addEventListener('abort', retainCanvas, { once: true });
+  const dispose = () => disposal ??= (async () => {
+    try { await instance?.Quit(); } finally {
+      signal?.removeEventListener('abort', retainCanvas);
+      canvas.remove();
+      retainedHost?.remove();
+      release();
+    }
+  })();
   try {
     await previous;
     checkAbort(signal);
@@ -67,9 +108,7 @@ export async function createUnityPlayer(canvas, { signal, onProgress, onError } 
     const createInstance = await loadScript(config.loaderUrl);
     checkAbort(signal);
     const { loaderUrl: _loaderUrl, ...playerConfig } = config;
-    // Unity's generated framework targets the canvas through a CSS #id selector.
-    // An empty id or React's punctuation-bearing useId value breaks initialization.
-    if (!/^[A-Za-z][\w-]*$/.test(canvas.id || '')) canvas.id = `jiuquest-unity-canvas-${++nextCanvasId}`;
+    factoryStarted = true;
     instance = await createInstance(canvas, {
       ...playerConfig,
       devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),

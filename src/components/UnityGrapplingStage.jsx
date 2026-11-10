@@ -1,7 +1,7 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { AlertCircle, Camera, LoaderCircle, Maximize2, Minimize2, Pause, Play, RotateCcw } from 'lucide-react';
 import { createUnityBridge, snapshotFallbackUrl, toUnityAthlete, UNITY_CAMERAS, UNITY_DEFAULT_CAMERA, UNITY_EVENT, UNITY_SPEEDS } from '../unity/bridge.js';
-import { createUnityPlayer } from '../unity/loader.js';
+import { createUnityCanvas, createUnityPlayer } from '../unity/loader.js';
 import { createUnityLoadState } from '../unity/loadState.js';
 import './UnityGrapplingStage.css';
 
@@ -11,6 +11,7 @@ export default function UnityGrapplingStage({ moveId, moveLabel, performerSide =
   const id = useId();
   const stageRef = useRef(null);
   const viewportRef = useRef(null);
+  const canvasHostRef = useRef(null);
   const canvasRef = useRef(null);
   const bridgeRef = useRef(null);
   const loadStateRef = useRef(null);
@@ -35,6 +36,8 @@ export default function UnityGrapplingStage({ moveId, moveLabel, performerSide =
   const sceneKey = JSON.stringify(scene);
   sceneRef.current = { ...scene, speed, camera, compactViewport: compactViewportRef.current };
   const supported = Boolean(moveId) && !snapshotMode;
+  const name = moveLabel || 'Technique preview';
+  const canvasLabel = `${name}. ${performerSide === 'opponent' ? opponent?.name : fighter?.name} performs the technique. Use the playback controls below.`;
 
   useEffect(() => {
     const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -43,8 +46,10 @@ export default function UnityGrapplingStage({ moveId, moveLabel, performerSide =
     return () => query?.removeEventListener('change', change);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!supported) return undefined;
+    const canvas = createUnityCanvas(canvasHostRef.current, canvasLabel);
+    canvasRef.current = canvas;
     const controller = new AbortController();
     const instanceId = `jiuquest-${++nextInstance}-${Date.now()}`;
     let player;
@@ -82,7 +87,7 @@ export default function UnityGrapplingStage({ moveId, moveLabel, performerSide =
     loadState.startPlayerLoad();
     setPlayback({ playing: false, progress: 0 });
     bridge.setScene(sceneRef.current, !document.hidden && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
-    createUnityPlayer(canvasRef.current, {
+    createUnityPlayer(canvas, {
       signal: controller.signal,
       onProgress: loadState.progress,
       onError: loadState.fail,
@@ -94,7 +99,10 @@ export default function UnityGrapplingStage({ moveId, moveLabel, performerSide =
       return undefined;
     }).catch((error) => { if (error?.name !== 'AbortError') loadState.fail(error); });
     return () => {
+      // Layout cleanup runs before React removes the host. Abort transfers an
+      // in-flight runtime's imperatively owned canvas to its retained host.
       controller.abort();
+      if (canvasRef.current === canvas) canvasRef.current = null;
       loadState.dispose();
       if (loadStateRef.current === loadState) loadStateRef.current = null;
       window.removeEventListener(UNITY_EVENT, receive);
@@ -104,6 +112,8 @@ export default function UnityGrapplingStage({ moveId, moveLabel, performerSide =
       player?.dispose().catch(() => {});
     };
   }, [supported, attempt]);
+
+  useEffect(() => { canvasRef.current?.setAttribute('aria-label', canvasLabel); }, [canvasLabel, supported]);
 
   useEffect(() => {
     if (!supported) return;
@@ -147,7 +157,6 @@ export default function UnityGrapplingStage({ moveId, moveLabel, performerSide =
   const send = (type, values) => bridgeRef.current?.command(type, values);
   const ready = supported && status.phase === 'ready';
   const replay = () => { setPlayback({ progress: 0, playing: false }); loadStateRef.current?.requestScene(); bridgeRef.current?.setScene(sceneRef.current, true); };
-  const name = moveLabel || 'Technique preview';
   const useSnapshots = () => {
     window.history.replaceState(window.history.state, '', snapshotFallbackUrl(window.location.href));
     setSnapshotMode(true);
@@ -164,7 +173,7 @@ export default function UnityGrapplingStage({ moveId, moveLabel, performerSide =
   return <section ref={stageRef} className={`unity-stage ${compact ? 'compact' : ''}`} data-engine="unity" data-unity-status={status.phase} aria-labelledby={`${id}-title`}>
     <div className="unity-stage-heading"><div><span className="unity-eyebrow">MOVEMENT STUDY</span><h3 id={`${id}-title`}>{name}</h3></div><div className="unity-stage-heading-actions"><span className="unity-draft">Draft choreography</span>{fullScreenAvailable && <button type="button" className="unity-fullscreen" onClick={toggleFullScreen} aria-label={fullScreen ? 'Exit full screen' : 'Enter full screen'} title={fullScreen ? 'Exit full screen' : 'Enter full screen'}>{fullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}</button>}</div></div>
     <div ref={viewportRef} className={`unity-viewport ${ready ? 'is-ready' : ''} ${camera === 'orbit' ? 'is-orbit' : ''}`}>
-      <canvas id={`unity-canvas-${id.replace(/[^a-zA-Z0-9_-]/g, '')}`} ref={canvasRef} className="unity-canvas" width="960" height="600" tabIndex={0} aria-label={`${name}. ${performerSide === 'opponent' ? opponent?.name : fighter?.name} performs the technique. Use the playback controls below.`} />
+      <div ref={canvasHostRef} className="unity-canvas-host" />
       {!ready && <div className="unity-load-state" role="status" aria-live="polite">
         {status.phase === 'error' ? <><AlertCircle size={27} /><strong>Unity preview unavailable</strong><p>{status.message}</p><button type="button" onClick={() => status.reloadRequired ? window.location.reload() : setAttempt((current) => current + 1)}><RotateCcw size={16} />{status.reloadRequired ? 'Reload preview' : 'Retry Unity player'}</button>{fallback && <button type="button" className="unity-fallback-action" onClick={useSnapshots}>Use position snapshots</button>}</> : <><LoaderCircle className="snapshot-spinner" size={26} /><strong>{status.phase === 'loading-move' ? 'Preparing the animated move' : status.loaded >= 1 ? 'Starting the 3D scene' : 'Loading the Unity player'}</strong><progress value={status.loaded} max="1" aria-label="Unity player download" /><span>{Math.round(status.loaded * 100)}% · first load may take a moment</span></>}
       </div>}
