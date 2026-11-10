@@ -58,6 +58,7 @@ import UnityCombatPreview from "./components/UnityCombatPreview.jsx";
 import { isUnityEnabled, resolveUnityMove } from "./unity/bridge.js";
 import { resolveCombatRenderer } from './unreal/renderer.js';
 import { TechniqueStep, RichText } from './components/TechniqueText.js';
+import { selectTrainingSession, updateTrainingOrder, updateTrainingResult } from './trainingSession.js';
 import { groupTechniques, sequenceSeconds } from './data/techniqueSteps.js';
 import CombatArena from "./components/CombatArenaView";
 import GrapplingLab from "./components/GrapplingPositionLab";
@@ -335,9 +336,22 @@ function App() {
   useEffect(() => () => window.clearTimeout(noticeTimer.current), []);
   const [view, setView] = useState("dashboard");
   const [selectedBelt, setSelectedBelt] = useState("blue");
-  const [selectedMoveId, setSelectedMoveId] = useState("rear-naked-choke");
-  const [trainingOrder, setTrainingOrder] = useState([]);
-  const [trainingResult, setTrainingResult] = useState(null);
+  const [trainingSession, setTrainingSession] = useState(() => selectTrainingSession(
+    null,
+    allMoves.find((move) => move.id === "rear-naked-choke") ?? moves[0],
+    shuffle,
+  ));
+  const { moveId: selectedMoveId, order: trainingOrder, result: trainingResult } = trainingSession;
+  const setSelectedMoveId = (moveId) => {
+    const move = allMoves.find((item) => item.id === moveId) ?? moves[0];
+    setTrainingSession((current) => selectTrainingSession(current, move, shuffle));
+  };
+  const setTrainingOrder = (update) => {
+    setTrainingSession((current) => updateTrainingOrder(current, selectedMoveId, update));
+  };
+  const setTrainingResult = (result) => {
+    setTrainingSession((current) => updateTrainingResult(current, selectedMoveId, result));
+  };
   const [adminGateOpen, setAdminGateOpen] = useState(false);
   const [adminAuthed, setAdminAuthed] = useState(false);
   const [adminCode, setAdminCode] = useState("");
@@ -421,13 +435,6 @@ function App() {
       image.src = url;
     });
   }, [fighter.hairStyle, fighter.stance]);
-
-  useEffect(() => {
-    if (!trainingOrder.length || selectedMove.steps.some((step) => !trainingOrder.includes(step))) {
-      setTrainingOrder(shuffle(selectedMove.steps));
-      setTrainingResult(null);
-    }
-  }, [selectedMove, trainingOrder.length]);
 
   useEffect(() => {
     const nextNpc = store.npcs.find((npc) => npc.id === combat.npc?.id);
