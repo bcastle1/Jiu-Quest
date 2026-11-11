@@ -1,4 +1,5 @@
 import { allMoves, beltMoveCount, moves } from "./data/curriculum.js";
+import { NEW_FIGHTER_LOOK, normalizeFighterLook, savedFighterLook } from "./unreal/athlete.js";
 
 export const ADMIN_CODE = "patriots";
 export const MAX_FIGHTERS = 5;
@@ -163,21 +164,31 @@ const defaultProgress = () =>
     return progress;
   }, {});
 
+// The classic appearance a fighter has before anyone changes it.
+const stockAppearance = Object.freeze({
+  gender: "boy",
+  skinTone: palette.skin[1],
+  hairColor: palette.hair[0],
+  hairStyle: "shadow spikes",
+  emblem: "triangle",
+});
+
 export function createFighter(overrides = {}) {
   const now = Date.now();
   return {
     id: overrides.id ?? `fighter-${now}-${Math.random().toString(16).slice(2)}`,
     name: overrides.name ?? "New Challenger",
     country: overrides.country ?? "United States",
-    gender: overrides.gender ?? "boy",
-    skinTone: overrides.skinTone ?? palette.skin[1],
-    hairColor: overrides.hairColor ?? palette.hair[0],
-    hairStyle: overrides.hairStyle ?? "shadow spikes",
+    gender: overrides.gender ?? stockAppearance.gender,
+    look: normalizeFighterLook(overrides.look, NEW_FIGHTER_LOOK),
+    skinTone: overrides.skinTone ?? stockAppearance.skinTone,
+    hairColor: overrides.hairColor ?? stockAppearance.hairColor,
+    hairStyle: overrides.hairStyle ?? stockAppearance.hairStyle,
     giTop: overrides.giTop ?? palette.gi[0],
     giPants: overrides.giPants ?? palette.gi[0],
     stance: normalizeStance(overrides.stance),
     aura: overrides.aura ?? "void violet",
-    emblem: overrides.emblem ?? "triangle",
+    emblem: overrides.emblem ?? stockAppearance.emblem,
     startPose: overrides.startPose ?? "standing",
     progress: { ...defaultProgress(), ...(overrides.progress ?? {}) },
     matches: overrides.matches ?? 0,
@@ -224,6 +235,9 @@ function normalizeState(state) {
   const normalizedFighters = fighters.map((fighter) => ({
     ...createFighter(fighter),
     ...fighter,
+    // Saved before the Unreal athlete existed: the stock fighter moves to it,
+    // a customized fighter keeps its classic art.
+    look: savedFighterLook(fighter, stockAppearance),
     stance: normalizeStance(fighter.stance),
     progress: { ...defaultProgress(), ...(fighter.progress ?? {}) },
   }));

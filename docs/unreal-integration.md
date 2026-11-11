@@ -12,6 +12,24 @@ jiuquest.com shows three captured stills of the saved purchased-gi character at 
 
 The page is a static gallery. It never mounts the game, reads or writes saved progress, opens a stream, or changes renderer selection; production Arena and Training remain on Unity. `tools/test_unreal_character_preview.mjs` checks the built page in a browser: image decoding, view selection, phone layouts and the absence of saved-progress writes. That check covers still images only. It is not evidence of Unreal rendering, browser video or paired choreography, which remain the separate runtime checks described below.
 
+## Unreal athlete in the Fighter Creator (tintable stills)
+
+The Fighter Creator offers two looks for a fighter: **Unreal athlete** and **Classic**. The Unreal athlete is the purchased-gi character as a front-view still. It appears on the profile stage, in the round portraits, beside the proficiency test in Training, on the rank path in Insights, and in the Overview hero when the hero is at least 700 pixels wide (narrower heroes keep the classic art). Arena and Training position art are unchanged and still use the classic appearance choices.
+
+The picture is four still layers that the browser adds together:
+
+    picture = base + jacket x giTop + pants x giPants + belt x beltColor
+
+The athlete stays dark until the body and all three gi layers have loaded, so a gi never shows without the person wearing it; a layer that fails to load does not hold the others back.
+
+`tools/build_unreal_athlete_layers.py` derives the layers from four pixel-aligned captures in the local `Unreal-gi-color-preview` set (white gi, black gi, navy gi, navy gi with a blue belt). The layers are derived images, not direct renders. Run against the real navy capture, the same sum is within a mean of about 3 of 255 per channel on the gi. Colors other than white, black and navy have no reference capture, so they are computed rather than rendered. The belt takes the rank color; stripes are not drawn on the athlete.
+
+`src/unreal/athlete.js` pins the SHA-256 of the four source captures and the size and SHA-256 of each published layer, and `tests/unrealAthlete.test.js` fails if a layer is replaced or re-encoded or if the tool and the page disagree about the sources. Replace the layers only by rerunning the tool on newly verified captures and updating the pinned values together.
+
+There is one athlete: one face, build and hairstyle, in one pose. While it is selected the Fighter Creator hides gender, hair, skin tone and patch emblem, and keeps their saved values for the way back to Classic. New fighters and first visits start as the Unreal athlete. A fighter saved before this change moves to the Unreal athlete only if it still has the stock face, hair, skin and emblem; a fighter someone designed keeps its classic art until its owner switches.
+
+`tools/test_unreal_athlete.mjs` checks the built site in a browser: layer decoding and blending, painted colors after each choice, both looks, saved fighters, reload, and 390 and 320 pixel layouts. Like the preview check, it covers still images only and is not evidence of Unreal rendering, browser video or paired choreography. Selecting the athlete never opens a stream and is not an input to renderer selection.
+
 ## Ownership and integration seams
 
 React remains authoritative for curriculum ordering, training reps, unlocks, match outcomes, scores, ownership of positions, and persistence. `App.jsx` resolves training tests and Arena turns before renderer playback. Renderer messages describe playback only; a completed animation must never call `updateProgress`, resolve another Arena turn, or write saved state.

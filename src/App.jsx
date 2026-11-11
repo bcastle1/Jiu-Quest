@@ -56,9 +56,11 @@ import GrapplingSnapshotStage from "./components/GrapplingSnapshotStage";
 import GrapplingStage from "./components/GrapplingStage.jsx";
 import UnityCombatPreview from "./components/UnityCombatPreview.jsx";
 import UnrealCharacterPreview, { UnrealPreviewCard } from "./components/UnrealCharacterPreview.jsx";
+import UnrealAthlete, { FighterLookPicker, UnrealAthleteStage } from "./components/UnrealAthlete.jsx";
 import { isUnityEnabled, resolveUnityMove } from "./unity/bridge.js";
 import { resolveCombatRenderer } from './unreal/renderer.js';
 import { resolvePreviewPage } from './unreal/characterPreview.js';
+import { usesUnrealAthlete } from './unreal/athlete.js';
 import { TechniqueStep, RichText } from './components/TechniqueText.js';
 import { selectTrainingSession, updateTrainingOrder, updateTrainingResult } from './trainingSession.js';
 import { groupTechniques, sequenceSeconds } from './data/techniqueSteps.js';
@@ -1106,8 +1108,16 @@ function Dashboard({
       </aside>
 
       <section className="dashboard-center">
-        <div className="hero-stage">
+        <div
+          className={usesUnrealAthlete(fighter) ? "hero-stage has-athlete" : "hero-stage"}
+          style={usesUnrealAthlete(fighter) ? { "--athlete-aura": auraColors[fighter.aura] ?? "#8a5cff" } : undefined}
+        >
           <div className="dojo-backdrop" />
+          {usesUnrealAthlete(fighter) && (
+            <div className="hero-athlete" aria-hidden="true">
+              <UnrealAthlete fighter={fighter} belt={beltStatus.belt} />
+            </div>
+          )}
           <div className="hero-content">
             <span className="dashboard-kicker">JiuQuest Platform</span>
             <h1>Training command center</h1>
@@ -1223,6 +1233,7 @@ function Dashboard({
 }
 
 function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, canCreate, resetProgress, saveStatus }) {
+  const unrealLook = usesUnrealAthlete(fighter);
   return (
     <section className="profile-grid">
       <div className="profile-stage panel">
@@ -1248,6 +1259,11 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
           </button>
         </div>
 
+        <FighterLookPicker value={fighter.look} onChange={(look) => updateFighter({ look })} />
+        {unrealLook && (
+          <p className="fighter-look-note">This athlete has one face, build and hairstyle for now. Choose the gi colors below. The belt follows your rank.</p>
+        )}
+
         <div className="form-grid">
           <Field label="Name">
             <input value={fighter.name} onChange={(event) => updateFighter({ name: event.target.value })} maxLength={28} />
@@ -1259,14 +1275,14 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
               ))}
             </select>
           </Field>
-          <Field label="Gender">
+          {!unrealLook && <Field label="Gender">
             <Segmented
               label="Gender"
               value={fighter.gender}
               options={customizationOptions.genders}
               onChange={(gender) => updateFighter({ gender })}
             />
-          </Field>
+          </Field>}
           <Field label="Start Position">
             <Segmented
               label="Start position"
@@ -1275,13 +1291,13 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
               onChange={(startPose) => updateFighter({ startPose })}
             />
           </Field>
-          <Field label="Hair Style">
+          {!unrealLook && <Field label="Hair Style">
             <select value={fighter.hairStyle} onChange={(event) => updateFighter({ hairStyle: event.target.value })}>
               {customizationOptions.hairStyles.map((style) => (
                 <option key={style}>{style}</option>
               ))}
             </select>
-          </Field>
+          </Field>}
           <Field label="Fighting Stance">
             <ImageSelect
               value={fighter.stance}
@@ -1305,10 +1321,13 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
           </Field>
         </div>
 
-        <Swatches label="Skin Tone" value={fighter.skinTone} options={customizationOptions.skinTones} onChange={(skinTone) => updateFighter({ skinTone })} />
-        <Swatches label="Hair Color" value={fighter.hairColor} options={customizationOptions.hairColors} onChange={(hairColor) => updateFighter({ hairColor })} />
-        <Swatches label="Gi Jacket" value={fighter.giTop} options={customizationOptions.giColors} onChange={(giTop) => updateFighter({ giTop })} />
-        <Swatches label="Gi Pants" value={fighter.giPants} options={customizationOptions.giColors} onChange={(giPants) => updateFighter({ giPants })} />
+        {!unrealLook && <Swatches label="Skin Tone" value={fighter.skinTone} options={customizationOptions.skinTones} onChange={(skinTone) => updateFighter({ skinTone })} />}
+        {!unrealLook && <Swatches label="Hair Color" value={fighter.hairColor} options={customizationOptions.hairColors} onChange={(hairColor) => updateFighter({ hairColor })} />}
+        <div className={unrealLook ? "gi-colors with-athlete" : "gi-colors"}>
+          {unrealLook && <UnrealAthlete fighter={fighter} belt={beltStatus.belt} className="gi-colors-athlete" label="Gi color preview" />}
+          <Swatches label="Gi Jacket" value={fighter.giTop} options={customizationOptions.giColors} onChange={(giTop) => updateFighter({ giTop })} />
+          <Swatches label="Gi Pants" value={fighter.giPants} options={customizationOptions.giColors} onChange={(giPants) => updateFighter({ giPants })} />
+        </div>
 
         <div className="form-grid compact">
           <Field label="Aura">
@@ -1318,7 +1337,7 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
               ))}
             </select>
           </Field>
-          <Field label="Patch Emblem">
+          {!unrealLook && <Field label="Patch Emblem">
             <ImageSelect
               value={fighter.emblem}
               options={customizationOptions.emblems}
@@ -1328,7 +1347,7 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
               getMeta={(emblem) => (emblem === "none" ? "No patch emblem" : `${titleCase(emblem)} patch`)}
               compact
             />
-          </Field>
+          </Field>}
         </div>
 
         <div className="button-row">
@@ -1482,7 +1501,9 @@ function Training({
           </div>
         )}
         <div className="belt-mini">
-          <FighterArt fighter={fighter} beltStatus={beltStatus} pose="profile" className="mini-fighter" />
+          {usesUnrealAthlete(fighter)
+            ? <UnrealAthlete fighter={fighter} belt={beltStatus.belt} className="mini-fighter" />
+            : <FighterArt fighter={fighter} beltStatus={beltStatus} pose="profile" className="mini-fighter" />}
           <Belt belt={beltStatus.belt} stripes={beltStatus.stripes} />
         </div>
       </div>
@@ -2171,6 +2192,9 @@ function EmblemMark({ emblem, className = "" }) {
 }
 
 function FighterProfileArt({ fighter, beltStatus, className = "" }) {
+  if (usesUnrealAthlete(fighter)) {
+    return <UnrealAthleteStage fighter={fighter} beltStatus={beltStatus} className={className} auraColor={auraColors[fighter.aura] ?? "#8a5cff"} />;
+  }
   const stancePoseId = getFighterPose(fighter);
   const countryBackground = countryFlagBackgrounds[fighter.country] ?? countryFlagBackgrounds["United States"];
   return (
@@ -2320,14 +2344,18 @@ function MiniPortrait({ fighter, beltStatus }) {
       style={{ "--portrait-aura": auraColors[fighter.aura] ?? "#8a5cff" }}
       aria-label={`${fighter.name} portrait`}
     >
-      <FighterArt
-        fighter={fighter}
-        beltStatus={beltStatus}
-        pose="profile"
-        className="mini-portrait-fighter"
-        showAura={false}
-        showPatches={false}
-      />
+      {usesUnrealAthlete(fighter) ? (
+        <UnrealAthlete fighter={fighter} belt={beltStatus.belt} label={`${fighter.name} portrait`} />
+      ) : (
+        <FighterArt
+          fighter={fighter}
+          beltStatus={beltStatus}
+          pose="profile"
+          className="mini-portrait-fighter"
+          showAura={false}
+          showPatches={false}
+        />
+      )}
     </span>
   );
 }
