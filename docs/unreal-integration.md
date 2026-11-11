@@ -6,6 +6,12 @@ The experimental [native character receiver](../unreal/native-runtime/README.md)
 
 The local development app can select an Unreal Pixel Streaming preview in its actual Training and Arena views. This is restricted to a Vite development build at `http://127.0.0.1:5178`; use `?engine=unreal` or the local **Character graphics** selector. Production renderer selection is unchanged. The local iframe loads the pinned Epic UE5.8 library from the loopback service described in `docs/unreal-local-streaming.md`. This integration does not supply a public GPU host. A working Unreal receiver, actual imported characters, controls and presented video must be verified together; protocol tests alone do not prove rendering.
 
+## Public character preview (captured stills)
+
+jiuquest.com shows three captured stills of the saved purchased-gi character at `/?preview=unreal`, linked from the Overview. Per the local capture receipt recorded November 10, 2026, they are unedited native viewport captures from the verified character-control scene: white gi standing, a face and collar close-up, and navy gi during the walk animation. `src/unreal/characterPreview.js` pins each file's size and SHA-256, and `tests/unrealCharacterPreview.test.js` fails if a file is replaced or re-encoded. Change the pinned values only together with a newly verified capture.
+
+The page is a static gallery. It never mounts the game, reads or writes saved progress, opens a stream, or changes renderer selection; production Arena and Training remain on Unity. `tools/test_unreal_character_preview.mjs` checks the built page in a browser: image decoding, view selection, phone layouts and the absence of saved-progress writes. That check covers still images only. It is not evidence of Unreal rendering, browser video or paired choreography, which remain the separate runtime checks described below.
+
 ## Ownership and integration seams
 
 React remains authoritative for curriculum ordering, training reps, unlocks, match outcomes, scores, ownership of positions, and persistence. `App.jsx` resolves training tests and Arena turns before renderer playback. Renderer messages describe playback only; a completed animation must never call `updateProgress`, resolve another Arena turn, or write saved state.

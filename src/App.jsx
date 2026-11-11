@@ -55,8 +55,10 @@ import {
 import GrapplingSnapshotStage from "./components/GrapplingSnapshotStage";
 import GrapplingStage from "./components/GrapplingStage.jsx";
 import UnityCombatPreview from "./components/UnityCombatPreview.jsx";
+import UnrealCharacterPreview, { UnrealPreviewCard } from "./components/UnrealCharacterPreview.jsx";
 import { isUnityEnabled, resolveUnityMove } from "./unity/bridge.js";
 import { resolveCombatRenderer } from './unreal/renderer.js';
+import { resolvePreviewPage } from './unreal/characterPreview.js';
 import { TechniqueStep, RichText } from './components/TechniqueText.js';
 import { selectTrainingSession, updateTrainingOrder, updateTrainingResult } from './trainingSession.js';
 import { groupTechniques, sequenceSeconds } from './data/techniqueSteps.js';
@@ -1145,6 +1147,7 @@ function Dashboard({
             </span>
             <ChevronRight size={28} />
           </button>
+          <UnrealPreviewCard />
         </div>
         <div className="showcase-strip" aria-label="Example JiuQuest fighter styles">
           {showcaseFighters.map((item) => (
@@ -2665,5 +2668,8 @@ function Modal({ title, children, onClose }) {
 }
 
 export default function AppEntry() {
-  return new URLSearchParams(window.location.search).get('preview') === 'unity' ? <UnityCombatPreview /> : <App />;
+  const preview = resolvePreviewPage(window.location.search);
+  if (preview === 'unity') return <UnityCombatPreview />;
+  if (preview === 'unreal') return <UnrealCharacterPreview />;
+  return <App />;
 }
