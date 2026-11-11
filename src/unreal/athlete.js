@@ -1,11 +1,12 @@
-// The Unreal athlete as tintable still layers. Unreal rendered the same frame in
-// several gi and belt colors; tools/build_unreal_athlete_layers.py turns those
-// pixel-aligned captures into four layers that the page adds together:
+// The Unreal athlete as tintable still layers. Unreal rendered the same frozen
+// frame three times: white gi, black gi, and black gi with a white belt.
+// tools/build_unreal_athlete_layers.py turns those aligned renders into four
+// layers that the page adds together:
 //
 //   picture = base + jacket * giTop + pants * giPants + belt * beltColor
 //
-// base is the black-gi, black-belt capture. Checked against the real navy
-// capture, the same sum lands within about 3 of 255 per channel on the gi.
+// base is the black-gi, black-belt render. With every color white the sum gives
+// back the white-gi render; every other color is computed, not rendered.
 // Nothing here starts a stream or selects the combat renderer.
 export const FIGHTER_LOOKS = Object.freeze(['unreal', 'classic']);
 
@@ -21,29 +22,29 @@ const ASSET_ROOT = '/assets/unreal-athlete/athlete-01';
 export const UNREAL_ATHLETE = Object.freeze({
   id: 'athlete-01',
   view: 'front',
-  width: 450,
-  height: 880,
+  width: 900,
+  height: 1760,
   layers: Object.freeze({
     base: `${ASSET_ROOT}/front-base.webp`,
     jacket: `${ASSET_ROOT}/front-jacket.webp`,
     pants: `${ASSET_ROOT}/front-pants.webp`,
     belt: `${ASSET_ROOT}/front-belt.webp`,
   }),
-  // Head and collar inside the 450 x 880 layer, for round portraits.
-  portrait: Object.freeze({ left: 149, top: 20, size: 150 }),
+  // Head and collar inside the 900 x 1760 layer, for round portraits.
+  portrait: Object.freeze({ left: 280, top: 18, size: 300 }),
   // The published layer files. A re-encode or a swapped file fails the tests.
   files: Object.freeze({
-    base: Object.freeze({ bytes: 13318, sha256: '9ae7bcb3e829b0b058151a70ba119ad1d0c7efeda7079772ac2e122c63712efd' }),
-    jacket: Object.freeze({ bytes: 8112, sha256: 'ffcab4c539e15f99fe7c5a9326861383d61fc6e100485873999b65a1f2848b78' }),
-    pants: Object.freeze({ bytes: 7980, sha256: '05a16ff252ed80b431514522b58d75b1aa90142f895f273e27505806e6282bf1' }),
-    belt: Object.freeze({ bytes: 2806, sha256: '879a10b37ec7976f8b1b7aaf3b93796c25374570883f96381e8a49ff0b008ad1' }),
+    base: Object.freeze({ bytes: 57290, sha256: '548aa77231b2e102488bc1b3f1a451e21fbd05827b823a84eb1ec32855bd37d1' }),
+    jacket: Object.freeze({ bytes: 20658, sha256: '6c9401f330bb21b4e1f591b3d46b16c12f560f916efc23227ac05315a835f5e7' }),
+    pants: Object.freeze({ bytes: 35636, sha256: '9f682459c573f2a0d3b0eb4adfee3938e90edf0af6934eadb7ce3cdd3ce39d10' }),
+    belt: Object.freeze({ bytes: 6876, sha256: '168f7d13fd8ea0f3ca19809915e1c86c8e66b8188c0378fc4c07a289f41267f0' }),
   }),
-  // The Unreal captures the layers were derived from (Unreal-gi-color-preview).
+  // The Unreal renders the layers were derived from: Unreal-render-pack,
+  // athlete-01/front, the hip-belt variant of the purchased-gi character.
   sources: Object.freeze({
-    'white-front.png': '39566ce057b3b21a65b76cfa97d73af4c4713abf7fbd35cdbd1f55b869150be1',
-    'black-front.png': '97c8caaf85b3a86580b9c679860a2d934b258d76432692ef7dd80d3df4ddf090',
-    'navy-front.png': '2682e1fbdb4249f91bf84fab4732ad66fccc950e8b516f9b576bc166fb36d280',
-    'navy-blue-belt-front.png': '62cdf6e0d1a3c2c52b6049865e81e86a0e38cc37e3839da97f0c0f72e86b9aee',
+    'gi-white.png': '5204d085df4aa17ba8828c77fc03cdd57b2c0ccbf8bf1ed041e207abf208a8f3',
+    'gi-black.png': '86300d214f158de9ab9812e5213710165572993791d3ff7759a278c3bd73f65b',
+    'belt-white.png': 'c6e5b37046c4ae52bd23fa066820d407d001eb9056edd16c4cff15801ee955f2',
   }),
 });
 

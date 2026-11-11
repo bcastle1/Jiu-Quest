@@ -22,7 +22,7 @@ const STORAGE_KEY = 'jiuquest:v1';
 const NAVY = '#112a58', BLACK = '#151922';
 const ASPECT = UNREAL_ATHLETE.width / UNREAL_ATHLETE.height;
 // Places on the figure, as fractions of its width and height.
-const POINTS = { face: [0.5, 0.09], chest: [0.5, 0.25], knot: [0.47, 0.375], thigh: [0.38, 0.6] };
+const POINTS = { face: [0.478, 0.08], chest: [0.48, 0.25], belt: [0.58, 0.43], thigh: [0.33, 0.63] };
 let browser, server, page;
 
 async function staticSite() {
@@ -228,10 +228,10 @@ try {
   assert.ok(desktopLayout.figure.height >= 480, 'the athlete is shown large beside the Fighter Creator');
   layouts.push({ viewport: page.viewportSize(), ...desktopLayout });
   assert.equal(await page.locator('.gi-colors-athlete').isVisible(), false, 'the small copy beside the swatches is for one-column pages only');
-  checks.push('A first visit opens the Fighter Creator on the Unreal athlete: four 450 by 880 layers decode, blend by addition and keep their proportions.');
+  checks.push('A first visit opens the Fighter Creator on the Unreal athlete: four 900 by 1760 layers decode, blend by addition and keep their proportions.');
 
   const white = await painted(stageFigure(), 'white gi, white belt');
-  assert.ok(bright(white.chest, 180) && bright(white.thigh, 150) && bright(white.knot, 180), `a white gi and belt paint white (${JSON.stringify(white)})`);
+  assert.ok(bright(white.chest, 180) && bright(white.thigh, 150) && bright(white.belt, 180), `a white gi and belt paint white (${JSON.stringify(white)})`);
   // White layers at sizes that land between whole pixels are where a seam would show.
   for (const viewport of [{ width: 1440, height: 1000 }, { width: 1280, height: 933 }, { width: 1440, height: 1000 }]) {
     await page.setViewportSize(viewport);
@@ -240,11 +240,11 @@ try {
   await swatch('Gi Jacket', NAVY).click();
   const navy = await painted(stageFigure(), 'navy jacket, white pants');
   assert.ok(navy.chest[2] - navy.chest[0] >= 30 && navy.chest[0] <= 110, `the jacket turns navy (${navy.chest})`);
-  assert.ok(near(navy.thigh, white.thigh, 6) && near(navy.knot, white.knot, 6), 'the jacket color leaves the pants and belt alone');
+  assert.ok(near(navy.thigh, white.thigh, 6) && near(navy.belt, white.belt, 6), 'the jacket color leaves the pants and belt alone');
   await swatch('Gi Pants', BLACK).click();
   const black = await painted(stageFigure(), 'navy jacket, black pants');
   assert.ok(dark(black.thigh, 80), `the pants turn black (${black.thigh})`);
-  assert.ok(near(black.chest, navy.chest, 6) && near(black.knot, white.knot, 6), 'the pants color leaves the jacket and belt alone');
+  assert.ok(near(black.chest, navy.chest, 6) && near(black.belt, white.belt, 6), 'the pants color leaves the jacket and belt alone');
   assert.ok(near(black.face, white.face, 4) && near(navy.face, white.face, 4), 'gi colors never tint the face');
   assert.equal(await swatch('Gi Jacket', NAVY).getAttribute('aria-pressed'), 'true');
   await capture('desktop-navy-jacket-black-pants');
@@ -336,7 +336,7 @@ try {
   assert.match(await page.locator('.profile-stage .profile-art-tags').innerText(), /BLUE BELT/i);
   const blue = await painted(stageFigure(), 'white gi, blue belt');
   assert.equal(beltColors.blue, '#2368ff');
-  assert.ok(blue.knot[2] >= 150 && blue.knot[2] - blue.knot[0] >= 80, `the belt follows the rank (${blue.knot})`);
+  assert.ok(blue.belt[2] >= 150 && blue.belt[2] - blue.belt[0] >= 80, `the belt follows the rank (${blue.belt})`);
   assert.ok(bright(blue.chest, 180) && bright(blue.thigh, 150), 'the belt color leaves the gi alone');
   await capture('returning-blue-belt');
   checks.push('A returning visitor keeps a designed fighter in classic art with every saved choice; a stock fighter moves to the Unreal athlete, whose belt follows the rank.');

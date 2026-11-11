@@ -31,7 +31,7 @@ function onDevice(fighters, run) {
   }
 }
 
-test('each published layer is the pinned 450 by 880 opaque WebP', () => {
+test('each published layer is the pinned 900 by 1760 opaque WebP', () => {
   assert.deepEqual(Object.keys(UNREAL_ATHLETE.layers), ['base', 'jacket', 'pants', 'belt']);
   assert.deepEqual(Object.keys(UNREAL_ATHLETE.files), Object.keys(UNREAL_ATHLETE.layers));
   for (const [name, url] of Object.entries(UNREAL_ATHLETE.layers)) {
@@ -51,16 +51,19 @@ test('each published layer is the pinned 450 by 880 opaque WebP', () => {
   assert.throws(() => { UNREAL_ATHLETE.layers.base = '/elsewhere.webp'; }, TypeError);
 });
 
-test('the layer tool and the page pin the same four Unreal captures and the same crop', () => {
+test('the layer tool and the page pin the same three Unreal renders and the same layer size', () => {
   const tool = repoFile('tools/build_unreal_athlete_layers.py').toString('utf8');
   const pinned = Object.fromEntries([...tool.matchAll(/"([a-z-]+\.png)": "([0-9a-f]{64})"/g)].map((match) => [match[1], match[2]]));
   assert.deepEqual(pinned, { ...UNREAL_ATHLETE.sources });
-  assert.equal(Object.keys(pinned).length, 4);
-  const crop = tool.match(/^CROP = \((\d+), (\d+), (\d+), (\d+)\)$/m);
-  assert.deepEqual(crop.slice(3).map(Number), [UNREAL_ATHLETE.width, UNREAL_ATHLETE.height]);
+  assert.deepEqual(Object.keys(pinned), ['gi-white.png', 'gi-black.png', 'belt-white.png']);
+  const size = tool.match(/^SIZE = \((\d+), (\d+)\)$/m).slice(1).map(Number);
+  assert.deepEqual(size, [UNREAL_ATHLETE.width, UNREAL_ATHLETE.height]);
+  // The crop taken from the render has the proportions of the published layer.
+  const crop = tool.match(/^CROP = \((\d+), (\d+), (\d+), (\d+)\)$/m).slice(1).map(Number);
+  assert.ok(Math.abs((crop[2] / crop[3]) / (size[0] / size[1]) - 1) < 0.001);
   // The round portrait square has to sit inside the layer.
-  const { left, top, size } = UNREAL_ATHLETE.portrait;
-  assert.ok(left >= 0 && top >= 0 && left + size <= UNREAL_ATHLETE.width && top + size <= UNREAL_ATHLETE.height);
+  const { left, top, size: square } = UNREAL_ATHLETE.portrait;
+  assert.ok(left >= 0 && top >= 0 && left + square <= UNREAL_ATHLETE.width && top + square <= UNREAL_ATHLETE.height);
 });
 
 test('the portrait rule in the stylesheet matches the portrait square', () => {
