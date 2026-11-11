@@ -10,7 +10,7 @@ The local development app can select an Unreal Pixel Streaming preview in its ac
 
 jiuquest.com shows three captured stills of the saved purchased-gi character at `/?preview=unreal`, linked from the Overview. Per the local capture receipt recorded November 10, 2026, they are unedited native viewport captures from the verified character-control scene: white gi standing, a face and collar close-up, and navy gi during the walk animation. `src/unreal/characterPreview.js` pins each file's size and SHA-256, and `tests/unrealCharacterPreview.test.js` fails if a file is replaced or re-encoded. Change the pinned values only together with a newly verified capture.
 
-The page is a static gallery. It never mounts the game, reads or writes saved progress, opens a stream, or changes renderer selection; production Arena and Training remain on Unity. `tools/test_unreal_character_preview.mjs` checks the built page in a browser: image decoding, view selection, phone layouts and the absence of saved-progress writes. That check covers still images only. It is not evidence of Unreal rendering, browser video or paired choreography, which remain the separate runtime checks described below.
+The page is a static gallery. It never mounts the game, reads or writes saved progress, opens a stream, or changes renderer selection; the production combat renderer remains Unity. `tools/test_unreal_character_preview.mjs` checks the built page in a browser: image decoding, view selection, phone layouts and the absence of saved-progress writes. That check covers still images only. It is not evidence of Unreal rendering, browser video or paired choreography, which remain the separate runtime checks described below.
 
 ## Unreal athlete in the Fighter Creator (tintable stills)
 
@@ -29,6 +29,16 @@ The athlete stays dark until the body and all three gi layers have loaded, so a 
 There is one athlete: one face, build and hairstyle, in one pose. While it is selected the Fighter Creator hides gender, hair, skin tone and patch emblem, and keeps their saved values for the way back to Classic. New fighters and first visits start as the Unreal athlete. A fighter saved before this change moves to the Unreal athlete only if it still has the stock face, hair, skin and emblem; a fighter someone designed keeps its classic art until its owner switches.
 
 `tools/test_unreal_athlete.mjs` checks the built site in a browser: layer decoding and blending, painted colors after each choice, both looks, saved fighters, reload, and 390 and 320 pixel layouts. Like the preview check, it covers still images only and is not evidence of Unreal rendering, browser video or paired choreography. Selecting the athlete never opens a stream and is not an input to renderer selection.
+
+## Pre-rendered Unreal clips (Arena standing stance)
+
+The Arena shows a pre-rendered Unreal clip while both athletes are on their feet and no exchange has settled: before a match starts, and through the first sequence of a standing start. It is the `standing_stance` clip from the render pack: 1280 by 720, 30 frames a second, 54 frames, looping, in side and front views. Once an exchange settles, and for every other position, the Arena shows what it showed before: the Unity animation where one exists, otherwise the position snapshot. Training is unchanged. No other move has a clip yet.
+
+`tools/import_unreal_clips.py` copies each MP4 from the render pack unchanged, after checking it against the pack's `technique-clips.json` (size and SHA-256) and with ffprobe (H.264 High, yuv420p, picture size, frame rate, frame count, index before media, no audio). It re-encodes each lossless poster as a smaller lossy WebP and writes `src/unreal/techniqueClips.data.js`, which pins every published file. `tests/unrealTechniqueClips.test.js` fails if a file is replaced, if a clip names a move the game does not know, or if a file is published without being pinned.
+
+The outfits in a clip are fixed: the player's fighter in a white gi and the opponent in navy, both in black belts, whatever the player's own fighter wears. The stage says so beside the picture. Both athletes are the same character. The render receipt of November 11, 2026 records per-frame pose and contact checks and a review of sampled frames. It also records that no qualified choreography review has been done (`choreographyReviewed` is false) and that its author decoded the encoded files but did not watch them play.
+
+`tools/test_unreal_clip_stage.mjs` checks the built site in a browser: the clip plays, loops, pauses and changes camera; reduced motion starts paused on the poster; a clip that cannot load gives way to the position snapshot; the stance gives way once an exchange settles; 390 and 320 pixel layouts. It covers a video file played by the browser. It is not evidence of Unreal rendering in the browser or of a stream. The local live preview (`?engine=unreal` on localhost) is unchanged and renders the stance itself.
 
 ## Ownership and integration seams
 

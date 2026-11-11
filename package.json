@@ -16,7 +16,7 @@
     "release:restore": "node tools/unity_release.mjs restore",
     "release:build": "node tools/build_release.mjs",
     "release:verify": "node tools/unity_release.mjs verify-site",
-    "test:browser": "node tools/test_unreal_character_preview.mjs && node tools/test_unreal_athlete.mjs && node tools/test_unity_startup_telemetry.mjs && node tools/test_unity_canvas_lifecycle.mjs && node tools/test_unity_browser.mjs"
+    "test:browser": "node tools/test_unreal_character_preview.mjs && node tools/test_unreal_athlete.mjs && node tools/test_unreal_clip_stage.mjs && node tools/test_unity_startup_telemetry.mjs && node tools/test_unity_canvas_lifecycle.mjs && node tools/test_unity_browser.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",
