@@ -1,0 +1,1065 @@
+/*
+  JiuQuest premium game theme.
+
+  Loaded after styles.css. It changes paint only: color, type, borders, shadows
+  and motion. Layout, spacing and breakpoints stay with styles.css, so every
+  rule here is safe to remove without moving anything. The standalone preview
+  pages are not inside .app-shell and keep their own studio look.
+*/
+
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./assets/fonts/barlow-condensed-latin-600-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./assets/fonts/barlow-condensed-latin-700-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./assets/fonts/barlow-condensed-latin-700-italic.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --bg: #05080b;
+  --bg-2: #0a1016;
+  --panel: #0e161d;
+  --panel-strong: #131d26;
+  --line: #1e2b36;
+  --line-cool: #2d4050;
+  --text: #f1f5f8;
+  --muted: #a6b4c0;
+  --subtle: #7d8e9b;
+  --gold: #e8c27a;
+  --gold-strong: #f6d999;
+  --gold-deep: #a57f38;
+  --gold-ink: #17110a;
+  --violet: #b0a4f7;
+  --blue: #7cc0ff;
+  --red: #ff8a8a;
+  --green: #74e0b3;
+  --radius: 12px;
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  --display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', ui-sans-serif, system-ui, sans-serif;
+  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --glow-gold: 0 0 0 1px rgba(232, 194, 122, 0.35), 0 10px 28px rgba(232, 194, 122, 0.14);
+}
+
+/* ---------- Stage ---------- */
+
+.app-shell {
+  background:
+    radial-gradient(60rem 28rem at 62% -8rem, rgba(232, 194, 122, 0.09), transparent 70%),
+    radial-gradient(48rem 30rem at 8% 12%, rgba(86, 140, 190, 0.1), transparent 68%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.012) 0 2px, transparent 2px 22px),
+    linear-gradient(180deg, #070b0f 0%, #05080b 55%, #040609 100%);
+}
+
+.app-shell ::selection {
+  background: rgba(232, 194, 122, 0.32);
+  color: #fff;
+}
+
+.app-shell :focus-visible,
+.app-shell .fighter-select:focus-within {
+  outline: 2px solid var(--gold-strong);
+  outline-offset: 3px;
+}
+
+/* ---------- Type ---------- */
+
+.app-shell h1,
+.app-shell h2,
+.app-shell h3,
+.app-shell .brand-lockup,
+.app-shell .bottom-nav button,
+.app-shell .primary-button,
+.app-shell .secondary-button,
+.app-shell .danger-button,
+.app-shell .ghost-button,
+.app-shell .mode-card strong,
+.app-shell .mode-mark,
+.app-shell .stat strong,
+.app-shell .hero-metrics em,
+.app-shell .progress-orb strong,
+.app-shell .round-core strong,
+.app-shell .rep-count,
+.app-shell .xp-chip {
+  font-family: var(--display);
+}
+
+.app-shell h1,
+.app-shell h2,
+.app-shell .brand-lockup,
+.app-shell .primary-button,
+.app-shell .danger-button,
+.app-shell .mode-card strong,
+.app-shell .stat strong,
+.app-shell .hero-metrics em,
+.app-shell .progress-orb strong,
+.app-shell .round-core strong {
+  font-weight: 700 !important;
+}
+
+.app-shell h3,
+.app-shell .bottom-nav button,
+.app-shell .bottom-nav button span,
+.app-shell .secondary-button,
+.app-shell .ghost-button,
+.app-shell .mode-mark,
+.app-shell .rep-count,
+.app-shell .xp-chip {
+  font-weight: 600 !important;
+}
+
+.app-shell .panel h1,
+.app-shell .panel h2 {
+  font-size: 1.62rem;
+  line-height: 1.15;
+  letter-spacing: 0.01em !important;
+  color: var(--text);
+}
+
+.app-shell .panel h3 {
+  font-size: 1.12rem;
+  line-height: 1.25;
+  letter-spacing: 0.02em !important;
+}
+
+/* Small caps labels: nav, buttons and counters only. Sentences keep their case. */
+.app-shell .bottom-nav button span,
+.app-shell .primary-button,
+.app-shell .secondary-button,
+.app-shell .danger-button,
+.app-shell .ghost-button,
+.app-shell .dashboard-kicker,
+.app-shell .stat span,
+.app-shell .hero-metrics small,
+.app-shell .progress-orb small,
+.app-shell .round-core small,
+.app-shell .round-core > span,
+.app-shell .field > span:first-child,
+.app-shell .swatch-row > span,
+.app-shell .xp-chip {
+  text-transform: uppercase;
+  letter-spacing: 0.08em !important;
+}
+
+/* ---------- Top bar ---------- */
+
+.app-shell .topbar {
+  border-bottom-color: transparent;
+  background:
+    linear-gradient(90deg, transparent, rgba(232, 194, 122, 0.5) 18%, rgba(232, 194, 122, 0.12) 60%, transparent) bottom / 100% 1px no-repeat,
+    linear-gradient(180deg, rgba(14, 22, 30, 0.96), rgba(7, 11, 15, 0.92));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.app-shell .brand-lockup {
+  font-size: 1.85rem;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.app-shell .brand-sigil {
+  border-color: var(--gold-deep);
+  border-radius: 10px 3px;
+  background: linear-gradient(145deg, #2a2415, #11161b);
+  color: var(--gold-strong);
+  box-shadow: inset 0 0 0 3px #0b1015, 0 0 18px rgba(232, 194, 122, 0.18);
+  font-family: var(--display);
+  font-weight: 700 !important;
+  font-size: 1rem;
+}
+
+.app-shell .fighter-select,
+.app-shell .player-track-trigger,
+.app-shell .music-toggle {
+  border-color: var(--line);
+  background: linear-gradient(180deg, #121b24, #0c1319);
+  box-shadow: var(--edge);
+}
+
+.app-shell .fighter-select strong {
+  font-family: var(--display);
+  font-size: 1.08rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+}
+
+.app-shell .fighter-select .mini-portrait {
+  box-shadow: 0 0 0 1px var(--gold-deep), 0 0 0 3px #0b1015;
+}
+
+.app-shell .fighter-select:hover,
+.app-shell .player-track-trigger:hover,
+.app-shell .music-toggle:hover {
+  border-color: var(--line-cool);
+}
+
+.app-shell .music-toggle.active,
+.app-shell .player-track-select.open .player-track-trigger {
+  border-color: var(--gold-deep);
+}
+
+.app-shell .music-toggle.active .toggle-dot {
+  background: linear-gradient(90deg, #a57f38, #e8c27a);
+}
+
+.app-shell .player-track-menu {
+  border-color: var(--line-cool);
+  background: #0c1319;
+  box-shadow: var(--shadow);
+}
+
+.app-shell .player-track-menu button.active {
+  color: var(--gold-strong);
+}
+
+/* ---------- Navigation ---------- */
+
+.app-shell .bottom-nav {
+  border-color: var(--line);
+  background: linear-gradient(180deg, rgba(12, 19, 26, 0.96), rgba(6, 10, 14, 0.96));
+}
+
+.app-shell .bottom-nav button {
+  color: #9fb0bd;
+  font-size: 1.08rem;
+}
+
+.app-shell .bottom-nav button svg {
+  color: #71838f;
+}
+
+.app-shell .bottom-nav button:hover {
+  background-color: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+}
+
+.app-shell .bottom-nav button.active {
+  border-color: rgba(232, 194, 122, 0.22);
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.16), rgba(232, 194, 122, 0.02));
+  color: var(--gold-strong);
+}
+
+.app-shell .bottom-nav button.active svg {
+  color: var(--gold);
+}
+
+.app-shell .bottom-nav button.active::before {
+  background: var(--gold);
+  box-shadow: 0 0 12px rgba(232, 194, 122, 0.7);
+}
+
+.app-shell .corner-admin,
+.app-shell .top-admin {
+  border-color: var(--line);
+  background: #0c1319;
+  color: var(--subtle);
+}
+
+/* ---------- Surfaces ---------- */
+
+.app-shell .panel {
+  border-color: var(--line);
+  background:
+    linear-gradient(90deg, transparent, rgba(232, 194, 122, 0.28) 30%, transparent 78%) top / 100% 1px no-repeat,
+    linear-gradient(165deg, #131d26 0%, #0d151c 58%, #0a1117 100%);
+  box-shadow: var(--edge), 0 14px 34px rgba(0, 0, 0, 0.32);
+}
+
+.app-shell .section-heading > svg {
+  color: var(--gold);
+}
+
+.app-shell .section-heading p,
+.app-shell .panel > p {
+  color: var(--muted);
+}
+
+.app-shell .save-status {
+  color: var(--subtle);
+}
+
+.app-shell .app-feedback {
+  border-color: var(--line-cool);
+  background: linear-gradient(180deg, #15202a, #0d151c);
+  box-shadow: var(--shadow);
+}
+
+.app-shell .app-feedback.success {
+  border-color: rgba(116, 224, 179, 0.5);
+}
+
+.app-shell .app-feedback.error {
+  border-color: rgba(255, 138, 138, 0.6);
+}
+
+/* ---------- Buttons ---------- */
+
+.app-shell .primary-button,
+.app-shell .secondary-button,
+.app-shell .danger-button,
+.app-shell .ghost-button {
+  border-radius: 8px;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background-color 140ms ease, filter 140ms ease;
+}
+
+.app-shell .primary-button {
+  border-color: #f8e3ad;
+  background: linear-gradient(180deg, #f6d999 0%, #e2b867 52%, #c99a45 100%);
+  color: var(--gold-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 8px 22px rgba(232, 194, 122, 0.2);
+}
+
+.app-shell .primary-button svg {
+  color: var(--gold-ink);
+}
+
+.app-shell .primary-button:not(:disabled):hover {
+  border-color: #fff0c9;
+  background: linear-gradient(180deg, #fbe5b0 0%, #ecc577 52%, #d4a550 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 10px 28px rgba(232, 194, 122, 0.32);
+  transform: translateY(-1px);
+}
+
+.app-shell .primary-button:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.app-shell .primary-button:disabled {
+  border-color: #5b5140;
+  background: #3a3325;
+  color: #c9bfa6;
+  box-shadow: none;
+}
+
+.app-shell .secondary-button,
+.app-shell .ghost-button {
+  border-color: #2b3b48;
+  background: linear-gradient(180deg, #17232d, #101920);
+  color: #e3ebf1;
+  box-shadow: var(--edge);
+}
+
+.app-shell .secondary-button:not(:disabled):hover,
+.app-shell .ghost-button:not(:disabled):hover {
+  border-color: var(--gold-deep);
+  color: var(--gold-strong);
+}
+
+.app-shell .danger-button {
+  border-color: #ff9b9b;
+  background: linear-gradient(180deg, #d9534f 0%, #a8322f 100%);
+  color: #fff4f2;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 8px 22px rgba(217, 83, 79, 0.24);
+}
+
+.app-shell .danger-button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32), 0 10px 28px rgba(217, 83, 79, 0.36);
+}
+
+/* ---------- Forms ---------- */
+
+.app-shell input,
+.app-shell select,
+.app-shell textarea {
+  border-color: var(--line);
+  background: #080d12;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.45);
+  color: var(--text);
+}
+
+.app-shell input:focus,
+.app-shell select:focus,
+.app-shell textarea:focus {
+  border-color: var(--gold);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.45), 0 0 0 3px rgba(232, 194, 122, 0.16);
+}
+
+.app-shell .field > span:first-child,
+.app-shell .swatch-row > span {
+  color: var(--subtle);
+  font-family: var(--display);
+  font-size: 0.95rem;
+  font-weight: 600 !important;
+}
+
+.app-shell .segmented {
+  border-color: var(--line);
+  background: #080d12;
+}
+
+.app-shell .segmented button.active {
+  border-color: var(--gold-deep);
+  background: linear-gradient(180deg, rgba(232, 194, 122, 0.24), rgba(232, 194, 122, 0.1));
+  color: var(--gold-strong);
+}
+
+/* ---------- Progress ---------- */
+
+.app-shell .progress-bar span {
+  color: var(--muted);
+}
+
+.app-shell .progress-bar i {
+  background: #070c11;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.app-shell .progress-bar b {
+  background: linear-gradient(90deg, #a57f38, #e8c27a 60%, #fbe5b0);
+  box-shadow: 0 0 12px rgba(232, 194, 122, 0.55);
+}
+
+/* ---------- Shared tiles ---------- */
+
+.app-shell .fighter-slot,
+.app-shell .quest-row,
+.app-shell .move-row,
+.app-shell .stat,
+.app-shell .order-card,
+.app-shell .step-line,
+.app-shell .progress-row {
+  border-color: var(--line);
+  background: linear-gradient(180deg, #111a22, #0c1319);
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+
+.app-shell .fighter-slot:hover,
+.app-shell .quest-row:hover,
+.app-shell .move-row:hover {
+  border-color: var(--line-cool);
+  transform: translateY(-1px);
+}
+
+.app-shell .fighter-slot.selected,
+.app-shell .move-row.selected {
+  border-color: rgba(232, 194, 122, 0.6);
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.16), rgba(232, 194, 122, 0.03) 70%), #0e161d;
+  box-shadow: inset 3px 0 0 var(--gold), 0 8px 22px rgba(0, 0, 0, 0.3);
+}
+
+.app-shell .fighter-slot.selected > svg,
+.app-shell .move-row > svg {
+  color: var(--gold);
+}
+
+.app-shell .stat svg {
+  color: var(--gold);
+}
+
+.app-shell .stat strong {
+  font-size: 1.9rem;
+  line-height: 1.05;
+  color: var(--text);
+}
+
+.app-shell .stat span {
+  color: var(--subtle);
+  font-size: 0.72rem;
+}
+
+.app-shell .xp-chip,
+.app-shell .rep-count {
+  border-color: rgba(232, 194, 122, 0.4);
+  color: var(--gold-strong);
+  background: rgba(232, 194, 122, 0.08);
+}
+
+/* ---------- Overview ---------- */
+
+.app-shell .hero-stage {
+  border-color: rgba(232, 194, 122, 0.3);
+  box-shadow: var(--edge), 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.app-shell .dojo-backdrop {
+  background:
+    linear-gradient(90deg, rgba(5, 8, 11, 0.9) 0%, rgba(5, 8, 11, 0.55) 42%, transparent 72%),
+    linear-gradient(0deg, rgba(5, 8, 11, 0.92) 0%, transparent 46%);
+}
+
+.app-shell .dashboard-kicker {
+  color: var(--gold);
+  font-family: var(--display);
+  font-size: 1rem;
+  font-weight: 600 !important;
+}
+
+.app-shell .hero-content h1 {
+  font-size: clamp(2.9rem, 4.4vw, 4.4rem);
+  font-style: italic;
+  line-height: 0.96;
+  letter-spacing: 0.005em !important;
+  text-transform: uppercase;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.6) !important;
+}
+
+.app-shell .hero-content p {
+  color: #d4dde4;
+}
+
+.app-shell .hero-metrics span {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(7, 11, 15, 0.72);
+  box-shadow: var(--edge);
+  backdrop-filter: blur(8px);
+}
+
+.app-shell .hero-metrics small {
+  color: var(--subtle);
+  font-size: 0.7rem;
+}
+
+.app-shell .hero-metrics em {
+  font-size: 1.5rem;
+  font-style: normal;
+  line-height: 1.1;
+  color: var(--gold-strong);
+}
+
+.app-shell .mode-card {
+  border-color: var(--line);
+  background:
+    linear-gradient(115deg, rgba(232, 194, 122, 0.1), transparent 46%),
+    linear-gradient(180deg, #131d26, #0b1218);
+  box-shadow: var(--edge), 0 10px 26px rgba(0, 0, 0, 0.3);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.app-shell .mode-card.skill,
+.app-shell .mode-card.combat,
+.app-shell .mode-card.unreal-preview-card {
+  border-color: var(--line);
+}
+
+.app-shell .mode-card.combat {
+  background:
+    linear-gradient(115deg, rgba(255, 138, 138, 0.12), transparent 46%),
+    linear-gradient(180deg, #131d26, #0b1218);
+}
+
+.app-shell .mode-card:hover {
+  border-color: rgba(232, 194, 122, 0.6);
+  box-shadow: var(--edge), var(--glow-gold);
+  transform: translateY(-2px);
+}
+
+.app-shell .mode-card strong {
+  font-size: 1.5rem;
+  line-height: 1.1;
+  letter-spacing: 0.03em !important;
+  text-transform: uppercase;
+}
+
+.app-shell .mode-card small {
+  color: var(--muted);
+}
+
+.app-shell .mode-card > svg {
+  color: var(--gold);
+}
+
+.app-shell .mode-mark,
+.app-shell .mode-mark.fist {
+  border-color: var(--gold-deep);
+  border-radius: 10px 3px;
+  background: linear-gradient(145deg, #2a2415, #11161b);
+  color: var(--gold-strong);
+  font-size: 1.15rem;
+}
+
+.app-shell .mode-card.combat .mode-mark {
+  border-color: #a8524f;
+  background: linear-gradient(145deg, #3a1c1b, #14161b);
+  color: #ffb3ad;
+}
+
+.app-shell .unreal-preview-card-thumb {
+  border-color: var(--gold-deep);
+  border-radius: 10px 3px;
+}
+
+.app-shell .showcase-card {
+  border-color: var(--line);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+  transition: transform 160ms ease, border-color 160ms ease;
+}
+
+.app-shell .showcase-card:hover {
+  border-color: rgba(232, 194, 122, 0.55);
+  transform: translateY(-2px);
+}
+
+.app-shell .showcase-card figcaption {
+  font-family: var(--display);
+  font-size: 0.95rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase;
+}
+
+.app-shell .plus-box {
+  border-color: var(--line-cool);
+  color: var(--gold);
+}
+
+/* ---------- Training ---------- */
+
+.app-shell .technique-group > h2 {
+  color: var(--gold);
+  font-size: 1.05rem;
+  line-height: 1.3;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase;
+}
+
+.app-shell .technique-group > h2 small {
+  color: var(--subtle);
+  font-family: var(--display);
+}
+
+.app-shell .belt-tabs button {
+  border-color: var(--line);
+  background: linear-gradient(180deg, #111a22, #0c1319);
+  font-family: var(--display);
+  font-size: 1.08rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.03em !important;
+}
+
+.app-shell .belt-tabs button.active {
+  border-color: rgba(232, 194, 122, 0.65);
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.2), rgba(232, 194, 122, 0.04));
+  color: var(--gold-strong);
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+.app-shell .technique-head h1 {
+  font-size: 2.05rem;
+  line-height: 1.08;
+}
+
+.app-shell .technique-head small {
+  color: var(--gold);
+  font-family: var(--display);
+  font-size: 0.95rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase;
+}
+
+.app-shell .progress-orb {
+  border-color: rgba(232, 194, 122, 0.45);
+  background: radial-gradient(circle at 50% 0%, rgba(232, 194, 122, 0.18), rgba(232, 194, 122, 0.03) 70%);
+  box-shadow: var(--edge);
+}
+
+.app-shell .progress-orb strong {
+  color: var(--gold-strong);
+  font-size: 1.7rem;
+  line-height: 1.05;
+}
+
+.app-shell .progress-orb small {
+  color: var(--subtle);
+  font-size: 0.68rem;
+}
+
+.app-shell .training-animation-card,
+.app-shell .scenario-box,
+.app-shell .soon-banner,
+.app-shell .lab-status-card {
+  border-color: var(--line);
+  background: rgba(8, 13, 18, 0.72);
+}
+
+.app-shell .scenario-box h3 {
+  color: var(--gold);
+}
+
+.app-shell .step-line > span {
+  border-color: rgba(232, 194, 122, 0.4);
+  background: rgba(232, 194, 122, 0.08);
+  color: var(--gold-strong);
+}
+
+.app-shell .order-card > span {
+  border-color: var(--line-cool);
+  background: #080d12;
+  color: var(--gold-strong);
+  font-family: var(--display);
+  font-size: 1.05rem;
+  font-weight: 700 !important;
+}
+
+.app-shell .order-card button {
+  border-color: var(--line-cool);
+  background: linear-gradient(180deg, #17232d, #101920);
+}
+
+.app-shell .order-card button:not(:disabled):hover {
+  border-color: var(--gold);
+  color: var(--gold-strong);
+}
+
+.app-shell .result-card {
+  border-color: var(--line-cool);
+  background: rgba(8, 13, 18, 0.72);
+}
+
+.app-shell .result-card.success {
+  border-color: rgba(116, 224, 179, 0.55);
+  background: linear-gradient(90deg, rgba(116, 224, 179, 0.14), rgba(116, 224, 179, 0.03));
+  box-shadow: inset 3px 0 0 var(--green);
+}
+
+.app-shell .result-card.danger {
+  border-color: rgba(255, 138, 138, 0.5);
+  background: linear-gradient(90deg, rgba(255, 138, 138, 0.13), rgba(255, 138, 138, 0.03));
+  box-shadow: inset 3px 0 0 var(--red);
+}
+
+.app-shell .result-card strong {
+  font-family: var(--display);
+  font-size: 1.25rem;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+}
+
+/* ---------- Arena ---------- */
+
+.app-shell .arena-page-heading h1 {
+  font-size: clamp(2.2rem, 3.2vw, 3.1rem);
+  font-style: italic;
+  font-weight: 700 !important;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.app-shell .arena-page-heading p {
+  color: var(--muted);
+}
+
+.app-shell .arena-top {
+  border-color: var(--line);
+  background:
+    linear-gradient(90deg, rgba(232, 194, 122, 0.1), transparent 30%, transparent 70%, rgba(124, 192, 255, 0.1)),
+    #0a1016;
+}
+
+.app-shell .fighter-card {
+  border-color: transparent;
+  background: transparent;
+}
+
+.app-shell .fighter-card strong {
+  font-family: var(--display);
+  font-size: 1.35rem;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.1;
+}
+
+.app-shell .fighter-card small {
+  color: var(--subtle);
+}
+
+.app-shell .round-core > span {
+  color: var(--gold);
+  font-family: var(--display);
+  font-size: 0.92rem;
+  font-weight: 600 !important;
+}
+
+.app-shell .round-core strong {
+  color: var(--text);
+  font-size: 3rem;
+  line-height: 0.95;
+  text-shadow: 0 0 22px rgba(232, 194, 122, 0.45) !important;
+}
+
+.app-shell .round-core small {
+  color: var(--subtle);
+  font-size: 0.68rem;
+}
+
+.app-shell .arena-outcome {
+  border-color: rgba(232, 194, 122, 0.45);
+  border-left-color: var(--gold);
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.16), rgba(232, 194, 122, 0.02));
+}
+
+.app-shell .arena-outcome > span {
+  font-family: var(--display);
+  font-size: 1.3rem;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+}
+
+.app-shell .arena-outcome.danger,
+.app-shell .arena-outcome.is-opponent {
+  border-color: rgba(255, 138, 138, 0.45);
+  border-left-color: var(--red);
+  background: linear-gradient(90deg, rgba(255, 138, 138, 0.14), rgba(255, 138, 138, 0.02));
+}
+
+.app-shell .clock-pill {
+  border-color: rgba(232, 194, 122, 0.3);
+  background: rgba(232, 194, 122, 0.07);
+  color: var(--gold-strong);
+}
+
+.app-shell .combat-group h3 {
+  color: var(--gold);
+  font-size: 0.98rem;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase;
+}
+
+.app-shell .combat-group button {
+  border-color: var(--line);
+  background: linear-gradient(180deg, #111a22, #0c1319);
+  transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+
+.app-shell .combat-group button span {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+}
+
+.app-shell .combat-group button:not(:disabled):hover {
+  border-color: rgba(232, 194, 122, 0.6);
+  box-shadow: var(--glow-gold);
+  transform: translateX(2px);
+}
+
+.app-shell .combat-group button:not(:disabled):hover::after {
+  color: var(--gold);
+}
+
+.app-shell .combat-group button.selected {
+  border-color: var(--gold);
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.2), rgba(232, 194, 122, 0.04));
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+.app-shell .sequence-panel .empty-state svg {
+  color: var(--gold);
+}
+
+.app-shell .combat-log p {
+  border-color: var(--line-cool);
+  background: rgba(8, 13, 18, 0.6);
+}
+
+.app-shell .grappling-snapshot-stage,
+.app-shell .snapshot-caption {
+  border-color: var(--line);
+}
+
+/* ---------- Profile ---------- */
+
+.app-shell .profile-rank {
+  border-color: var(--line);
+  background: linear-gradient(180deg, #0c1319, #070b0f);
+}
+
+.app-shell .profile-rank h1 {
+  font-size: 2rem;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.app-shell .profile-rank p {
+  color: var(--muted);
+}
+
+.app-shell .profile-art-tags span {
+  border-color: rgba(232, 194, 122, 0.45);
+  background: rgba(7, 11, 15, 0.78);
+  color: var(--gold-strong);
+  font-family: var(--display);
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+}
+
+.app-shell .swatch-row button.active {
+  box-shadow: 0 0 0 2px #0b1218, 0 0 0 4px var(--gold);
+}
+
+.app-shell .image-select-trigger,
+.app-shell .image-select-menu {
+  border-color: var(--line);
+  background: #080d12;
+}
+
+/* ---------- Lab ---------- */
+
+.app-shell .position-lab-eyebrow {
+  color: var(--gold);
+}
+
+.app-shell .position-lab-option {
+  border-color: var(--line);
+  background: linear-gradient(180deg, #111a22, #0c1319);
+}
+
+.app-shell .position-lab-option:hover {
+  border-color: var(--line-cool);
+}
+
+.app-shell .position-lab-option.is-selected {
+  border-color: rgba(232, 194, 122, 0.65);
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.18), rgba(232, 194, 122, 0.03));
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+.app-shell .position-lab-option.is-selected > svg,
+.app-shell .position-lab-number {
+  color: var(--gold);
+}
+
+/* ---------- Insights ---------- */
+
+.app-shell .belt-roadmap div {
+  border-color: var(--line);
+  background: linear-gradient(180deg, #111a22, #0c1319);
+}
+
+.app-shell .belt-roadmap div.current {
+  border-color: rgba(232, 194, 122, 0.65);
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.2), rgba(232, 194, 122, 0.04));
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+.app-shell .belt-roadmap strong,
+.app-shell .progress-row strong,
+.app-shell .quest-row strong,
+.app-shell .move-row strong,
+.app-shell .fighter-slot strong {
+  font-family: var(--display);
+  font-size: 1.12rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+}
+
+/* ---------- Dialogs ---------- */
+
+.app-shell .modal {
+  border-color: rgba(232, 194, 122, 0.4);
+  background: linear-gradient(165deg, #131d26, #0a1117);
+  box-shadow: var(--shadow), var(--glow-gold);
+}
+
+/* ---------- Larger screens ---------- */
+
+@media (min-width: 761px) {
+  .app-shell .primary-button,
+  .app-shell .secondary-button,
+  .app-shell .danger-button,
+  .app-shell .ghost-button {
+    font-size: 1.04rem;
+  }
+}
+
+/* ---------- Smaller screens ---------- */
+
+@media (max-width: 1120px) {
+  .app-shell .bottom-nav button {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 980px) {
+  .app-shell .bottom-nav button {
+    font-size: 0.8rem;
+  }
+
+  .app-shell .bottom-nav button span {
+    letter-spacing: 0.05em !important;
+  }
+
+  .app-shell .bottom-nav button.active {
+    background: linear-gradient(180deg, rgba(232, 194, 122, 0.18), rgba(232, 194, 122, 0.02));
+  }
+}
+
+@media (max-width: 520px) {
+  .app-shell .bottom-nav button {
+    font-size: 0.72rem;
+  }
+
+  .app-shell .bottom-nav button span {
+    letter-spacing: 0.03em !important;
+  }
+
+  .app-shell .panel h1,
+  .app-shell .panel h2 {
+    font-size: 1.42rem;
+  }
+
+  .app-shell .mode-card strong {
+    font-size: 1.3rem;
+  }
+
+  .app-shell .brand-lockup {
+    font-size: 1.6rem;
+  }
+
+  .app-shell .round-core strong {
+    font-size: 2.3rem;
+  }
+
+  .app-shell .technique-head h1 {
+    font-size: 1.7rem;
+  }
+
+  .app-shell .fighter-card strong {
+    font-size: 1.1rem;
+  }
+}
+
+/* ---------- Motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .primary-button,
+  .app-shell .danger-button,
+  .app-shell .mode-card,
+  .app-shell .showcase-card,
+  .app-shell .fighter-slot,
+  .app-shell .quest-row,
+  .app-shell .move-row {
+    transition: none;
+  }
+
+  .app-shell .primary-button:not(:disabled):hover,
+  .app-shell .danger-button:not(:disabled):hover,
+  .app-shell .mode-card:hover,
+  .app-shell .showcase-card:hover,
+  .app-shell .fighter-slot:hover,
+  .app-shell .quest-row:hover,
+  .app-shell .move-row:hover {
+    transform: none;
+  }
+}

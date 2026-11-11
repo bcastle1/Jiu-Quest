@@ -1,0 +1,280 @@
+/* The Unreal athlete: four still layers added together in the browser. */
+.unreal-athlete {
+  position: relative;
+  display: block;
+  aspect-ratio: 450 / 880;
+  overflow: hidden;
+  background: #000;
+  /* Layers blend with the base image only, never with the page behind. */
+  isolation: isolate;
+}
+
+.unreal-athlete > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The body and the gi arrive as separate files. Nothing shows until all of
+   them can be painted in the same frame. */
+.unreal-athlete > img,
+.unreal-athlete-layer {
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+}
+
+.unreal-athlete.is-ready > img,
+.unreal-athlete.is-ready .unreal-athlete-layer {
+  opacity: 1;
+}
+
+/* Each layer is (image x chosen color), then added to what is beneath it. */
+.unreal-athlete-layer {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-blend-mode: multiply;
+  mix-blend-mode: screen;
+  mix-blend-mode: plus-lighter;
+  /* At a fractional size the image fades out over its outermost pixel and the
+     plain color shows through as a hairline. The layers are black for many
+     pixels in from every edge, so trim two. */
+  clip-path: inset(2px);
+  pointer-events: none;
+}
+
+/* ---------- Fighter Creator stage ---------- */
+
+/* styles.css is bundled after this file, so the stage rules carry .app-shell to
+   outrank `.profile-stage .profile-art` and the classic backdrop it paints. */
+.app-shell .profile-art.unreal-athlete-stage {
+  background: #000;
+}
+
+/* The figure stands on the bottom edge and scales with the stage height. */
+.app-shell .unreal-athlete-stage-figure {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  height: 100%;
+  transform: translateX(-50%);
+}
+
+/* Studio light: the fighter's aura as a rim glow at both sides and a low pool
+   on the floor. Both only add light, so the black studio stays black. */
+.app-shell .profile-art.unreal-athlete-stage::before,
+.app-shell .profile-art.unreal-athlete-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 1;
+  filter: none;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.app-shell .profile-art.unreal-athlete-stage::before {
+  background:
+    radial-gradient(46% 5% at 50% 100%, rgba(255, 255, 255, 0.2), transparent 72%),
+    radial-gradient(62% 11% at 50% 100%, color-mix(in srgb, var(--athlete-aura) 46%, transparent), transparent 74%);
+}
+
+.app-shell .profile-art.unreal-athlete-stage::after {
+  background:
+    radial-gradient(34% 62% at 0% 44%, color-mix(in srgb, var(--athlete-aura) 34%, transparent), transparent 70%),
+    radial-gradient(34% 62% at 100% 44%, color-mix(in srgb, var(--athlete-aura) 34%, transparent), transparent 70%);
+}
+
+.app-shell .profile-art.unreal-athlete-stage .profile-art-tags {
+  z-index: 2;
+}
+
+/* Beside the Fighter Creator the stage is as tall as the window allows, so the
+   athlete reads at full height without pushing the name card off screen. */
+@media (min-width: 981px) {
+  .app-shell .profile-stage .profile-art.unreal-athlete-stage {
+    min-height: clamp(34rem, calc(100vh - 15.5rem), 52rem);
+  }
+}
+
+/* ---------- Overview hero ---------- */
+
+.hero-athlete {
+  display: none;
+}
+
+/* The hero measures itself, so the athlete appears only when there is room
+   beside the headline, whichever page layout is in use. */
+.app-shell .hero-stage.has-athlete {
+  container: jiuquest-hero / inline-size;
+}
+
+/* With room, the hero becomes the athlete's studio: black, lit by the aura,
+   the athlete from the head to the hands at the right. Narrower heroes and
+   browsers without container queries keep the classic hero art. */
+@container jiuquest-hero (min-width: 700px) {
+  .app-shell .hero-stage.has-athlete .dojo-backdrop {
+    background: linear-gradient(90deg, #0a1016 0%, #05080b 40%, #000 58%);
+  }
+
+  .app-shell .hero-stage.has-athlete .hero-athlete {
+    /* Centered in the space to the right of the headline, never past the edge. */
+    --hero-athlete-x: min(calc(50% + 15rem), calc(100% - 7.4rem));
+    position: absolute;
+    inset: 0;
+    display: block;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .app-shell .hero-stage.has-athlete .hero-athlete .unreal-athlete {
+    position: absolute;
+    top: 5%;
+    left: var(--hero-athlete-x);
+    height: 166%;
+    transform: translateX(-50%);
+  }
+
+  .app-shell .hero-stage.has-athlete .hero-athlete::before,
+  .app-shell .hero-stage.has-athlete .hero-athlete::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
+  /* Aura light at both sides of the athlete. It only adds, so black stays black. */
+  .app-shell .hero-stage.has-athlete .hero-athlete::before {
+    background:
+      radial-gradient(7.4rem 70% at calc(var(--hero-athlete-x) - 10.4rem) 46%, color-mix(in srgb, var(--athlete-aura) 30%, transparent), transparent 72%),
+      radial-gradient(7rem 74% at calc(var(--hero-athlete-x) + 9.6rem) 46%, color-mix(in srgb, var(--athlete-aura) 42%, transparent), transparent 72%);
+    mix-blend-mode: screen;
+  }
+
+  /* The crop below the hands fades into the floor. */
+  .app-shell .hero-stage.has-athlete .hero-athlete::after {
+    background: linear-gradient(0deg, #05080b 0%, rgba(5, 8, 11, 0.5) 6%, transparent 16%);
+  }
+}
+
+/* ---------- Round portraits ---------- */
+
+/* Scale the 450 x 880 layer so its 150 px head-and-collar square fills the circle. */
+.mini-portrait .unreal-athlete {
+  position: absolute;
+  top: -13.33%;
+  left: -99.33%;
+  width: 300%;
+}
+
+/* ---------- Small full-body figure ---------- */
+
+.unreal-athlete.mini-fighter {
+  width: auto;
+  height: 10rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+/* ---------- Athlete choice in the Fighter Creator ---------- */
+
+.fighter-look-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.fighter-look-picker button {
+  display: grid;
+  gap: 0.3rem;
+  min-height: 4.4rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #111a22, #0c1319);
+  color: var(--text);
+  text-align: left;
+}
+
+.fighter-look-picker button strong {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--display);
+  font-size: 1.2rem;
+  font-weight: 700 !important;
+  letter-spacing: 0.03em !important;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.fighter-look-picker button em {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid rgba(232, 194, 122, 0.55);
+  border-radius: 4px;
+  color: var(--gold-strong);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+}
+
+.fighter-look-picker button small {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.fighter-look-picker button.active {
+  border-color: rgba(232, 194, 122, 0.7);
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.2), rgba(232, 194, 122, 0.04));
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+.fighter-look-note {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(8, 13, 18, 0.72);
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+/* ---------- Gi colors, with a live figure when the page is one column ---------- */
+
+.gi-colors {
+  display: grid;
+  gap: 1rem;
+}
+
+.gi-colors-athlete {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  /* The stage has scrolled away by the time the swatches are reached, so a
+     small copy of the athlete sits beside them and recolors as they are tapped. */
+  .gi-colors.with-athlete {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 0.9rem;
+    align-items: center;
+  }
+
+  .gi-colors.with-athlete .gi-colors-athlete {
+    display: block;
+    grid-row: 1 / span 2;
+    height: 11.5rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+}
+
+@media (max-width: 520px) {
+  .fighter-look-picker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
