@@ -30,6 +30,16 @@ There is one athlete: one face, build and hairstyle, in one pose. While it is se
 
 `tools/test_unreal_athlete.mjs` checks the built site in a browser: layer decoding and blending, painted colors after each choice, both looks, saved fighters, reload, and 390 and 320 pixel layouts. Like the preview check, it covers still images only and is not evidence of Unreal rendering, browser video or paired choreography. Selecting the athlete never opens a stream and is not an input to renderer selection.
 
+## Pre-rendered Unreal clips (Arena standing stance)
+
+The Arena shows a pre-rendered Unreal clip while both athletes are on their feet and no exchange has settled: before a match starts, and through the first sequence of a standing start. It is the `standing_stance` clip from the render pack: 1280 by 720, 30 frames a second, 54 frames, looping, in side and front views. Once an exchange settles, and for every other position, the Arena shows what it showed before: the Unity animation where one exists, otherwise the position snapshot. Training is unchanged. No other move has a clip yet.
+
+`tools/import_unreal_clips.py` copies each MP4 from the render pack unchanged, after checking it against the pack's `technique-clips.json` (size and SHA-256) and with ffprobe (H.264 High, yuv420p, picture size, frame rate, frame count, index before media, no audio). It re-encodes each lossless poster as a smaller lossy WebP and writes `src/unreal/techniqueClips.data.js`, which pins every published file. `tests/unrealTechniqueClips.test.js` fails if a file is replaced, if a clip names a move the game does not know, or if a file is published without being pinned.
+
+The outfits in a clip are fixed: the player's fighter in a white gi and the opponent in navy, both in black belts, whatever the player's own fighter wears. The stage says so beside the picture. Both athletes are the same character. The render receipt of November 11, 2026 records per-frame pose and contact checks and a review of sampled frames. It also records that no qualified choreography review has been done (`choreographyReviewed` is false) and that its author decoded the encoded files but did not watch them play.
+
+`tools/test_unreal_clip_stage.mjs` checks the built site in a browser: the clip plays, loops, pauses and changes camera; reduced motion starts paused on the poster; a clip that cannot load gives way to the position snapshot; the stance gives way once an exchange settles; 390 and 320 pixel layouts. It covers a video file played by the browser. It is not evidence of Unreal rendering in the browser or of a stream. The local live preview (`?engine=unreal` on localhost) is unchanged and renders the stance itself.
+
 ## Ownership and integration seams
 
 React remains authoritative for curriculum ordering, training reps, unlocks, match outcomes, scores, ownership of positions, and persistence. `App.jsx` resolves training tests and Arena turns before renderer playback. Renderer messages describe playback only; a completed animation must never call `updateProgress`, resolve another Arena turn, or write saved state.

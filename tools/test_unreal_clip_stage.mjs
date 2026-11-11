@@ -1,0 +1,242 @@
+// Verifies the pre-rendered Unreal clip in the built site in a real browser: the
+// Arena shows the standing-stance clip while both athletes are on their feet
+// and nothing has settled, it plays, loops, pauses and changes camera, people
+// who ask for reduced motion start paused, a clip that cannot load gives way to
+// the usual picture, and the page fits phones. It checks a video file being
+// played by the browser. It does not run Unreal or any stream.
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { extname, resolve, sep } from 'node:path';
+import { chromium } from 'playwright';
+import { findUnrealClip } from '../src/unreal/techniqueClips.js';
+
+const root = resolve('dist');
+const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'unreal-clip-stage');
+await mkdir(artifacts, { recursive: true });
+const checks = [], images = [], errors = [], consoleErrors = [], expectedConsoleErrors = [], failedResponses = [], layouts = [], playback = [];
+const browserOptions = { headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) };
+const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.mp4': 'video/mp4' };
+const report = { startedAtUtc: new Date().toISOString(), status: 'running', scope: 'A pre-rendered video file played in desktop Chromium, with phone viewport emulation. No Unreal runtime, stream or physical device.' };
+const SIDE = findUnrealClip('standing_stance', 'fighter', 'side');
+const FRONT = findUnrealClip('standing_stance', 'fighter', 'front');
+let browser, server, page, blockClips = false;
+
+async function staticSite() {
+  await stat(resolve(root, 'index.html'));
+  server = createServer(async (request, response) => {
+    try {
+      const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+      const file = resolve(root, `.${pathname.endsWith('/') ? `${pathname}index.html` : pathname}`);
+      if (!file.startsWith(`${root}${sep}`)) { response.writeHead(403); response.end(); return; }
+      const body = await readFile(file);
+      response.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' });
+      response.end(body);
+    } catch { response.writeHead(404); response.end('Not found'); }
+  });
+  await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+  return `http://127.0.0.1:${server.address().port}`;
+}
+
+async function open(options) {
+  const context = await browser.newContext({ deviceScaleFactor: 1, reducedMotion: 'no-preference', ...options });
+  page = await context.newPage();
+  // One context below cuts the clips off on purpose; its load errors are expected.
+  if (blockClips) await page.route('**/assets/unreal-clips/**/*.mp4', (route) => route.abort());
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() !== 'error') return;
+    (blockClips ? expectedConsoleErrors : consoleErrors).push({ text: message.text(), location: message.location() });
+  });
+  page.on('response', (response) => { if (response.status() >= 400) failedResponses.push({ url: response.url(), status: response.status() }); });
+  return context;
+}
+
+const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+const nav = async (name) => { await page.getByRole('button', { name, exact: true }).click(); };
+const stage = () => page.locator('.mat-window .unreal-clip-stage');
+const video = () => stage().locator('video');
+const watch = () => video().evaluate((element) => ({
+  path: new URL(element.currentSrc || element.src).pathname, poster: new URL(element.poster).pathname,
+  paused: element.paused, time: element.currentTime, ready: element.readyState, size: [element.videoWidth, element.videoHeight],
+  muted: element.muted, loop: element.loop, inline: element.playsInline, controls: element.controls, error: element.error?.code ?? null,
+}));
+const box = async (locator) => { const found = await locator.boundingBox(); return { x: found.x, y: found.y, width: found.width, height: found.height, right: found.x + found.width, bottom: found.y + found.height }; };
+
+async function capture(name) {
+  const file = resolve(artifacts, `${name}.png`);
+  const data = await page.screenshot({ path: file });
+  images.push({ name, path: file, bytes: data.length });
+}
+
+// The clip is on screen, decoded at its real size, and moving.
+async function playing(clip, label) {
+  await page.waitForFunction((path) => {
+    const element = document.querySelector('.mat-window .unreal-clip-stage video');
+    return element && new URL(element.currentSrc || element.src).pathname === path && element.readyState >= 2 && !element.paused && element.currentTime > 0.05;
+  }, clip.video, { timeout: 30000 });
+  const state = await watch();
+  assert.deepEqual([state.path, state.poster, state.size, state.error], [clip.video, clip.poster, [clip.width, clip.height], null]);
+  assert.deepEqual([state.muted, state.loop, state.inline, state.controls], [true, true, true, false], 'silent, looping, inline, with the page\'s own controls');
+  playback.push({ label, ...state });
+  return state;
+}
+
+try {
+  const base = process.env.JIUQUEST_PREVIEW_URL?.replace(/\/$/, '') || await staticSite();
+  browser = await chromium.launch(browserOptions);
+  report.browserVersion = browser.version();
+
+  // ---- Desktop, default renderer ----
+  const desktop = await open({ viewport: { width: 1440, height: 900 } });
+  await page.goto(`${base}/`);
+  report.canPlayH264 = await page.evaluate(() => document.createElement('video').canPlayType('video/mp4; codecs="avc1.640028"') !== '');
+  assert.equal(report.canPlayH264, true, 'This browser cannot play H.264, so the clip cannot be checked here');
+  await nav('Arena');
+  await stage().waitFor();
+  assert.deepEqual([await stage().getAttribute('data-move'), await stage().getAttribute('data-camera')], ['standing_stance', 'side']);
+  assert.equal(await stage().getAttribute('aria-label'), 'Standing stance, Unreal Engine clip');
+  await playing(SIDE, 'side');
+  // A 1.8 second loop: within a few seconds the clock must have gone back to the start.
+  await page.waitForFunction(() => {
+    const element = document.querySelector('.mat-window .unreal-clip-stage video');
+    window.__clipPeak = Math.max(window.__clipPeak ?? 0, element.currentTime);
+    return window.__clipPeak > 1 && element.currentTime < window.__clipPeak - 0.5;
+  }, null, { timeout: 15000, polling: 50 });
+  assert.equal(await page.locator('.mat-window .grappling-snapshot-stage, .mat-window .unity-stage').count(), 0, 'the clip replaces the settled-position picture while it shows');
+  checks.push('The Arena opens on the Unreal standing-stance clip: 1280 by 720, silent, playing and looping.');
+
+  const legend = await stage().locator('.unreal-clip-legend').innerText();
+  const [fighterName, opponentName] = await page.locator('.arena-top .fighter-card strong').allTextContents();
+  assert.ok(legend.includes(`${fighterName} (you): white gi`) && legend.includes(`${opponentName}: navy gi`), legend);
+  assert.match(legend, /Gi and belt colors are fixed in this clip\./);
+  assert.match(await video().getAttribute('aria-label'), /^Standing stance\. .+ in the white gi and .+ in the navy gi, seen from the side\.$/);
+  checks.push('The legend says who wears which gi and that the clip\'s colors are fixed.');
+
+  // Wide stage: the words sit on the picture, so the start buttons stay in view.
+  const [stageBox, pictureBox] = [await box(stage()), await box(stage().locator('.unreal-clip-viewport'))];
+  assert.ok(Math.abs(stageBox.height - pictureBox.height) <= 1, 'on a wide stage nothing adds to the picture\'s height');
+  assert.ok(Math.abs(pictureBox.width / pictureBox.height - 2) < 0.02, 'the wide picture is trimmed to two to one');
+  for (const part of ['.unreal-clip-heading', '.unreal-clip-controls', '.unreal-clip-legend']) {
+    const partBox = await box(stage().locator(part));
+    assert.ok(partBox.x >= pictureBox.x - 1 && partBox.right <= pictureBox.right + 1 && partBox.y >= pictureBox.y - 1 && partBox.bottom <= pictureBox.bottom + 1, `${part} sits on the picture`);
+  }
+  const start = await box(page.getByRole('button', { name: 'Standing Start', exact: true }));
+  assert.ok(start.bottom <= 900, `Standing Start is visible without scrolling (${Math.round(start.bottom)})`);
+  layouts.push({ viewport: page.viewportSize(), stage: stageBox, picture: pictureBox, standingStartBottom: start.bottom });
+  await capture('desktop-arena-side');
+
+  // Camera and pause.
+  const cameras = page.getByRole('group', { name: 'Camera view', exact: true });
+  assert.deepEqual(await cameras.getByRole('button').allInnerTexts(), ['Side', 'Front']);
+  assert.deepEqual([await cameras.getByRole('button', { name: 'Side' }).getAttribute('aria-pressed'), await cameras.getByRole('button', { name: 'Front' }).getAttribute('aria-pressed')], ['true', 'false']);
+  await cameras.getByRole('button', { name: 'Front' }).click();
+  await playing(FRONT, 'front');
+  assert.equal(await stage().getAttribute('data-camera'), 'front');
+  assert.equal(await cameras.getByRole('button', { name: 'Front' }).getAttribute('aria-pressed'), 'true');
+  await capture('desktop-arena-front');
+  await stage().getByRole('button', { name: 'Pause', exact: true }).focus(); await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.querySelector('.mat-window .unreal-clip-stage video').paused);
+  const held = (await watch()).time;
+  await page.waitForTimeout(400);
+  assert.equal((await watch()).time, held, 'a paused clip does not move');
+  await stage().getByRole('button', { name: 'Play', exact: true }).click();
+  await playing(FRONT, 'front after play');
+  await cameras.getByRole('button', { name: 'Side' }).click();
+  await playing(SIDE, 'side again');
+  checks.push('Side and Front switch the clip, and Pause and Play work by keyboard and pointer.');
+  await desktop.close();
+
+  // ---- A match: the clip gives way once an exchange settles ----
+  const match = await open({ viewport: { width: 1440, height: 900 } });
+  await page.goto(`${base}/?engine=snapshot`);
+  await nav('Arena');
+  await playing(SIDE, 'position snapshots renderer');
+  await page.getByRole('button', { name: 'Standing Start', exact: true }).click();
+  await stage().waitFor();
+  await page.locator('.combat-moves .combat-group').first().locator('button:not([disabled])').first().click();
+  await page.locator('.sequence-panel .order-stack').waitFor();
+  assert.equal(await stage().count(), 1, 'the stance stays while the sequence is arranged');
+  await page.getByRole('button', { name: 'Submit sequence', exact: true }).click();
+  await page.locator('.arena-outcome').waitFor();
+  assert.equal(await stage().count(), 0, 'a settled exchange shows the settled position, not the stance clip');
+  assert.equal(await page.locator('.mat-window .grappling-snapshot-stage').count(), 1);
+  // A start that is not on the feet never shows the stance.
+  await page.reload();
+  await nav('Arena');
+  await stage().waitFor();
+  await page.getByLabel('Your starting position', { exact: true }).selectOption('mount-bottom');
+  await page.getByRole('button', { name: 'Position Start', exact: true }).click();
+  assert.equal(await stage().count(), 0);
+  assert.equal(await page.locator('.mat-window .grappling-snapshot-stage').count(), 1);
+  checks.push('The stance stays through the first sequence, then gives way to the settled position; a start off the feet never shows it.');
+  await match.close();
+
+  // ---- Reduced motion: paused until asked ----
+  const calm = await open({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
+  await page.goto(`${base}/?engine=snapshot`);
+  await nav('Arena');
+  await stage().waitFor();
+  await page.waitForFunction(() => document.querySelector('.mat-window .unreal-clip-stage video')?.readyState >= 1);
+  await page.waitForTimeout(600);
+  const still = await watch();
+  assert.deepEqual([still.paused, still.time], [true, 0], 'reduced motion starts on the still poster');
+  await stage().getByRole('button', { name: 'Play', exact: true }).click();
+  await playing(SIDE, 'reduced motion after Play');
+  checks.push('With reduced motion the clip waits on its poster until Play is pressed.');
+  await calm.close();
+
+  // ---- A clip that cannot load ----
+  blockClips = true;
+  const broken = await open({ viewport: { width: 1440, height: 900 } });
+  await page.goto(`${base}/?engine=snapshot`);
+  await nav('Arena');
+  await page.locator('.mat-window .grappling-snapshot-stage').waitFor();
+  assert.equal(await stage().count(), 0, 'a clip that cannot load gives way to the usual picture');
+  assert.match(await page.locator('.snapshot-position').innerText(), /Standing/);
+  await page.getByRole('button', { name: 'Standing Start', exact: true }).click();
+  assert.equal(await page.locator('.combat-moves .combat-group button:not([disabled])').count() > 0, true, 'the match still starts');
+  checks.push('If the video cannot load, the Arena shows the position snapshot and the match still starts.');
+  await broken.close();
+  blockClips = false;
+
+  // ---- Phones ----
+  for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 640 }]) {
+    const phone = await open({ viewport, isMobile: true, hasTouch: true });
+    await page.goto(`${base}/`);
+    await nav('Arena');
+    await playing(SIDE, `${viewport.width}px`);
+    assert.equal(await fits(), true, `${viewport.width}-pixel Arena must not scroll sideways`);
+    const [stageBox, pictureBox] = [await box(stage()), await box(stage().locator('.unreal-clip-viewport'))];
+    assert.ok(stageBox.width >= viewport.width - 48, `the stage uses the phone's width (${Math.round(stageBox.width)})`);
+    assert.ok(Math.abs(pictureBox.width / pictureBox.height - 16 / 9) < 0.02, 'a narrow stage shows the whole picture');
+    for (const part of ['.unreal-clip-heading', '.unreal-clip-controls', '.unreal-clip-legend']) {
+      const partBox = await box(stage().locator(part));
+      assert.ok(partBox.bottom <= pictureBox.y + 1 || partBox.y >= pictureBox.bottom - 1, `${part} is stacked clear of the picture`);
+    }
+    for (const button of await stage().getByRole('button').all()) assert.ok((await button.boundingBox()).height >= 44, 'controls are easy to tap');
+    await page.getByRole('group', { name: 'Camera view', exact: true }).getByRole('button', { name: 'Front' }).tap();
+    await playing(FRONT, `${viewport.width}px front`);
+    assert.equal(await fits(), true);
+    layouts.push({ viewport, stage: stageBox, picture: pictureBox });
+    await stage().scrollIntoViewIfNeeded();
+    await capture(`phone-${viewport.width}`);
+    await phone.close();
+  }
+  checks.push('At 390 and 320 pixels the clip plays at full width with its controls stacked below, and nothing scrolls sideways.');
+
+  assert.deepEqual(errors, []);
+  assert.deepEqual(consoleErrors, [], 'Unexpected browser console errors');
+  assert.deepEqual(failedResponses, [], 'Every clip asset must load');
+  report.status = 'passed';
+  console.log(JSON.stringify({ checks, layouts, playback: playback.length, images: images.length, artifacts }, null, 2));
+} catch (error) {
+  report.status = 'failed'; report.failure = error.stack || String(error);
+  if (page && !page.isClosed()) await page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }).catch(() => {});
+  console.error(error); process.exitCode = 1;
+} finally {
+  Object.assign(report, { checkedAtUtc: new Date().toISOString(), checks, layouts, playback, images, pageErrors: errors, consoleErrors, expectedConsoleErrors, failedResponses });
+  await writeFile(resolve(artifacts, 'report.json'), JSON.stringify(report, null, 2));
+  if (browser) await browser.close().catch(() => {});
+  if (server) { server.closeAllConnections(); await new Promise((resolveClose) => server.close(resolveClose)); }
+}

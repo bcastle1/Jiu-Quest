@@ -1,0 +1,194 @@
+/* A pre-rendered Unreal clip of one move: heading, picture, controls, legend.
+   styles.css is bundled after this file and forces font-weight on every
+   element, so weights here are marked important. */
+.unreal-clip-stage {
+  /* The stage measures itself: wide, the words sit on the picture; narrow,
+     they stack around it. */
+  container: unreal-clip / inline-size;
+  position: relative;
+  /* A stage that measures itself has no width of its own, and the Arena
+     centers its children on phones. Ask for the full width. */
+  justify-self: stretch;
+  width: 100%;
+  min-width: 0;
+  background: #05080b;
+  color: var(--text, #f1f5f8);
+}
+
+.unreal-clip-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.75rem;
+  padding: 0.85rem 1rem 0.75rem;
+}
+
+.unreal-clip-heading span {
+  color: var(--gold, #e8c27a);
+  font-family: var(--display, inherit);
+  font-size: 0.82rem;
+  font-weight: 700 !important;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.unreal-clip-heading strong {
+  font-family: var(--display, inherit);
+  font-size: 1.3rem;
+  font-weight: 700 !important;
+  line-height: 1.1;
+}
+
+.unreal-clip-viewport {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: var(--clip-ratio, 16 / 9);
+  background: #000;
+}
+
+.unreal-clip-viewport video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* When the picture is trimmed, keep the feet: take more from the empty top. */
+  object-position: 50% 70%;
+}
+
+.unreal-clip-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem 0;
+}
+
+.unreal-clip-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: 4.6rem;
+  min-height: 44px;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--line-cool, #2d4050);
+  border-radius: 8px;
+  background: #101922;
+  color: var(--text, #f1f5f8);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.unreal-clip-controls button:hover {
+  border-color: var(--gold-deep, #a57f38);
+}
+
+.unreal-clip-controls button:focus-visible {
+  outline: 2px solid var(--gold, #e8c27a);
+  outline-offset: 3px;
+}
+
+.unreal-clip-controls button.unreal-clip-play {
+  min-width: 6rem;
+  border-color: var(--gold-strong, #f6d999);
+  background: linear-gradient(180deg, var(--gold-strong, #f6d999), var(--gold, #e8c27a));
+  color: var(--gold-ink, #17110a);
+  font-weight: 700 !important;
+}
+
+.unreal-clip-cameras {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.unreal-clip-cameras button[aria-pressed='true'] {
+  border-color: var(--gold, #e8c27a);
+  background: rgba(232, 194, 122, 0.14);
+  color: var(--gold-strong, #f6d999);
+}
+
+.unreal-clip-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  padding: 0.75rem 1rem 0.95rem;
+  color: var(--muted, #a6b4c0);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.unreal-clip-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  color: var(--text, #f1f5f8);
+}
+
+.unreal-clip-legend i {
+  flex: none;
+  width: 0.8rem;
+  height: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+}
+
+.unreal-clip-legend small {
+  flex-basis: 100%;
+  color: var(--subtle, #7d8e9b);
+  font-size: 0.78rem;
+}
+
+/* Wide enough for the athletes to stand clear of the corners: the picture is
+   trimmed a little above and below, and the heading, controls and legend sit
+   on its dark margins, so the stage is no taller than the picture. */
+@container unreal-clip (min-width: 620px) {
+  .unreal-clip-viewport {
+    aspect-ratio: 2 / 1;
+  }
+
+  .unreal-clip-heading,
+  .unreal-clip-controls,
+  .unreal-clip-legend {
+    position: absolute;
+    z-index: 1;
+  }
+
+  .unreal-clip-heading {
+    top: 0;
+    left: 0;
+    flex-direction: column;
+    max-width: 34%;
+    padding: 0.9rem 1rem;
+  }
+
+  .unreal-clip-controls {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    padding: 0.85rem 1rem;
+    pointer-events: none;
+  }
+
+  .unreal-clip-controls button {
+    background: rgba(10, 16, 22, 0.82);
+    pointer-events: auto;
+  }
+
+  .unreal-clip-legend {
+    top: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+    max-width: 32%;
+    padding: 0.9rem 1rem;
+    text-align: right;
+  }
+
+  .unreal-clip-legend small {
+    flex-basis: auto;
+  }
+}
