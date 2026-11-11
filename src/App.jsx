@@ -1264,7 +1264,7 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
           <p className="fighter-look-note">This athlete has one face, build and hairstyle for now. Choose the gi colors below. The belt follows your rank.</p>
         )}
 
-        <div className="form-grid">
+        <div className={unrealLook ? "form-grid athlete-form" : "form-grid"}>
           <Field label="Name">
             <input value={fighter.name} onChange={(event) => updateFighter({ name: event.target.value })} maxLength={28} />
           </Field>

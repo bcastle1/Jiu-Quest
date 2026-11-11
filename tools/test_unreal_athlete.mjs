@@ -190,6 +190,9 @@ try {
   await page.goto(`${base}/?engine=snapshot`);
 
   // The Overview hero shows the athlete beside the headline when it has room.
+  // A wide window keeps this clear of the 700-pixel threshold whether or not
+  // the browser reserves space for a scrollbar.
+  await page.setViewportSize({ width: 1600, height: 1000 });
   const heroAthlete = page.locator('.hero-stage.has-athlete .hero-athlete .unreal-athlete');
   await athleteReady(heroAthlete);
   const hero = await page.evaluate(() => {
@@ -212,7 +215,6 @@ try {
   assert.equal(await page.locator('.hero-athlete').isVisible(), false, 'a hero without room beside the headline keeps the classic art');
   assert.match(await page.locator('.hero-stage').evaluate((element) => getComputedStyle(element).backgroundImage), /side-control\.png/);
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await heroAthlete.waitFor();
   checks.push('The Overview hero shows the athlete clear of the headline when the hero is wide enough, and keeps the classic art when it is not.');
 
   await nav('Profile');

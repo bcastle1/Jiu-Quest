@@ -244,6 +244,12 @@
   line-height: 1.5;
 }
 
+/* With fewer fields, Start Position shares a row with the taller Fighting
+   Stance. Keep each control at its own height instead of stretching to match. */
+.app-shell .builder-panel .form-grid.athlete-form {
+  align-items: start;
+}
+
 /* ---------- Gi colors, with a live figure when the page is one column ---------- */
 
 .gi-colors {
