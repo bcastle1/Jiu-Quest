@@ -2,7 +2,7 @@
 .unreal-athlete {
   position: relative;
   display: block;
-  aspect-ratio: 450 / 880;
+  aspect-ratio: 900 / 1760;
   overflow: hidden;
   background: #000;
   /* Layers blend with the base image only, never with the page behind. */
@@ -161,11 +161,11 @@
 
 /* ---------- Round portraits ---------- */
 
-/* Scale the 450 x 880 layer so its 150 px head-and-collar square fills the circle. */
+/* Scale the 900 x 1760 layer so its 300 px head-and-collar square fills the circle. */
 .mini-portrait .unreal-athlete {
   position: absolute;
-  top: -13.33%;
-  left: -99.33%;
+  top: -6%;
+  left: -93.33%;
   width: 300%;
 }
 
@@ -242,6 +242,12 @@
   color: var(--muted);
   font-size: 0.86rem;
   line-height: 1.5;
+}
+
+/* With fewer fields, Start Position shares a row with the taller Fighting
+   Stance. Keep each control at its own height instead of stretching to match. */
+.app-shell .builder-panel .form-grid.athlete-form {
+  align-items: start;
 }
 
 /* ---------- Gi colors, with a live figure when the page is one column ---------- */
