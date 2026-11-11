@@ -54,7 +54,7 @@ export const UNREAL_PREVIEW_SHOWN = Object.freeze([
 export const UNREAL_PREVIEW_AHEAD = Object.freeze([
   'Paired grappling movement for two fighters',
   'Video streamed to your browser',
-  'Unreal characters in Arena and Training',
+  'Unreal technique animations in Arena and Training',
 ]);
 
 export function unrealRenderUrl(render) {

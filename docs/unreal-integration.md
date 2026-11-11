@@ -10,7 +10,7 @@ The local development app can select an Unreal Pixel Streaming preview in its ac
 
 jiuquest.com shows three captured stills of the saved purchased-gi character at `/?preview=unreal`, linked from the Overview. Per the local capture receipt recorded November 10, 2026, they are unedited native viewport captures from the verified character-control scene: white gi standing, a face and collar close-up, and navy gi during the walk animation. `src/unreal/characterPreview.js` pins each file's size and SHA-256, and `tests/unrealCharacterPreview.test.js` fails if a file is replaced or re-encoded. Change the pinned values only together with a newly verified capture.
 
-The page is a static gallery. It never mounts the game, reads or writes saved progress, opens a stream, or changes renderer selection; production Arena and Training remain on Unity. `tools/test_unreal_character_preview.mjs` checks the built page in a browser: image decoding, view selection, phone layouts and the absence of saved-progress writes. That check covers still images only. It is not evidence of Unreal rendering, browser video or paired choreography, which remain the separate runtime checks described below.
+The page is a static gallery. It never mounts the game, reads or writes saved progress, opens a stream, or changes renderer selection; the production combat renderer remains Unity. `tools/test_unreal_character_preview.mjs` checks the built page in a browser: image decoding, view selection, phone layouts and the absence of saved-progress writes. That check covers still images only. It is not evidence of Unreal rendering, browser video or paired choreography, which remain the separate runtime checks described below.
 
 ## Unreal athlete in the Fighter Creator (tintable stills)
 
