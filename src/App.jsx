@@ -61,6 +61,7 @@ import { isUnityEnabled, resolveUnityMove } from "./unity/bridge.js";
 import { resolveCombatRenderer } from './unreal/renderer.js';
 import { resolvePreviewPage } from './unreal/characterPreview.js';
 import { usesUnrealAthlete } from './unreal/athlete.js';
+import showcaseFighters from './showcaseCards.data.js';
 import { TechniqueStep, RichText } from './components/TechniqueText.js';
 import { selectTrainingSession, updateTrainingOrder, updateTrainingResult } from './trainingSession.js';
 import { groupTechniques, sequenceSeconds } from './data/techniqueSteps.js';
@@ -163,13 +164,6 @@ const stanceArt = {
   "capoeira rhythm": "/assets/stances/capoeira-stance-realistic-v2.webp",
 };
 
-const showcaseFighters = [
-  { src: "/assets/showcase/challenger-1.png", label: "Crimson Guard" },
-  { src: "/assets/showcase/challenger-2.png", label: "Void Striker" },
-  { src: "/assets/showcase/challenger-3.png", label: "Blue Surge" },
-  { src: "/assets/showcase/challenger-4.png", label: "Emerald Guard" },
-  { src: "/assets/showcase/challenger-5.png", label: "Gold Hunter" },
-];
 
 const techniqueArtwork = {
   guard: { src: "/assets/techniques/guard-position.png", label: "Guard Position" },
@@ -1161,8 +1155,8 @@ function Dashboard({
         </div>
         <div className="showcase-strip" aria-label="Example JiuQuest fighter styles">
           {showcaseFighters.map((item) => (
-            <figure className="showcase-card" key={item.src}>
-              <img src={item.src} alt={`${item.label} fighter style`} />
+            <figure className="showcase-card" key={item.id}>
+              <img src={item.src} alt={`${item.label} fighter style`} width={item.width} height={item.height} loading="lazy" decoding="async" />
               <figcaption>{item.label}</figcaption>
             </figure>
           ))}

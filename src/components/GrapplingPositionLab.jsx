@@ -95,7 +95,7 @@ export default function GrapplingPositionLab({ fighter, opponent, beltStatus, no
             <RotateCcw size={15} aria-hidden="true" /><span>Reset</span>
           </button>
         </div>
-        <GrapplingSnapshotStage state={state} fighter={fighter} opponent={opponent} fighterBelt={beltStatus} compact />
+        <GrapplingSnapshotStage state={state} fighter={fighter} opponent={opponent} fighterBelt={beltStatus} compact unrealStills={false} />
         <div className="position-lab-observation">
           <Info size={16} aria-hidden="true" />
           <p>{position.tip}</p>

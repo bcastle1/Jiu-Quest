@@ -32,13 +32,31 @@ There is one athlete: one face, build and hairstyle, in one pose. While it is se
 
 ## Pre-rendered Unreal clips (Arena standing stance)
 
-The Arena shows a pre-rendered Unreal clip while both athletes are on their feet and no exchange has settled: before a match starts, and through the first sequence of a standing start. It is the `standing_stance` clip from the render pack: 1280 by 720, 30 frames a second, 54 frames, looping, in side and front views. Once an exchange settles, and for every other position, the Arena shows what it showed before: the Unity animation where one exists, otherwise the position snapshot. Training is unchanged. No other move has a clip yet.
+The Arena shows a pre-rendered Unreal clip while both athletes are on their feet and no exchange has settled: before a match starts, and through the first sequence of a standing start. It is the `standing_stance` clip from the render pack: 1280 by 720, 30 frames a second, 54 frames, looping, in side and front views. Once an exchange settles, and for every other position, the Arena shows the Unity animation where one exists, otherwise the position picture (see the position stills below). No other move has a clip yet.
 
 `tools/import_unreal_clips.py` copies each MP4 from the render pack unchanged, after checking it against the pack's `technique-clips.json` (size and SHA-256) and with ffprobe (H.264 High, yuv420p, picture size, frame rate, frame count, index before media, no audio). It re-encodes each lossless poster as a smaller lossy WebP and writes `src/unreal/techniqueClips.data.js`, which pins every published file. `tests/unrealTechniqueClips.test.js` fails if a file is replaced, if a clip names a move the game does not know, or if a file is published without being pinned.
 
 The outfits in a clip are fixed: the player's fighter in a white gi and the opponent in navy, both in black belts, whatever the player's own fighter wears. The stage says so beside the picture. Both athletes are the same character. The render receipt of November 11, 2026 records per-frame pose and contact checks and a review of sampled frames. It also records that no qualified choreography review has been done (`choreographyReviewed` is false) and that its author decoded the encoded files but did not watch them play.
 
 `tools/test_unreal_clip_stage.mjs` checks the built site in a browser: the clip plays, loops, pauses and changes camera; reduced motion starts paused on the poster; a clip that cannot load gives way to the position snapshot; the stance gives way once an exchange settles; 390 and 320 pixel layouts. It covers a video file played by the browser. It is not evidence of Unreal rendering in the browser or of a stream. The local live preview (`?engine=unreal` on localhost) is unchanged and renders the stance itself.
+
+## Unreal position stills (standing, tintable)
+
+Where the Arena and Training show a picture of a settled position, a player who chose the Unreal athlete now sees two Unreal athletes for the standing position, each in their own jacket, pants and belt colors. It is used in Training as the position reference for techniques that start standing, in the Arena when an exchange settles with both athletes on their feet, and in the Overview's scenario teaser. Every other position still shows the classic picture, because Unreal has not rendered it yet.
+
+The still is the first frame of the `standing_stance` clip, rendered five times at 2560 by 1440: everything black, each athlete's gi in white, each athlete's belt in white. `tools/build_unreal_position_layers.py` checks each render against the pack's `positions.json` (size and SHA-256), crops to the three-to-two stage, splits each gi into jacket and pants at the jacket hem, and writes seven lossy WebP layers plus `src/unreal/positionStills.data.js`, which pins every published file and the hashes of the renders. The browser adds the layers:
+
+`picture = base + leadJacket x lead.giTop + leadPants x lead.giPants + leadBelt x lead belt + the same three for the other athlete`
+
+With a white gi the layers give back the white-gi render to a mean error of 0.03 out of 255. "Lead" is the athlete on top or in control; in a neutral position it is the athlete on the left, the player.
+
+`chooseUnrealPositionStill` decides between the still and the classic picture. The still is used where it shows the exact position (the neutral standing stance). It also stands in, labeled as a general reference, where the classic picture was already only a general reference (rear clinch, standing headlock). It is not used where the classic picture shows the exact setup and the still does not: the clinch, whose picture shows the grips, and the Position Lab, whose text describes a grip exchange. A fighter with the classic look keeps the classic pictures and downloads no still. If any layer fails to load, the stage shows the classic picture and never a half-colored athlete.
+
+Limits: both athletes are the same character, belts show no rank stripes, and the pose has had no owner or coach review (`poseReviewed` is false). `tests/unrealPositionStills.test.js` pins the files and the selection rule. `tools/test_unreal_position_still.mjs` checks the built site in a browser, including that the painted colors match the layer arithmetic. It covers still images composited by the browser, not Unreal running in the browser.
+
+## Showcase cards (generated illustrations, not Unreal renders)
+
+The five example-fighter cards on the Overview page (Crimson Guard, Void Striker, Blue Surge, Emerald Guard, Gold Hunter) are generated illustrations made to match the look of the Unreal athlete: photoreal skin, hair and woven gi, with each card's earlier aura, stance and gi colors kept. They are not renders of Unreal characters, and the game has no Unreal athlete with those faces or hairstyles. `tools/import_showcase_cards.py` checks each picture against the image job's `receipt.json`, trims it to four by five and publishes a 900 by 1125 WebP; `src/showcaseCards.data.js` pins the published files and the hashes of the source pictures. The five cards total about 0.7 MB; the illustrations they replace were 13 MB. `tests/showcaseCards.test.js` and `tools/test_showcase_cards.mjs` cover them.
 
 ## Ownership and integration seams
 

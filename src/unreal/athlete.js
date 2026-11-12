@@ -49,7 +49,9 @@ export const UNREAL_ATHLETE = Object.freeze({
 });
 
 const HEX = /^#[\da-f]{6}$/i;
-const safeColor = (value, fallback) => (typeof value === 'string' && HEX.test(value) ? value.toLowerCase() : fallback);
+// Only six-digit hex colors reach a style attribute.
+export const safeHexColor = (value, fallback = '#f8fbff') => (typeof value === 'string' && HEX.test(value) ? value.toLowerCase() : fallback);
+const safeColor = safeHexColor;
 
 export function normalizeFighterLook(value, fallback = NEW_FIGHTER_LOOK) {
   return FIGHTER_LOOKS.includes(value) ? value : fallback;
