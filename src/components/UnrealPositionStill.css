@@ -1,0 +1,55 @@
+/* Two Unreal athletes in a settled position: still layers added in the browser. */
+.unreal-position-still {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  background: #000;
+  /* Layers blend with the base image only, never with the page behind. */
+  isolation: isolate;
+}
+
+.unreal-position-still > img {
+  display: block;
+  /* Stretched to the box exactly like the layers, so they stay aligned. */
+  width: 100%;
+  height: 100%;
+}
+
+/* The athletes and their gis arrive as separate files. Nothing shows until all
+   of them can be painted in the same frame. */
+.unreal-position-still > img,
+.unreal-position-layer {
+  opacity: 0;
+}
+
+.unreal-position-still.is-ready > img,
+.unreal-position-still.is-ready .unreal-position-layer {
+  opacity: 1;
+}
+
+.unreal-position-still.is-ready {
+  animation: position-arrive 0.42s ease-out both;
+}
+
+/* Each layer is (image x chosen color), then added to what is beneath it. */
+.unreal-position-layer {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-blend-mode: multiply;
+  mix-blend-mode: screen;
+  mix-blend-mode: plus-lighter;
+  /* At a fractional size the image fades out over its outermost pixel and the
+     plain color would show there as a hairline. The layers are black for many
+     pixels in from every edge, so trim two. */
+  clip-path: inset(2px);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .unreal-position-still.is-ready {
+    animation: none;
+  }
+}

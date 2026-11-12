@@ -165,6 +165,7 @@ export function getArenaSnapshot(current) {
   const key = keys[family];
   return {
     key,
+    family,
     src: `/assets/arena/${key}.png`,
     topSide: state.topSide,
     controlSide: state.controlSide,
