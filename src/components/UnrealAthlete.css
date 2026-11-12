@@ -111,9 +111,19 @@
   container: jiuquest-hero / inline-size;
 }
 
+/* A narrow hero has no room beside the headline, so the Unreal athletes stand
+   behind it: the opening frame of the standing-stance clip, under the same
+   shading the classic hero art had. Browsers without container queries keep
+   this at every width. */
+.app-shell .hero-stage.has-athlete {
+  background:
+    linear-gradient(90deg, #09121bd6, #09121b8c 56%, #09121b33),
+    linear-gradient(0deg, #09121bd9, transparent 70%),
+    #000 url('/assets/unreal-clips/standing_stance/fighter-side.webp') 46% 12% / auto 125% no-repeat;
+}
+
 /* With room, the hero becomes the athlete's studio: black, lit by the aura,
-   the athlete from the head to the hands at the right. Narrower heroes and
-   browsers without container queries keep the classic hero art. */
+   the athlete from the head to the hands at the right. */
 @container jiuquest-hero (min-width: 700px) {
   .app-shell .hero-stage.has-athlete .dojo-backdrop {
     background: linear-gradient(90deg, #0a1016 0%, #05080b 40%, #000 58%);
@@ -283,4 +293,20 @@
   .fighter-look-picker {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* ---------- Stance picker ---------- */
+
+/* The Unreal athlete in each stance is a full picture on the studio mat, not a
+   cut-out figure, so it gets a taller four-by-five frame. styles.css is bundled
+   after this file; .app-shell keeps these rules ahead of `.image-select img`. */
+.app-shell .image-select.unreal-stances .image-select-trigger,
+.app-shell .image-select.unreal-stances .image-select-menu button {
+  grid-template-columns: 3.9rem minmax(0, 1fr) auto;
+}
+
+.app-shell .image-select.unreal-stances img {
+  height: 4.875rem;
+  object-fit: cover;
+  background: #000;
 }
