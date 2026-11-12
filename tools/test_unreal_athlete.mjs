@@ -9,6 +9,7 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 import { UNREAL_ATHLETE } from '../src/unreal/athlete.js';
+import unrealStancePictures from '../src/unreal/stancePictures.data.js';
 import { beltColors, moves } from '../src/data/curriculum.js';
 
 const root = resolve('dist');
@@ -65,6 +66,9 @@ const stageFigure = () => page.locator('.profile-stage .unreal-athlete-stage-fig
 const look = (name) => page.getByRole('group', { name: 'Athlete', exact: true }).getByRole('button', { name: new RegExp(`^${name}`) });
 const swatch = (label, color) => page.getByRole('button', { name: `${label}: ${color}`, exact: true });
 const savedState = () => page.evaluate((key) => JSON.parse(localStorage.getItem(key)), STORAGE_KEY);
+const stanceField = () => page.locator('.builder-panel .field').filter({ hasText: 'Fighting Stance' });
+const stancePicture = (stance) => unrealStancePictures.find((picture) => picture.stance === stance);
+const heroArt = () => page.locator('.hero-stage').evaluate((element) => getComputedStyle(element).backgroundImage);
 const formLabels = () => page.evaluate(() => ({
   fields: [...document.querySelectorAll('.builder-panel .field > span:first-child')].map((label) => label.textContent),
   swatches: [...document.querySelectorAll('.builder-panel .swatch-row > span')].map((label) => label.textContent),
@@ -212,10 +216,13 @@ try {
   assert.equal(await fits(), true);
   await capture('desktop-overview-hero', { fullPage: false });
   await page.setViewportSize({ width: 1024, height: 1000 });
-  assert.equal(await page.locator('.hero-athlete').isVisible(), false, 'a hero without room beside the headline keeps the classic art');
-  assert.match(await page.locator('.hero-stage').evaluate((element) => getComputedStyle(element).backgroundImage), /side-control\.png/);
+  assert.equal(await page.locator('.hero-athlete').isVisible(), false, 'a hero without room beside the headline does not squeeze the athlete in');
+  const narrowHero = await heroArt();
+  assert.match(narrowHero, /unreal-clips\/standing_stance\/fighter-side\.webp/, 'a narrow hero shows the Unreal athletes behind the headline');
+  assert.doesNotMatch(narrowHero, /side-control\.png/);
+  await capture('desktop-overview-hero-narrow', { fullPage: false });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  checks.push('The Overview hero shows the athlete clear of the headline when the hero is wide enough, and keeps the classic art when it is not.');
+  checks.push('The Overview hero shows the athlete clear of the headline when the hero is wide enough, and the Unreal standing-stance picture behind the headline when it is not.');
 
   await nav('Profile');
   await page.getByRole('heading', { level: 1, name: 'Fighter Creator', exact: true }).waitFor();
@@ -250,6 +257,29 @@ try {
   await capture('desktop-navy-jacket-black-pants');
   checks.push('Choosing a jacket color and a pants color repaints only that garment; the belt and face are unchanged.');
 
+  // The stance picker shows the Unreal athlete in each stance.
+  const trigger = stanceField().locator('.image-select-trigger');
+  const pictureIn = (locator) => locator.locator('img').evaluate((image) => {
+    const box = image.getBoundingClientRect();
+    return { src: new URL(image.currentSrc || image.src).pathname, natural: [image.naturalWidth, image.naturalHeight], shape: box.width / box.height };
+  });
+  assert.equal(await stanceField().locator('.image-select.unreal-stances').count(), 1);
+  await page.waitForFunction(() => { const image = document.querySelector('.image-select.unreal-stances .image-select-trigger img'); return image?.complete && image.naturalWidth > 0; });
+  const chosenStance = await pictureIn(trigger);
+  assert.deepEqual([chosenStance.src, chosenStance.natural], [stancePicture('wrestling stance').src, [480, 600]]);
+  assert.ok(Math.abs(chosenStance.shape - 0.8) < 0.03, `the stance picture keeps its four-by-five shape (${chosenStance.shape})`);
+  await trigger.click();
+  const stanceOptions = stanceField().getByRole('option');
+  assert.equal(await stanceOptions.count(), unrealStancePictures.length);
+  await page.waitForFunction(() => [...document.querySelectorAll('.image-select.unreal-stances .image-select-menu img')].every((image) => image.complete && image.naturalWidth > 0));
+  assert.deepEqual(await stanceOptions.locator('img').evaluateAll((pictures) => pictures.map((picture) => new URL(picture.currentSrc || picture.src).pathname)), unrealStancePictures.map((picture) => picture.src));
+  assert.equal(await stanceField().locator('.image-select-fighter').count(), 0, 'the Unreal picker shows no classic figure');
+  await capture('desktop-stance-picker', { fullPage: false });
+  await stanceOptions.filter({ hasText: 'Karate Stance' }).click();
+  assert.equal((await pictureIn(trigger)).src, stancePicture('karate stance').src);
+  await page.waitForFunction((key) => JSON.parse(localStorage.getItem(key) ?? '{}').fighters?.[0]?.stance === 'karate stance', STORAGE_KEY);
+  checks.push('The stance picker shows the Unreal athlete in each of the seven stances, and the chosen stance is saved.');
+
   // The round portrait in the top bar shows the head-and-collar square.
   const portrait = page.locator('.fighter-select .mini-portrait');
   await athleteReady(portrait.locator('.unreal-athlete'));
@@ -272,9 +302,11 @@ try {
   assert.equal(await page.locator('.profile-stage .profile-art:not(.unreal-athlete-stage)').count(), 1);
   assert.deepEqual(await formLabels(), { fields: ['Name', 'Country', 'Gender', 'Start Position', 'Hair Style', 'Fighting Stance', 'Aura', 'Patch Emblem'], swatches: ['Skin Tone', 'Hair Color', 'Gi Jacket', 'Gi Pants'] });
   assert.equal(await page.locator('.fighter-look-note').count(), 0);
+  assert.deepEqual([await stanceField().locator('.image-select.unreal-stances').count(), await stanceField().locator('.image-select-trigger .image-select-fighter').count()], [0, 1], 'the classic look keeps its own stance figures');
   await capture('desktop-classic');
   await nav('Overview');
   assert.equal(await page.locator('.app-shell .unreal-athlete, .hero-stage.has-athlete').count(), 0, 'a classic fighter keeps the classic hero and portraits');
+  assert.match(await heroArt(), /side-control\.png/, 'a classic fighter keeps the classic hero art');
   await nav('Profile');
   await look('Unreal athlete').focus(); await page.keyboard.press('Enter');
   assert.equal(await look('Unreal athlete').getAttribute('aria-pressed'), 'true');

@@ -62,6 +62,7 @@ import { resolveCombatRenderer } from './unreal/renderer.js';
 import { resolvePreviewPage } from './unreal/characterPreview.js';
 import { usesUnrealAthlete } from './unreal/athlete.js';
 import showcaseFighters from './showcaseCards.data.js';
+import unrealStancePictures from './unreal/stancePictures.data.js';
 import { TechniqueStep, RichText } from './components/TechniqueText.js';
 import { selectTrainingSession, updateTrainingOrder, updateTrainingResult } from './trainingSession.js';
 import { groupTechniques, sequenceSeconds } from './data/techniqueSteps.js';
@@ -153,6 +154,9 @@ const stancePose = {
   "sambo crouch": "sambo",
   "capoeira rhythm": "capoeira",
 };
+
+// The Unreal athlete in each stance, for fighters that wear the Unreal look.
+const unrealStanceArt = Object.fromEntries(unrealStancePictures.map((picture) => [picture.stance, picture.src]));
 
 const stanceArt = {
   "wrestling stance": "/assets/stances/wrestling-stance-realistic-v2.webp",
@@ -1294,11 +1298,12 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
           </Field>}
           <Field label="Fighting Stance">
             <ImageSelect
+              className={unrealLook ? "unreal-stances" : ""}
               value={fighter.stance}
               options={customizationOptions.stances}
               onChange={(stance) => updateFighter({ stance })}
-              getImage={(stance) => stanceArt[stance] ?? stanceArt["wrestling stance"]}
-              renderPreview={(stance) => (
+              getImage={(stance) => (unrealLook ? unrealStanceArt[stance] : null) ?? stanceArt[stance] ?? stanceArt["wrestling stance"]}
+              renderPreview={unrealLook ? undefined : (stance) => (
                 <FighterArt
                   fighter={fighter}
                   beltStatus={beltStatus}
@@ -2572,12 +2577,12 @@ function Segmented({ label = "Options", value, options, onChange }) {
   );
 }
 
-function ImageSelect({ value, options, onChange, getImage, renderPreview, getLabel, getMeta, compact = false }) {
+function ImageSelect({ value, options, onChange, getImage, renderPreview, getLabel, getMeta, compact = false, className = "" }) {
   const [open, setOpen] = useState(false);
-  const previewFor = (option) => renderPreview?.(option) ?? <img src={getImage(option)} alt="" />;
+  const previewFor = (option) => renderPreview?.(option) ?? <img src={getImage(option)} alt="" decoding="async" />;
   return (
     <span
-      className={`image-select ${open ? "open" : ""} ${compact ? "compact" : ""}`}
+      className={`image-select ${open ? "open" : ""} ${compact ? "compact" : ""} ${className}`.replace(/\s+/g, " ").trim()}
       onKeyDown={(event) => {
         if (event.key === "Escape") setOpen(false);
       }}

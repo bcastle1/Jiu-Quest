@@ -58,6 +58,12 @@ Limits: both athletes are the same character, belts show no rank stripes, and th
 
 The five example-fighter cards on the Overview page (Crimson Guard, Void Striker, Blue Surge, Emerald Guard, Gold Hunter) are generated illustrations made to match the look of the Unreal athlete: photoreal skin, hair and woven gi, with each card's earlier aura, stance and gi colors kept. They are not renders of Unreal characters, and the game has no Unreal athlete with those faces or hairstyles. `tools/import_showcase_cards.py` checks each picture against the image job's `receipt.json`, trims it to four by five and publishes a 900 by 1125 WebP; `src/showcaseCards.data.js` pins the published files and the hashes of the source pictures. The five cards total about 0.7 MB; the illustrations they replace were 13 MB. `tests/showcaseCards.test.js` and `tools/test_showcase_cards.mjs` cover them.
 
+## Stance pictures and the narrow hero (generated illustrations and an Unreal poster)
+
+For a fighter with the Unreal look, the Profile's stance picker shows the Unreal athlete in each of the seven fighting stances, on the dark studio mat. These seven pictures are generated illustrations made to match the Unreal renders of that athlete. They are not Unreal renders, their gi and belt are always white, and nothing else in the game uses them. `tools/import_stance_pictures.py` checks each picture against the image job's `receipt.json` and publishes a 480 by 600 WebP; `src/unreal/stancePictures.data.js` pins the published files. A fighter with the classic look keeps the classic stance figures, drawn in that fighter's own colors. `tests/unrealStancePictures.test.js` and `tools/test_unreal_athlete.mjs` cover the picker.
+
+On a hero too narrow to stand the athlete beside the headline (phones, and desktop layouts under 700 pixels of hero width), a fighter with the Unreal look now sees the opening frame of the `standing_stance` clip behind the headline. That picture is the real Unreal poster already published for the clip. A fighter with the classic look keeps the classic hero art.
+
 ## Ownership and integration seams
 
 React remains authoritative for curriculum ordering, training reps, unlocks, match outcomes, scores, ownership of positions, and persistence. `App.jsx` resolves training tests and Arena turns before renderer playback. Renderer messages describe playback only; a completed animation must never call `updateProgress`, resolve another Arena turn, or write saved state.
