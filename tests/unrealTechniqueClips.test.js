@@ -62,14 +62,26 @@ test('clips name real moves, performers and cameras, with no repeats and no stra
   assert.deepEqual(published.sort(), UNREAL_CLIPS.flatMap((clip) => [clip.video, clip.poster]).sort());
 });
 
-test('only stances on the feet have clips so far, and no technique does', () => {
+test('a looping clip is a stance held on the feet, and a clip that plays once is a technique that opens on frame 0', () => {
   const stanceLoops = new Set(UNREAL_STANCES.map((stance) => stance.loopMoveId));
-  for (const clip of UNREAL_CLIPS) assert.ok(stanceLoops.has(clip.moveId), `${clip.moveId} is a stance held on the feet`);
+  // The four techniques Unity animates today (src/unity/bridge.js curriculumMoves).
+  const techniques = new Set(['rear_naked_choke', 'double_leg', 'trap_roll_escape', 'triangle_choke']);
   assert.ok(UNREAL_CLIPS.some((clip) => clip.moveId === 'standing_stance'), 'the standard stance is published');
-  assert.ok(UNREAL_CLIPS.every((clip) => clip.loops), 'a stance loops');
+  for (const clip of UNREAL_CLIPS) {
+    const name = `${clip.moveId}/${clip.performerSide}-${clip.camera}`;
+    if (clip.loops) {
+      assert.ok(stanceLoops.has(clip.moveId), `${name} loops, so it is a stance held on the feet`);
+      assert.equal(clip.posterFrame, null, `${name} loops, so its poster is the pack's`);
+    } else {
+      assert.ok(techniques.has(clip.moveId) || clip.moveId.startsWith('enter_'), `${name} plays once, so it is a technique or a stance entry`);
+      assert.equal(clip.posterFrame, 0, `${name} plays once, so its poster is its first frame`);
+    }
+  }
   assert.ok(UNREAL_CLIPS.every((clip) => clip.choreographyReviewed === false), 'no clip has had a qualified choreography review');
+  // A move with no files of its own finds nothing: it never borrows another move's clip.
+  const published = new Set(UNREAL_CLIPS.map((clip) => clip.moveId));
   for (const move of UNITY_PREVIEWS) {
-    if (move.id !== 'standing_stance') assert.equal(findUnrealClip(move.id), null, `${move.id} must not borrow another move's clip`);
+    if (!published.has(move.id)) assert.equal(findUnrealClip(move.id), null, `${move.id} must not borrow another move's clip`);
   }
 });
 
@@ -92,7 +104,7 @@ test('a clip is a video file and nothing more: no renderer, stream or storage co
   const imports = (path) => [...repoFile(path).toString('utf8').matchAll(/^import (?:[^'"]* from )?['"]([^'"]+)['"];?$/gm)].map((match) => match[1]);
   assert.deepEqual(imports('src/unreal/techniqueClips.js'), ['./techniqueClips.data.js']);
   assert.deepEqual(imports('src/unreal/techniqueClips.data.js'), []);
-  assert.deepEqual(imports('src/components/UnrealClipStage.jsx'), ['react', 'lucide-react', '../unreal/techniqueClips.js', './UnrealClipStage.css']);
+  assert.deepEqual(imports('src/components/UnrealClipStage.jsx'), ['react', 'lucide-react', '../unreal/techniqueClips.js', '../unreal/clipPlayback.js', './UnrealClipStage.css']);
   // Having a clip is not an input to renderer selection.
   assert.equal(resolveCombatRenderer('https://jiuquest.com/?clip=standing_stance'), resolveCombatRenderer('https://jiuquest.com/'));
 });
@@ -103,6 +115,10 @@ test('the Arena shows the clip only for an unsettled standing position, and neve
   // The stance the clip shows is the player's when Unreal has rendered it, else the standard one.
   assert.match(stage, /const idle = stanceLoop\(props\.fighter\?\.stance, props\.opponent\?\.stance\);/);
   assert.match(stage, /const idleClip = idleStanding && engine !== 'unreal' && findUnrealClip\(idle\.moveId, idle\.performerSide\);/);
-  assert.match(stage, /<UnrealClipStage moveId=\{idle\.moveId\} performerSide=\{idle\.performerSide\} moveLabel=\{IDLE_CLIP\.label\} /);
-  assert.match(stage, /\{idleClip \? <UnrealClipStage [^>]*fallback=\{stage\} \/> : stage\}/);
+  assert.match(stage, /\{idleClip\s+\? <UnrealClipStage key="stance" moveId=\{idle\.moveId\} performerSide=\{idle\.performerSide\} moveLabel=\{IDLE_CLIP\.label\} [^>]*fallback=\{stage\} \/>/);
+  // A technique shows its clip only when the picture rule says so (its behaviour is in
+  // tests/unrealTechniquePicture.test.js), starts again for each new exchange, and hands
+  // over to the same stage when it cannot play.
+  assert.match(stage, /const picture = !idleStanding && chooseTechniquePicture\(\{[^}]*views: unrealClipViews \}\);/);
+  assert.match(stage, /picture && picture\.kind === 'clip'\s+\? <UnrealClipStage key=\{`technique:\$\{picture\.moveId\}:\$\{picture\.performerSide\}:\$\{props\.signal \?\? ''\}`\} kind="technique" [^>]*fallback=\{stage\} \/>\s+: stage\}/);
 });

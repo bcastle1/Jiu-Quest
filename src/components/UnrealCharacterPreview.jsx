@@ -56,7 +56,7 @@ export default function UnrealCharacterPreview() {
         <div>
           <span className="unreal-preview-eyebrow">UNREAL CHARACTER PREVIEW</span>
           <h1>A first look at the new fighter.</h1>
-          <p>Unedited stills captured from the first character build in Unreal Engine, with the belt still at the waist. The same athlete is now in the Fighter Creator and in the Arena's opening stance. Technique animations in Arena and Training still play with the current characters.</p>
+          <p>Unedited stills captured from the first character build in Unreal Engine, with the belt still at the waist. The same athlete is now in the Fighter Creator and in the Arena's opening stance. Technique animations in Arena and Training move to Unreal clips one technique at a time; a technique keeps the current characters until both of its clips are ready.</p>
         </div>
         <span className="unreal-preview-mode">CAPTURED STILLS<span>Not live gameplay</span></span>
       </header>
@@ -108,7 +108,7 @@ export default function UnrealCharacterPreview() {
             <ul>
               {UNREAL_PREVIEW_AHEAD.map((item) => <li key={item}>{item}</li>)}
             </ul>
-            <p>Technique animations in Arena and Training keep the current characters until these are ready.</p>
+            <p>Technique animations in Arena and Training move to Unreal clips one technique at a time.</p>
           </div>
           <p className="unreal-preview-safe">Preview only. Your saved fighters, training repetitions, unlocks, and arena results stay unchanged.</p>
         </aside>

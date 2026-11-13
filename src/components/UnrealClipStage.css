@@ -121,7 +121,8 @@
 
 .unreal-clip-legend span {
   display: inline-flex;
-  align-items: center;
+  /* The dot stays beside the first line when a long label wraps. */
+  align-items: flex-start;
   gap: 0.45rem;
   min-width: 0;
   color: var(--text, #f1f5f8);
@@ -129,6 +130,7 @@
 
 .unreal-clip-legend i {
   flex: none;
+  margin-top: 0.2em;
   width: 0.8rem;
   height: 0.8rem;
   border: 1px solid rgba(255, 255, 255, 0.45);
@@ -190,5 +192,118 @@
 
   .unreal-clip-legend small {
     flex-basis: auto;
+  }
+}
+
+/* A technique clip: plays once and rests on its last frame. Every rule below is
+   under .is-technique or a class only the technique stage draws, so a stance
+   loop looks exactly as before. The heading, picture, controls and legend sit
+   in .unreal-clip-frame, which the overlay layout is measured against; the note
+   sits under it. */
+.unreal-clip-frame {
+  position: relative;
+}
+
+/* Like .unity-draft in the Main Event look. */
+.unreal-clip-draft {
+  align-self: center;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid #5b6f84;
+  border-radius: 8px 2px 8px 2px;
+  color: #aab6c2;
+  font-family: var(--display, inherit);
+  font-size: 0.79rem;
+  font-style: normal;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* Like .unity-scene-note in the Main Event look. */
+.unreal-clip-note {
+  margin: 0;
+  padding: 0.6rem 1rem 0.75rem;
+  border-top: 1px solid #1a232d;
+  color: #8797a5;
+  font-size: 0.79rem;
+  line-height: 1.5;
+}
+
+.unreal-clip-speeds {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.unreal-clip-stage .unreal-clip-controls .unreal-clip-speeds button {
+  min-width: 3.4rem;
+}
+
+.unreal-clip-stage .unreal-clip-controls .unreal-clip-speeds button[aria-pressed='true'] {
+  border-color: #e8c27a;
+  color: #f6d999;
+  box-shadow: inset 0 -2px 0 #e8c27a;
+}
+
+.unreal-clip-scrubber {
+  flex: 1 1 100%;
+  min-width: 0;
+  height: 44px;
+  margin: 0;
+  accent-color: var(--gold, #e8c27a);
+}
+
+.unreal-clip-scrubber:focus-visible {
+  outline: 2px solid var(--gold, #e8c27a);
+  outline-offset: 3px;
+}
+
+/* Training: the study bar sits under the picture, never on it, so nothing
+   covers the mat where the technique ends. */
+@container unreal-clip (min-width: 620px) {
+  .unreal-clip-stage.is-technique .unreal-clip-heading {
+    max-width: 38%;
+    gap: 0.35rem;
+  }
+
+  .unreal-clip-stage.is-technique .unreal-clip-draft {
+    align-self: flex-start;
+    background: rgba(4, 6, 10, 0.7);
+  }
+
+  .unreal-clip-stage.is-study .unreal-clip-controls {
+    position: static;
+    justify-content: flex-start;
+    padding: 0.75rem 1rem 0;
+    pointer-events: auto;
+  }
+
+  .unreal-clip-stage.is-study .unreal-clip-cameras {
+    margin-left: auto;
+  }
+
+  .unreal-clip-stage.is-study .unreal-clip-legend {
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    max-width: none;
+    padding: 0.75rem 1rem 0.95rem;
+    text-align: left;
+  }
+
+  .unreal-clip-stage.is-study .unreal-clip-legend small {
+    flex-basis: 100%;
+  }
+}
+
+/* Narrow: each group gets the room it needs; nothing shrinks under 44px. */
+@container unreal-clip (max-width: 619.98px) {
+  .unreal-clip-stage.is-study .unreal-clip-speeds,
+  .unreal-clip-stage.is-study .unreal-clip-cameras {
+    flex: 1 1 auto;
+  }
+
+  .unreal-clip-stage.is-study .unreal-clip-speeds button,
+  .unreal-clip-stage.is-study .unreal-clip-cameras button {
+    flex: 1 1 0;
+    min-width: 0;
   }
 }

@@ -5,8 +5,8 @@ Unity 6.3 LTS/URP presents paired animation inside the existing React app. React
 ## Routes and coverage
 
 - `/?preview=unity` opens the isolated scene reviewer without mounting the persisted app or reading/writing player progress.
-- `/?engine=unity` explicitly enables supported Unity moves in Training/Arena.
-- `/?engine=snapshot` explicitly uses the existing position snapshots.
+- `/?engine=unity` explicitly enables supported Unity moves in Training/Arena, and keeps Unity for a technique even after it has Unreal clips (see `docs/unreal-integration.md`, Technique clips).
+- `/?engine=snapshot` explicitly uses the existing position snapshots, and turns technique clips off. The Arena's standing stance loop still plays.
 - A release build enables Unity by default with `VITE_COMBAT_ENGINE=unity`. Ordinary `pnpm build`/development remains opt-in unless that flag is supplied.
 
 Sixteen paired clips are available in the reviewer. Exact curriculum mappings are deliberately limited to:

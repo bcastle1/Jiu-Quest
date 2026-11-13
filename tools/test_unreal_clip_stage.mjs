@@ -1,15 +1,21 @@
-// Verifies the pre-rendered Unreal clip in the built site in a real browser: the
-// Arena shows the standing-stance clip while both athletes are on their feet
-// and nothing has settled, it plays, loops, pauses and changes camera, people
-// who ask for reduced motion start paused, a clip that cannot load gives way to
-// the usual picture, and the page fits phones. It checks a video file being
-// played by the browser. It does not run Unreal or any stream.
+// Verifies the pre-rendered Unreal clips in the built site in a real browser.
+// The stance: the Arena shows the standing-stance clip while both athletes are
+// on their feet and nothing has settled, it plays, loops, pauses and changes
+// camera, people who ask for reduced motion start paused, a clip that cannot
+// load gives way to the usual picture, and the page fits phones.
+// Techniques switch themselves on: each of the four techniques that has a
+// published clip for both performers is checked in Training and in a player's
+// Arena win against the real files, with its poster compared to frame 0. Each
+// one that has not keeps the Unity stage on the release default. It checks
+// video files played by the browser. It does not run Unreal or any stream.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
-import { findUnrealClip } from '../src/unreal/techniqueClips.js';
+import { findUnrealClip, unrealClipViews } from '../src/unreal/techniqueClips.js';
+import { techniqueClipReady } from '../src/unreal/techniquePicture.js';
+import { CARD, TECHNIQUE_IDS, checkArenaWin, checkTraining, curriculumMove, escapeName, playArena, techniqueStage, watchUnity } from './unreal_technique_checks.mjs';
 
 const root = resolve('dist');
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'unreal-clip-stage');
@@ -17,10 +23,10 @@ await mkdir(artifacts, { recursive: true });
 const checks = [], images = [], errors = [], consoleErrors = [], expectedConsoleErrors = [], failedResponses = [], layouts = [], playback = [];
 const browserOptions = { headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) };
 const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.mp4': 'video/mp4' };
-const report = { startedAtUtc: new Date().toISOString(), status: 'running', scope: 'A pre-rendered video file played in desktop Chromium, with phone viewport emulation. No Unreal runtime, stream or physical device.' };
+const report = { startedAtUtc: new Date().toISOString(), status: 'running', scope: 'Pre-rendered video files (stance loops, and any published technique clips) played in desktop Chromium, with phone viewport emulation. No Unreal runtime, stream or physical device.' };
 const SIDE = findUnrealClip('standing_stance', 'fighter', 'side');
 const FRONT = findUnrealClip('standing_stance', 'fighter', 'front');
-let browser, server, page, blockClips = false;
+let browser, server, page, blockClips = false, quietUnity = false;
 
 async function staticSite() {
   await stat(resolve(root, 'index.html'));
@@ -30,7 +36,19 @@ async function staticSite() {
       const file = resolve(root, `.${pathname.endsWith('/') ? `${pathname}index.html` : pathname}`);
       if (!file.startsWith(`${root}${sep}`)) { response.writeHead(403); response.end(); return; }
       const body = await readFile(file);
-      response.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' });
+      const headers = { 'Content-Type': types[extname(file)] || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', 'Accept-Ranges': 'bytes' };
+      // Byte ranges, as the real host serves them: a browser can only seek in
+      // a video whose server answers them (the technique scrubber does).
+      const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.range ?? '');
+      if (range && (range[1] || range[2])) {
+        const start = range[1] ? Number(range[1]) : Math.max(0, body.length - Number(range[2]));
+        const end = range[1] && range[2] ? Math.min(Number(range[2]), body.length - 1) : body.length - 1;
+        if (start > end || start >= body.length) { response.writeHead(416, { 'Content-Range': `bytes */${body.length}` }); response.end(); return; }
+        response.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${body.length}`, 'Content-Length': end - start + 1 });
+        response.end(body.subarray(start, end + 1));
+        return;
+      }
+      response.writeHead(200, { ...headers, 'Content-Length': body.length });
       response.end(body);
     } catch { response.writeHead(404); response.end('Not found'); }
   });
@@ -43,18 +61,27 @@ async function open(options) {
   page = await context.newPage();
   // One context below cuts the clips off on purpose; its load errors are expected.
   if (blockClips) await page.route('**/assets/unreal-clips/**/*.mp4', (route) => route.abort());
+  // The technique steps below look at which stage shows, not at Unity itself,
+  // so Unity's build manifest answers 404 there and WebGL never starts.
+  const unityOff = quietUnity;
+  if (unityOff) await page.route('**/unity/build-manifest.json', (route) => route.fulfill({ status: 404, body: 'Unity is not started by this step' }));
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
-    (blockClips ? expectedConsoleErrors : consoleErrors).push({ text: message.text(), location: message.location() });
+    const entry = { text: message.text(), location: message.location() };
+    (blockClips || (unityOff && /unity|build-manifest/i.test(`${entry.text} ${entry.location?.url ?? ''}`)) ? expectedConsoleErrors : consoleErrors).push(entry);
   });
-  page.on('response', (response) => { if (response.status() >= 400) failedResponses.push({ url: response.url(), status: response.status() }); });
+  page.on('response', (response) => {
+    if (response.status() < 400 || (unityOff && new URL(response.url()).pathname === '/unity/build-manifest.json')) return;
+    failedResponses.push({ url: response.url(), status: response.status() });
+  });
   return context;
 }
 
 const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
 const nav = async (name) => { await page.getByRole('button', { name, exact: true }).click(); };
-const stage = () => page.locator('.mat-window .unreal-clip-stage');
+// The stance clip. A technique clip is the same component with data-kind="technique".
+const stage = () => page.locator('.mat-window .unreal-clip-stage[data-kind="stance"]');
 const video = () => stage().locator('video');
 const watch = () => video().evaluate((element) => ({
   path: new URL(element.currentSrc || element.src).pathname, poster: new URL(element.poster).pathname,
@@ -72,12 +99,12 @@ async function capture(name) {
 // The clip is on screen, decoded at its real size, and moving.
 async function playing(clip, label) {
   await page.waitForFunction((path) => {
-    const element = document.querySelector('.mat-window .unreal-clip-stage video');
+    const element = document.querySelector('.mat-window .unreal-clip-stage[data-kind="stance"] video');
     return element && new URL(element.currentSrc || element.src).pathname === path && element.readyState >= 2 && !element.paused && element.currentTime > 0.05;
   }, clip.video, { timeout: 30000 });
   const state = await watch();
   assert.deepEqual([state.path, state.poster, state.size, state.error], [clip.video, clip.poster, [clip.width, clip.height], null]);
-  assert.deepEqual([state.muted, state.loop, state.inline, state.controls], [true, true, true, false], 'silent, looping, inline, with the page\'s own controls');
+  assert.deepEqual([state.muted, state.loop, state.inline, state.controls], [true, clip.loops, true, false], 'silent, looping as its clip says, inline, with the page\'s own controls');
   playback.push({ label, ...state });
   return state;
 }
@@ -99,7 +126,7 @@ try {
   await playing(SIDE, 'side');
   // A 1.8 second loop: within a few seconds the clock must have gone back to the start.
   await page.waitForFunction(() => {
-    const element = document.querySelector('.mat-window .unreal-clip-stage video');
+    const element = document.querySelector('.mat-window .unreal-clip-stage[data-kind="stance"] video');
     window.__clipPeak = Math.max(window.__clipPeak ?? 0, element.currentTime);
     return window.__clipPeak > 1 && element.currentTime < window.__clipPeak - 0.5;
   }, null, { timeout: 15000, polling: 50 });
@@ -136,7 +163,7 @@ try {
   assert.equal(await cameras.getByRole('button', { name: 'Front' }).getAttribute('aria-pressed'), 'true');
   await capture('desktop-arena-front');
   await stage().getByRole('button', { name: 'Pause', exact: true }).focus(); await page.keyboard.press('Enter');
-  await page.waitForFunction(() => document.querySelector('.mat-window .unreal-clip-stage video').paused);
+  await page.waitForFunction(() => document.querySelector('.mat-window .unreal-clip-stage[data-kind="stance"] video').paused);
   const held = (await watch()).time;
   await page.waitForTimeout(400);
   assert.equal((await watch()).time, held, 'a paused clip does not move');
@@ -160,6 +187,7 @@ try {
   await page.getByRole('button', { name: 'Submit sequence', exact: true }).click();
   await page.locator('.arena-outcome').waitFor();
   assert.equal(await stage().count(), 0, 'a settled exchange shows the settled position, not the stance clip');
+  assert.equal(await page.locator('.mat-window .unreal-clip-stage[data-kind="technique"]').count(), 0, '?engine=snapshot turns technique clips off');
   assert.equal(await page.locator('.mat-window .grappling-snapshot-stage').count(), 1);
   // A start that is not on the feet never shows the stance.
   await page.reload();
@@ -177,7 +205,7 @@ try {
   await page.goto(`${base}/?engine=snapshot`);
   await nav('Arena');
   await stage().waitFor();
-  await page.waitForFunction(() => document.querySelector('.mat-window .unreal-clip-stage video')?.readyState >= 1);
+  await page.waitForFunction(() => document.querySelector('.mat-window .unreal-clip-stage[data-kind="stance"] video')?.readyState >= 1);
   await page.waitForTimeout(600);
   const still = await watch();
   assert.deepEqual([still.paused, still.time], [true, 0], 'reduced motion starts on the still poster');
@@ -224,6 +252,78 @@ try {
     await phone.close();
   }
   checks.push('At 390 and 320 pixels the clip plays at full width with its controls stacked below, and nothing scrolls sideways.');
+
+  // ---- Techniques: each one switches itself on once both performers have clips ----
+  const ready = TECHNIQUE_IDS.filter((moveId) => techniqueClipReady(moveId, unrealClipViews));
+  report.techniqueClips = { ready, waiting: TECHNIQUE_IDS.filter((moveId) => !ready.includes(moveId)) };
+  quietUnity = true;
+  if (!ready.length) checks.push('No technique clip is published; technique steps did not run.');
+  for (const moveId of ready) {
+    const views = { fighter: unrealClipViews(moveId, 'fighter'), opponent: unrealClipViews(moveId, 'opponent') };
+    const title = curriculumMove(moveId).name;
+    // The poster of a clip that plays once is its first frame.
+    const posters = await open({ viewport: { width: 1440, height: 900 } });
+    await page.goto(`${base}/`);
+    for (const clip of [...views.fighter, ...views.opponent]) {
+      const difference = await page.evaluate(async ({ video: src, poster: posterSrc }) => {
+        const canvas = Object.assign(document.createElement('canvas'), { width: 160, height: 90 });
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        const pixels = (source) => { context.drawImage(source, 0, 0, 160, 90); return context.getImageData(0, 0, 160, 90).data; };
+        const element = Object.assign(document.createElement('video'), { src, muted: true, preload: 'auto' });
+        await new Promise((done, fail) => { element.addEventListener('loadeddata', done, { once: true }); element.addEventListener('error', fail, { once: true }); });
+        if (element.currentTime !== 0) { element.currentTime = 0; await new Promise((done) => element.addEventListener('seeked', done, { once: true })); }
+        const frame = pixels(element);
+        const image = new Image(); image.src = posterSrc; await image.decode();
+        const still = pixels(image);
+        let total = 0;
+        for (let index = 0; index < frame.length; index += 4) total += Math.abs(frame[index] - still[index]) + Math.abs(frame[index + 1] - still[index + 1]) + Math.abs(frame[index + 2] - still[index + 2]);
+        return total / (frame.length / 4) / 3;
+      }, clip);
+      assert.ok(difference < 8, `${clip.poster} is frame 0 of ${clip.video} (mean difference ${difference.toFixed(2)})`);
+    }
+    await posters.close();
+    checks.push(`${title}: every poster matches frame 0 of its video.`);
+
+    const training = await open({ viewport: { width: 1440, height: 900 } });
+    await checkTraining(page, { base, moveId, views: views.fighter, unity: watchUnity(page), capture, checks });
+    await training.close();
+
+    // The player wins with it in the Arena. Math.random is seeded so the run repeats.
+    const fight = await open({ viewport: { width: 1440, height: 900 } });
+    await fight.addInitScript(({ key, value }) => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem(key, value); } }, { key: 'jiuquest:v1', value: JSON.stringify({ selectedFighterId: 'clipper', fighters: [{ id: 'clipper', name: 'Clipper', progress: { 'double-leg-takedown': 50, 'rear-naked-choke': 50, 'triangle-choke': 50, 'trap-roll-escape': 50 } }] }) });
+    await fight.addInitScript(() => {
+      let state = 20261113;
+      Math.random = () => {
+        state = (state + 0x6d2b79f5) >>> 0;
+        let value = Math.imul(state ^ (state >>> 15), state | 1);
+        value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+        return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+      };
+    });
+    const unity = watchUnity(page);
+    await playArena(page, {
+      base, moveId, unity,
+      want: (seen) => seen.fighter >= 1,
+      onWin: async (win) => { if (win.performer === 'fighter') await checkArenaWin(page, { win, moveId, views, unity, title }); },
+    });
+    await fight.close();
+    checks.push(`${title}: the player's Arena win plays the real clip, labelled as theirs, with no Unity request.`);
+  }
+
+  // A technique without clips for both performers keeps Unity on the release default.
+  for (const moveId of report.techniqueClips.waiting) {
+    const move = curriculumMove(moveId);
+    const waiting = await open({ viewport: { width: 1440, height: 900 } });
+    await page.goto(`${base}/`);
+    await page.getByRole('button', { name: 'Training', exact: true }).click();
+    await page.locator('.training-sidebar').getByRole('button', { name: new RegExp(escapeName(move.name)) }).first().click();
+    await page.locator(`${CARD} .unity-stage[data-engine="unity"]`).waitFor({ timeout: 15000 });
+    assert.equal(await techniqueStage(page, CARD).count(), 0, `${moveId} has no Unreal clip for both performers, so it stays on Unity`);
+    assert.equal(new URL(page.url()).searchParams.has('engine'), false, 'the release default sets no engine in the address');
+    await waiting.close();
+  }
+  if (report.techniqueClips.waiting.length) checks.push(`On the release default, ${report.techniqueClips.waiting.join(', ')} still show the Unity stage in Training.`);
+  quietUnity = false;
 
   assert.deepEqual(errors, []);
   assert.deepEqual(consoleErrors, [], 'Unexpected browser console errors');

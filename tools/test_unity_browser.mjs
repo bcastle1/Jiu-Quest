@@ -390,9 +390,10 @@ try {
   assert.deepEqual(await page.evaluate(() => window.__progressWrites), []);
   checks.push('Standalone playback does not write saved progression.');
   await checkpoint('training:starting');
-  await page.goto(base); await page.getByRole('button', { name: 'Training', exact: true }).click(); await ready();
+  // Explicit ?engine=unity keeps Unity for a technique even once it has Unreal clips.
+  // Whether the release default plays Unity or a clip is checked in test_unreal_clip_stage.mjs.
+  await page.goto(`${base}/?engine=unity`); await page.getByRole('button', { name: 'Training', exact: true }).click(); await ready();
   await selectedCamera('Front');
-  assert.equal(new URL(page.url()).searchParams.has('engine'), false);
   const priorTrainingInstance = await page.evaluate(() => window.__unityEvents.findLast((event) => event.type === 'ready').instanceId);
   await page.getByRole('button', { name: /Kimura Armlock/ }).click(); await page.getByRole('region', { name: 'Unity preview unavailable' }).waitFor();
   assert.equal(await page.locator('.unity-canvas').count(), 0);
@@ -411,9 +412,10 @@ try {
   assert.equal(trainingLifecycle[0].quitCompleted, true);
   assert.ok(trainingLifecycle[0].quitCompletedAt <= trainingLifecycle[1].createdAt);
   assert.equal(trainingLifecycle[1].quitStarted, false);
+  assert.equal(new URL(page.url()).searchParams.get('engine'), 'unity', 'the explicit engine survives in-app navigation');
   await checkpoint('training:fresh-instance-ready');
   await page.goto(`${base}/?engine=snapshot`); await page.getByRole('button', { name: 'Training', exact: true }).click(); await page.getByRole('heading', { name: 'Position reference', exact: true }).waitFor(); assert.equal(await page.locator('.unity-stage').count(), 0);
-  checks.push('Release default enables supported Training animations; unsupported lessons dispose the player; explicit snapshot rollback works.');
+  checks.push('Explicit ?engine=unity enables supported Training animations; unsupported lessons dispose the player; explicit snapshot rollback works.');
   const guideMoves = curriculumMoves.filter(move => move.belt === 'blue');
   assert.equal(await page.locator('.technique-group').count(), 13);
   assert.equal(await page.locator('.move-list .move-row').count(), 36);

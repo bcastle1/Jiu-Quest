@@ -69,7 +69,8 @@ try {
   page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
-  await page.goto(`http://127.0.0.1:${server.address().port}`);
+  // Explicit, so Unity keeps these techniques once they have Unreal clips.
+  await page.goto(`http://127.0.0.1:${server.address().port}/?engine=unity`);
   await page.getByRole('button', { name: 'Training', exact: true }).click();
   await page.waitForFunction(() => window.__unityStartupTelemetry?.renderedReadyMs !== null
     && window.__unityStartupTelemetry?.renderedFrames === 2, null, { timeout: 95000 });

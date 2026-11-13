@@ -68,6 +68,8 @@ import UnrealCharacterPreview, { UnrealPreviewCard } from "./components/UnrealCh
 import UnrealAthlete, { FighterLookPicker, UnrealAthleteStage } from "./components/UnrealAthlete.jsx";
 import { isUnityEnabled, resolveUnityMove } from "./unity/bridge.js";
 import { resolveCombatRenderer } from './unreal/renderer.js';
+import { unrealClipViews } from './unreal/techniqueClips.js';
+import { techniqueMoves } from './unreal/techniquePicture.js';
 import { resolvePreviewPage } from './unreal/characterPreview.js';
 import { usesUnrealAthlete } from './unreal/athlete.js';
 import showcaseFighters from './showcaseCards.data.js';
@@ -1423,7 +1425,7 @@ function Training({
   const trainingPosition = createArenaState(selectedMove.starts[0]);
   const techniqueGroups = groupTechniques(beltMoves, blueBeltPositionGroups);
   const [renderer, setRenderer] = useState(() => resolveCombatRenderer(window.location.href, { development: import.meta.env.DEV }));
-  const movementPreview = renderer !== 'snapshot';
+  const movementPreview = techniqueMoves({ engine: renderer, moveId: resolveUnityMove(selectedMove.id), search: window.location.search, views: unrealClipViews });
 
   return (
     <section className="training-grid">

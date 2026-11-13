@@ -102,7 +102,7 @@ test('the Arena offers the stance picker only while the stance is what shows', (
 });
 
 test('the importer leaves out a clip its maker marked as a draft', () => {
-  const importer = source('tools/import_unreal_clips.py');
-  assert.match(importer, /if entry\.get\("draft"\):\s+held\.append\(entry\["file"\]\)\s+continue/);
-  assert.match(importer, /"draftsLeftOut": held/);
+  const importer = source('tools/import_unreal_clips.mjs');
+  assert.match(importer, /if \(entry\.draft\) \{ held\.push\(entry\.file\); continue; \}/);
+  assert.match(importer, /draftsLeftOut: held/);
 });

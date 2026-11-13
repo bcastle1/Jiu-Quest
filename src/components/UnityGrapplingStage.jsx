@@ -162,7 +162,7 @@ export default function UnityGrapplingStage({ moveId, moveLabel, performerSide =
     setSnapshotMode(true);
   };
 
-  if (snapshotMode) return <section className="unity-snapshot-fallback" aria-label="Position snapshot view"><p>Position snapshot · animated playback is turned off for this visit.</p>{fallback}</section>;
+  if (snapshotMode) return <section className="unity-snapshot-fallback" aria-label="Position snapshot view"><p>Position snapshot · the Unity player is turned off for this visit.</p>{fallback}</section>;
 
   if (!supported) return <section className="unity-unavailable" aria-label="Unity preview unavailable">
     <p><AlertCircle size={16} aria-hidden="true" />{unavailableReason || 'This technique does not have a matching Unity animation yet.'}</p>

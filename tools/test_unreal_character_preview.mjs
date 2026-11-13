@@ -85,11 +85,11 @@ try {
   await page.goto(`${base}${UNREAL_PREVIEW_PATH}`); await previewReady();
   assert.match(await page.locator('.unreal-preview-intro').innerText(), /UNREAL CHARACTER PREVIEW/);
   assert.match(await page.locator('.unreal-preview-intro').innerText(), /CAPTURED STILLS\s+Not live gameplay/);
-  assert.match(await page.locator('.unreal-preview-intro').innerText(), /Technique animations in Arena and Training still play with the current characters\./);
+  assert.match(await page.locator('.unreal-preview-intro').innerText(), /Technique animations in Arena and Training move to Unreal clips one technique at a time; a technique keeps the current characters until both of its clips are ready\./);
   assert.equal(await page.locator('.unreal-preview-badge').innerText(), 'Unreal Engine capture · still image');
   assert.equal(await page.title(), 'Unreal character preview · JiuQuest');
   assert.equal(await page.getByRole('link', { name: /^Return to JiuQuest/ }).getAttribute('href'), '/');
-  checks.push('The page is labeled as captured Unreal stills, not live gameplay, and says technique animations in Arena and Training keep the current characters.');
+  checks.push('The page is labeled as captured Unreal stills, not live gameplay, and says technique animations in Arena and Training move to Unreal clips one technique at a time, each keeping the current characters until both of its clips are ready.');
 
   await capture('desktop-white-gi');
   for (const render of [...UNREAL_CHARACTER_RENDERS.slice(1), UNREAL_CHARACTER_RENDERS[0]]) {
