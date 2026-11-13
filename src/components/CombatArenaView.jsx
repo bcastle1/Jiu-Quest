@@ -51,6 +51,13 @@ export default function CombatArenaView({
   const [positionStart, setPositionStart] = useState('mount-bottom');
   const nextActionRef = useRef(null);
   const orderRef = useRef(null);
+  const chooseRef = useRef(null);
+  // The phase the focus effect below last saw. It begins empty, so a match
+  // that is already waiting for a technique when this screen opens (the
+  // Overview's Open Arena button starts one and opens the screen together)
+  // is treated as a start. Focus that is on a control, such as the menu
+  // button pressed to come back during a match, is still left alone.
+  const lastPhaseRef = useRef(null);
   const opponent = combat.npc;
   const position = getPositionForSide(combat, "fighter");
   const positionLabel = getArenaPositionLabel(combat);
@@ -79,10 +86,21 @@ export default function CombatArenaView({
   };
 
   useEffect(() => {
+    const previousPhase = lastPhaseRef.current;
+    lastPhaseRef.current = combat.phase;
     if (combat.phase === "result") nextActionRef.current?.focus({ preventScroll: true });
     if (combat.phase === "ordering") {
       orderRef.current?.focus({ preventScroll: true });
       orderRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
+    }
+    // Starting a match or preparing the next action takes away the button that
+    // was pressed, and the browser then leaves focus on the page itself. Put it
+    // on the technique heading, so the next Tab reaches the first technique.
+    // Focus that is still on a control (Restart match, or wherever the player
+    // has clicked since) stays where it is, and the page is not scrolled.
+    if (combat.phase === "selecting" && previousPhase !== "selecting") {
+      const focused = document.activeElement;
+      if (!focused || focused === document.body) chooseRef.current?.focus({ preventScroll: true });
     }
   }, [combat.phase]);
 
@@ -272,7 +290,7 @@ export default function CombatArenaView({
         </div>
 
         <aside className="panel move-command" aria-label="Technique selection">
-          <div className="section-heading">
+          <div className="section-heading" ref={chooseRef} tabIndex={-1}>
             <div>
               <h2>Choose a technique</h2>
               <p>{canStart ? "Start your match, then choose a move for the current position." : isOrdering ? "Arrange the selected technique below, then execute." : combat.phase === "result" ? "Prepare your next action to continue from the settled position." : `Select your response from ${positionLabel.toLowerCase()}.`}</p>

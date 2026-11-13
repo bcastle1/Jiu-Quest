@@ -573,11 +573,14 @@ function App() {
     });
   };
 
-  const openAdmin = () => {
+  const openAdmin = (event) => {
     if (adminAuthed) {
       setView("admin");
       return;
     }
+    // Safari does not give a button focus when it is clicked or tapped. Put focus on the
+    // pressed button here, so the dialog finds it as its opener and can hand focus back.
+    event?.currentTarget?.focus({ preventScroll: true });
     setAdminGateOpen(true);
   };
 
@@ -962,7 +965,40 @@ function Header({
   openAdmin,
 }) {
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
+  const trackSelectRef = useRef(null);
+  const trackTriggerRef = useRef(null);
   const activeTrack = musicTracks.find((track) => track.id === activeTrackId) ?? musicTracks[0];
+
+  // Closing the menu takes its buttons off the page. If keyboard focus is on one of them
+  // (or on the trigger), put it on the trigger first, so it is not dropped onto the page.
+  const closeTrackMenu = useCallback(() => {
+    if (trackSelectRef.current?.contains(document.activeElement)) {
+      trackTriggerRef.current?.focus({ preventScroll: true });
+    }
+    setTrackMenuOpen(false);
+  }, []);
+
+  // Escape and a press outside close the menu. The listeners exist only while it is open.
+  useEffect(() => {
+    if (!trackMenuOpen) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") closeTrackMenu();
+    };
+    // A press on the trigger or inside the menu is left to their own click handlers, so the
+    // trigger still closes the menu once instead of closing here and reopening on click.
+    // An outside press only closes: focus goes wherever that press puts it.
+    const closeOnOutsidePress = (event) => {
+      if (trackSelectRef.current?.contains(event.target)) return;
+      setTrackMenuOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    // Capture phase, so the press is seen even if something under it stops it from bubbling.
+    document.addEventListener("pointerdown", closeOnOutsidePress, true);
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("pointerdown", closeOnOutsidePress, true);
+    };
+  }, [trackMenuOpen, closeTrackMenu]);
 
   return (
     <header className="topbar">
@@ -1001,8 +1037,8 @@ function Header({
         <Volume2 size={17} />
       </button>
       {musicTracks.length ? (
-        <div className={`player-track-select ${trackMenuOpen ? "open" : ""}`}>
-          <button type="button" className="player-track-trigger" aria-expanded={trackMenuOpen} aria-haspopup="true" onClick={() => setTrackMenuOpen((open) => !open)}>
+        <div ref={trackSelectRef} className={`player-track-select ${trackMenuOpen ? "open" : ""}`}>
+          <button ref={trackTriggerRef} type="button" className="player-track-trigger" aria-expanded={trackMenuOpen} aria-haspopup="true" onClick={() => setTrackMenuOpen((open) => !open)}>
             <Headphones size={16} />
             <span>{activeTrack?.title ?? "Select Track"}</span>
             <ChevronDown size={16} />
@@ -1018,7 +1054,7 @@ function Header({
                   aria-pressed={track.id === activeTrack?.id}
                   onClick={() => {
                     selectMusicTrack(track.id);
-                    setTrackMenuOpen(false);
+                    closeTrackMenu();
                   }}
                 >
                   <span>{track.title}</span>
@@ -2705,21 +2741,97 @@ function SwatchInput({ value, onChange, options = customizationOptions.giColors,
   );
 }
 
+// The controls Tab can land on inside a dialog, in page order. Read from the page at the
+// time of the key press, so it stays right when the dialog's content changes.
+function tabStopsIn(container) {
+  return Array.from(container.querySelectorAll("a[href], button, input, select, textarea, [tabindex]")).filter(
+    (element) =>
+      !element.disabled &&
+      element.tabIndex >= 0 &&
+      element.type !== "hidden" &&
+      !element.closest("[inert]") &&
+      element.getClientRects().length > 0 &&
+      getComputedStyle(element).visibility !== "hidden",
+  );
+}
+
 function Modal({ title, children, onClose }) {
+  const dialogRef = useRef(null);
+  // The element that had focus when the dialog was asked for: the button that opened it.
+  // It is read on the first render because React moves focus to the autoFocus field while
+  // it puts the dialog on the page, which is before any effect here runs.
+  const [opener] = useState(() => document.activeElement);
+
   useEffect(() => {
-    const closeOnEscape = (event) => {
+    const handleKeys = (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
         onClose();
+        return;
       }
+      if (event.key !== "Tab") return;
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      // Keep Tab inside the dialog. Focus is moved here on every Tab rather than left to
+      // the browser, because Safari's default Tab skips buttons and would carry focus from
+      // the field to the page behind the dialog.
+      const stops = tabStopsIn(dialog);
+      if (!stops.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = stops[0];
+      const last = stops[stops.length - 1];
+      const index = stops.indexOf(document.activeElement);
+      const step = event.shiftKey ? -1 : 1;
+      // Focus outside the dialog (or on nothing Tab can reach) enters at the matching end.
+      const target = index === -1 ? (event.shiftKey ? last : first) : stops[(index + step + stops.length) % stops.length];
+      event.preventDefault();
+      target.focus();
+      // A browser selects a text field's contents when Tab reaches it. Do the same.
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) target.select();
     };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    window.addEventListener("keydown", handleKeys);
+    return () => window.removeEventListener("keydown", handleKeys);
   }, [onClose]);
+
+  // When the dialog closes, give focus back to the button that opened it.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    return () => {
+      // In development React runs this cleanup once while the dialog stays on screen, so
+      // wait until the current page update is finished and only then check that the dialog
+      // has really left the page. Without that check focus would be pulled out of the
+      // dialog right after it opens.
+      queueMicrotask(() => {
+        if (dialog?.isConnected) return;
+        if (opener?.isConnected && opener !== document.body) opener.focus({ preventScroll: true });
+      });
+    };
+  }, [opener]);
+
+  // The page can also move focus by itself, without a Tab press: the Arena does it when
+  // its sequence timer runs out. While the dialog is open, any focus that lands outside
+  // it is sent back to the control inside the dialog that had it last.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return undefined;
+    let lastInside = dialog.contains(document.activeElement) ? document.activeElement : null;
+    const keepFocusInside = (event) => {
+      if (dialog.contains(event.target)) {
+        lastInside = event.target;
+        return;
+      }
+      const target = lastInside?.isConnected ? lastInside : tabStopsIn(dialog)[0];
+      target?.focus({ preventScroll: true });
+    };
+    document.addEventListener("focusin", keepFocusInside);
+    return () => document.removeEventListener("focusin", keepFocusInside);
+  }, []);
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={dialogRef} className="modal" role="dialog" aria-modal="true" aria-label={title}>
         <button className="icon-button close" onClick={onClose} aria-label="Close">
           <X size={18} />
         </button>
