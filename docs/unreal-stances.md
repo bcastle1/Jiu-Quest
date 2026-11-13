@@ -20,7 +20,7 @@ The ids are `wrestling`, `sumo`, `boxing`, `karate`, `muay_thai`, `sambo` and `c
 2. otherwise a rival's stance, but only beside a player in the wrestling stance, because one clip holds one named stance;
 3. otherwise `standing_stance`.
 
-Published so far: `standing_stance` (both athletes, side and front views), and `stance_sambo` and `stance_sumo` for the player (side view only, so the stage shows no camera buttons for them). The other four stances fall back to `standing_stance`.
+Published so far: `standing_stance` (both athletes, side and front views). For the player, all six named stances: `stance_sumo` and `stance_sambo` in side and front views, and `stance_boxing`, `stance_karate`, `stance_muay_thai` and `stance_capoeira` in the side view only, so the stage shows no camera buttons for those four. For a rival, `stance_sumo` and `stance_sambo` in the side view; a rival who holds any other stance is shown in the wrestling stance. No entry clip is published.
 
 It also reports `exact`: whether the clip shows the player in the stance they chose. When it does not, the Arena says so in one line under the picker and keeps the choice. Nothing is substituted silently.
 
@@ -34,7 +34,7 @@ The seven pictures in the pickers are illustrations of the Unreal athlete, not U
 
 Stance clips arrive in the Unreal render pack's `clips/technique-clips.json` like any other clip, and `tools/import_unreal_clips.py` imports them. The importer leaves out any entry marked `"draft": true` and lists what it left out.
 
-The sambo and sumo loops were imported on November 13, 2026 from the render job's encoded output, after a frame review, before the pack manifest listed them. Their published files are pinned like any other clip. The next import from the pack keeps them only if the pack lists the same two files by then.
+Every published stance clip is listed in the pack manifest. The first sambo and sumo loops went on the site on November 13, 2026 a few hours before the pack listed them; the pack's own files replaced them the same day (the sambo take was corrected so the rear heel is off the mat, the sumo take is the same file).
 
 After an import that adds a stance:
 
