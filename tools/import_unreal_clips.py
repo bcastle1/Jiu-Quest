@@ -7,6 +7,8 @@ that manifest and against what the site can play, then:
   - encodes each lossless poster as a smaller lossy WebP beside it
   - writes src/unreal/techniqueClips.data.js, which pins every published file
 
+An entry marked "draft": true is left out and listed in the summary.
+
 Usage:
     python tools/import_unreal_clips.py <Unreal-render-pack/clips>
 
@@ -60,8 +62,13 @@ def main():
         raise SystemExit(__doc__)
     source = pathlib.Path(sys.argv[1])
     entries = json.loads((source / "technique-clips.json").read_text(encoding="utf-8"))
-    seen, clips = set(), []
+    seen, clips, held = set(), [], []
     for entry in entries:
+        # A draft is a take its maker lists a visible flaw in. It waits for the
+        # owner and never blocks the files around it.
+        if entry.get("draft"):
+            held.append(entry["file"])
+            continue
         move, performer, camera = entry["moveId"], entry["performerSide"], entry["camera"]
         key = (move, performer, camera)
         if not NAME.match(move) or performer not in PERFORMERS or camera not in CAMERAS or key in seen:
@@ -109,7 +116,7 @@ def main():
     lines += [f"  Object.freeze({json.dumps(clip)})," for clip in clips]
     lines += ["]);", ""]
     DATA.write_text("\n".join(lines), encoding="utf-8", newline="\n")
-    print(json.dumps({"clips": len(clips), "moves": sorted({clip["moveId"] for clip in clips}),
+    print(json.dumps({"clips": len(clips), "moves": sorted({clip["moveId"] for clip in clips}), "draftsLeftOut": held,
                       "videoBytes": sum(clip["bytes"] for clip in clips), "posterBytes": sum(clip["posterBytes"] for clip in clips)}, indent=2))
 
 

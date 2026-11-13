@@ -1,0 +1,172 @@
+/* The stance pictures in a row under the Arena stage. It stays short, so the
+   start buttons below it are still on screen. styles.css is bundled after this
+   file and forces font-weight and letter-spacing on every element, so those
+   are marked important here. */
+.stance-picker {
+  display: grid;
+  grid-template-columns: minmax(8rem, 13rem) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.35rem 1rem;
+  min-width: 0;
+  padding: 0.5rem 0.9rem;
+  border-top: 1px solid var(--line, #1e2b36);
+  background: #080d12;
+}
+
+.stance-picker-heading {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.stance-picker-heading span {
+  color: var(--gold, #e8c27a);
+  font-family: var(--display, inherit);
+  font-size: 0.78rem;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.stance-picker-heading strong {
+  overflow: hidden;
+  color: var(--text, #f1f5f8);
+  font-family: var(--display, inherit);
+  font-size: 1.12rem;
+  font-weight: 700 !important;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stance-picker-heading small {
+  overflow: hidden;
+  color: var(--muted, #a6b4c0);
+  font-size: 0.78rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stance-picker-options {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  /* Room for the focus ring, with one more pixel above for the chosen
+     picture, which sits a pixel higher. */
+  padding: 4px 3px 3px;
+  /* If the row is ever too long for its column it scrolls here, not the page. */
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+/* Keeps the row to the right while it fits. An auto margin gives way when it
+   does not, so a row that is too long starts at the left edge and every
+   picture can be scrolled to. */
+.stance-picker-options label:first-child {
+  margin-left: auto;
+}
+
+.stance-picker-options label {
+  position: relative;
+  flex: 0 0 44px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #000;
+  cursor: pointer;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.stance-picker-options input {
+  /* The whole picture is the radio button. It sits above the dimmed picture,
+     which would otherwise take the click. */
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.stance-picker-options img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  opacity: 0.72;
+  transition: opacity 140ms ease;
+}
+
+.stance-picker-options label:hover {
+  border-color: var(--gold-deep, #a57f38);
+}
+
+.stance-picker-options label:hover img,
+.stance-picker-options label.selected img {
+  opacity: 1;
+}
+
+.stance-picker-options label.selected {
+  border-color: var(--gold-strong, #f6d999);
+  transform: translateY(-1px);
+}
+
+.stance-picker-options label:has(input:focus-visible) {
+  outline: 2px solid var(--gold-strong, #f6d999);
+  outline-offset: 1px;
+}
+
+.stance-picker-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted, #a6b4c0);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+/* Below this the Arena panel can be too narrow for the name and the seven
+   pictures side by side (the panel shares the page with the technique list
+   down to 761 pixels), so the pictures go under the name. */
+@media (max-width: 1030px) {
+  .stance-picker {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0.7rem 0.6rem;
+  }
+
+  .stance-picker-heading {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: baseline;
+    column-gap: 0.6rem;
+  }
+
+  .stance-picker-heading small {
+    grid-column: 1 / -1;
+  }
+
+  /* On the narrowest phones the seven pictures take a second line, so none
+     is hidden off the side. */
+  .stance-picker-options {
+    flex-wrap: wrap;
+  }
+
+  .stance-picker-options label:first-child {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stance-picker-options label,
+  .stance-picker-options img {
+    transition: none;
+  }
+
+  .stance-picker-options label.selected {
+    transform: none;
+  }
+}

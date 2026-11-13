@@ -16,7 +16,9 @@ export default function UnrealClipStage({ moveId, performerSide = 'fighter', mov
   const videoRef = useRef(null);
   // What the person wants. People who ask for reduced motion start paused.
   const [wantsPlay, setWantsPlay] = useState(() => !reducedMotionQuery()?.matches);
-  const [failed, setFailed] = useState(false);
+  // The file that could not play, if one did. Another move or camera is another
+  // file and gets its own try.
+  const [failedVideo, setFailedVideo] = useState(null);
 
   useEffect(() => {
     const query = reducedMotionQuery();
@@ -37,7 +39,7 @@ export default function UnrealClipStage({ moveId, performerSide = 'fighter', mov
     video.play()?.catch((error) => { if (error?.name === 'NotAllowedError') setWantsPlay(false); });
   }, [wantsPlay, clip?.video]);
 
-  if (!clip || failed) return fallback;
+  if (!clip || failedVideo === clip.video) return fallback;
 
   const title = moveLabel || 'Technique';
   const fighterName = fighter?.name || 'Your fighter';
@@ -62,7 +64,7 @@ export default function UnrealClipStage({ moveId, performerSide = 'fighter', mov
           disableRemotePlayback
           preload="auto"
           aria-label={`${title}. ${fighterName} in the white gi and ${opponentName} in the navy gi, seen from the ${clip.camera}.`}
-          onError={() => setFailed(true)}
+          onError={() => setFailedVideo(clip.video)}
         />
       </div>
       <div className="unreal-clip-controls">

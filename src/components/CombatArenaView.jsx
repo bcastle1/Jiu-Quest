@@ -5,7 +5,9 @@ import { allMoves, beltLabels, trainingStartPositions } from "../data/curriculum
 import { createArenaState, getArenaPositionLabel, getPositionForSide } from "../arena/outcome.js";
 import GrapplingSnapshotStage from "./GrapplingSnapshotStage.jsx";
 import GrapplingStage from "./GrapplingStage.jsx";
+import StancePicker from "./StancePicker.jsx";
 import { resolveArenaUnityPlayback } from "../unity/bridge.js";
+import { findStance, stanceLoop } from "../unreal/stances.js";
 
 function startsFrom(move, position) {
   return move.id === "protect-position" || move.starts?.includes(position);
@@ -43,6 +45,7 @@ export default function CombatArenaView({
   startCombat,
   notify,
   onTrain,
+  onStanceChange,
 }) {
   const [announcement, setAnnouncement] = useState("");
   const [positionStart, setPositionStart] = useState('mount-bottom');
@@ -62,6 +65,12 @@ export default function CombatArenaView({
   const canStart = !combat.active || isFinished;
   const selectedOrder = combat.order ?? [];
   const unityPlayback = resolveArenaUnityPlayback(combat.result);
+  // Both athletes on their feet and nothing settled yet: the stance is what shows.
+  const idleStanding = !combat.result && combat.position === 'standing';
+  // What to say when the clip cannot show a stance yet. Null when it can.
+  const stanceNoteFor = (stance) => (stanceLoop(stance, opponent.stance).exact
+    ? null
+    : `The ${findStance(stance).label} animation is not ready yet, so standing animations start from the standard wrestling stance for now. Your choice is saved.`);
 
   const announce = (message, tone = "info") => {
     setAnnouncement(message);
@@ -190,7 +199,7 @@ export default function CombatArenaView({
 
           <div className={`mat-window cinematic-mode ${combat.result ? "result-mode" : ""}`}>
             <GrapplingStage
-              idleStanding={!combat.result && combat.position === 'standing'}
+              idleStanding={idleStanding}
               moveId={unityPlayback?.moveId}
               performerSide={unityPlayback?.performerSide}
               moveLabel={combat.result?.techniqueName}
@@ -202,6 +211,20 @@ export default function CombatArenaView({
               fallback={<GrapplingSnapshotStage state={combat} fighter={fighter} fighterBelt={beltStatus} opponent={opponent} result={combat.result} onReplay={() => announce(`Reviewing the settled position: ${positionLabel.toLowerCase()}.`)} />}
             />
           </div>
+
+          {idleStanding && onStanceChange && (
+            <StancePicker
+              value={fighter.stance}
+              note={stanceNoteFor(fighter.stance)}
+              onChange={(stance) => {
+                onStanceChange(stance);
+                // The picker itself shows the new choice. A pop-up message
+                // would cover it on a phone, so this is spoken only, once,
+                // with the note when there is one.
+                setAnnouncement([`${findStance(stance).label} selected as your starting stance.`, stanceNoteFor(stance)].filter(Boolean).join(' '));
+              }}
+            />
+          )}
 
           {combat.result && (
             <div

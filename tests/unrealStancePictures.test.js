@@ -40,7 +40,7 @@ test('every published stance picture is the pinned file: a small four-by-five We
   assert.deepEqual(readdirSync(repoPath('public/assets/unreal-stances')).map((file) => `/assets/unreal-stances/${file}`).sort(), unrealStancePictures.map((picture) => picture.src).sort());
 });
 
-test('the stance picker shows them only to fighters with the Unreal look', () => {
+test('the Profile\'s stance picker shows them only to fighters with the Unreal look', () => {
   const app = repoFile('src/App.jsx').toString('utf8');
   assert.match(app, /import unrealStancePictures from '\.\/unreal\/stancePictures\.data\.js';/);
   assert.match(app, /const unrealStanceArt = Object\.fromEntries\(unrealStancePictures\.map\(\(picture\) => \[picture\.stance, picture\.src\]\)\);/);

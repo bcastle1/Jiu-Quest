@@ -4,9 +4,12 @@ import UnrealClipStage from './UnrealClipStage.jsx';
 import UnrealGrapplingStage from './UnrealGrapplingStage.jsx';
 import { localUnrealAllowed, resolveCombatRenderer } from '../unreal/renderer.js';
 import { findUnrealClip } from '../unreal/techniqueClips.js';
+import { stanceLoop } from '../unreal/stances.js';
 
 // The one moment a pre-rendered Unreal clip is the right picture so far: both
-// athletes on their feet before an exchange has settled.
+// athletes on their feet before an exchange has settled. The player's stance
+// picks the clip once Unreal has rendered that stance; until then it is the
+// standard one.
 const IDLE_CLIP = Object.freeze({ moveId: 'standing_stance', label: 'Standing stance' });
 
 export default function GrapplingStage({ idleStanding = false, onRendererChange, ...props }) {
@@ -22,9 +25,10 @@ export default function GrapplingStage({ idleStanding = false, onRendererChange,
   const stage = engine === 'unreal' ? <UnrealGrapplingStage {...props} moveId={idleStanding ? IDLE_CLIP.moveId : props.moveId} moveLabel={idleStanding ? IDLE_CLIP.label : props.moveLabel} /> : engine === 'unity' ? <UnityGrapplingStage {...props} /> : props.fallback;
   // The local live preview renders the stance itself. Every other renderer
   // shows the clip, and falls back to its own picture if the clip cannot play.
-  const idleClip = idleStanding && engine !== 'unreal' && findUnrealClip(IDLE_CLIP.moveId);
+  const idle = stanceLoop(props.fighter?.stance, props.opponent?.stance);
+  const idleClip = idleStanding && engine !== 'unreal' && findUnrealClip(idle.moveId, idle.performerSide);
   return <>
     {local && <label className="unreal-renderer-choice">Character graphics<select aria-label="Character graphics" value={engine} onChange={choose}><option value="unity">Unity</option><option value="unreal">Unreal · local preview</option><option value="snapshot">Position snapshots</option></select></label>}
-    {idleClip ? <UnrealClipStage moveId={IDLE_CLIP.moveId} moveLabel={IDLE_CLIP.label} fighter={props.fighter} opponent={props.opponent} compact={props.compact} fallback={stage} /> : stage}
+    {idleClip ? <UnrealClipStage moveId={idle.moveId} performerSide={idle.performerSide} moveLabel={IDLE_CLIP.label} fighter={props.fighter} opponent={props.opponent} compact={props.compact} fallback={stage} /> : stage}
   </>;
 }

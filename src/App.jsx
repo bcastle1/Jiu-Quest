@@ -63,6 +63,7 @@ import { resolvePreviewPage } from './unreal/characterPreview.js';
 import { usesUnrealAthlete } from './unreal/athlete.js';
 import showcaseFighters from './showcaseCards.data.js';
 import unrealStancePictures from './unreal/stancePictures.data.js';
+import { stanceCopy } from './unreal/stances.js';
 import { TechniqueStep, RichText } from './components/TechniqueText.js';
 import { selectTrainingSession, updateTrainingOrder, updateTrainingResult } from './trainingSession.js';
 import { groupTechniques, sequenceSeconds } from './data/techniqueSteps.js';
@@ -100,16 +101,6 @@ const skinToneLabels = {
   "#6f432f": "Deep",
   "#3d241b": "Dark",
   "#120805": "Very dark",
-};
-
-const stanceCopy = {
-  "wrestling stance": "low hips, forward pressure",
-  "sumo base": "wide base, heavy center",
-  "boxer shell": "hands high, sharp angle",
-  "karate stance": "long range, quick entry",
-  "muay thai guard": "upright clinch threat",
-  "sambo crouch": "low hooks, takedown chain",
-  "capoeira rhythm": "mobile feints, spinning lane",
 };
 
 const profileArt = "/assets/characters/profile-realistic-v2.webp";
@@ -894,6 +885,7 @@ function App() {
             startCombat={startCombat}
             notify={notify}
             onTrain={() => setView("training")}
+            onStanceChange={(stance) => updateFighter({ stance })}
           />
         )}
 
@@ -1118,7 +1110,7 @@ function Dashboard({
           )}
           <div className="hero-content">
             <span className="dashboard-kicker">JiuQuest Platform</span>
-            <h1>Training command center</h1>
+            <h1>Training center</h1>
             <p>
               Manage fighters, structure skill development, and bring tested techniques into scenario-based rounds.
             </p>

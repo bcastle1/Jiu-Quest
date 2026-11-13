@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { UNREAL_CLIPS, UNREAL_CLIP_CAMERAS, UNREAL_CLIP_LOOK, findUnrealClip, unrealClipViews } from '../src/unreal/techniqueClips.js';
 import { UNITY_PREVIEWS } from '../src/unity/bridge.js';
 import { resolveCombatRenderer } from '../src/unreal/renderer.js';
+import { UNREAL_STANCES } from '../src/unreal/stances.js';
 
 const repoPath = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 const repoFile = (path) => readFileSync(repoPath(path));
@@ -43,11 +44,13 @@ test('every published clip is the pinned file and something a browser can start 
 });
 
 test('clips name real moves, performers and cameras, with no repeats and no stray files', () => {
-  const moves = new Set(UNITY_PREVIEWS.map((move) => move.id));
+  // A clip shows a move, or a fighting stance held or left on the feet.
+  const stanceClips = UNREAL_STANCES.flatMap((stance) => [stance.loopMoveId, stance.entryMoveId]).filter(Boolean);
+  const moves = new Set([...UNITY_PREVIEWS.map((move) => move.id), ...stanceClips]);
   const keys = UNREAL_CLIPS.map((clip) => `${clip.moveId}/${clip.performerSide}-${clip.camera}`);
   assert.equal(new Set(keys).size, keys.length);
   for (const clip of UNREAL_CLIPS) {
-    assert.ok(moves.has(clip.moveId), `${clip.moveId} is a move the game knows`);
+    assert.ok(moves.has(clip.moveId), `${clip.moveId} is a move or stance the game knows`);
     assert.ok(['fighter', 'opponent'].includes(clip.performerSide));
     assert.ok(UNREAL_CLIP_CAMERAS.includes(clip.camera));
   }
@@ -59,8 +62,10 @@ test('clips name real moves, performers and cameras, with no repeats and no stra
   assert.deepEqual(published.sort(), UNREAL_CLIPS.flatMap((clip) => [clip.video, clip.poster]).sort());
 });
 
-test('the standing stance is the only move with a clip so far', () => {
-  assert.deepEqual([...new Set(UNREAL_CLIPS.map((clip) => clip.moveId))], ['standing_stance']);
+test('only stances on the feet have clips so far, and no technique does', () => {
+  const stanceLoops = new Set(UNREAL_STANCES.map((stance) => stance.loopMoveId));
+  for (const clip of UNREAL_CLIPS) assert.ok(stanceLoops.has(clip.moveId), `${clip.moveId} is a stance held on the feet`);
+  assert.ok(UNREAL_CLIPS.some((clip) => clip.moveId === 'standing_stance'), 'the standard stance is published');
   assert.ok(UNREAL_CLIPS.every((clip) => clip.loops), 'a stance loops');
   assert.ok(UNREAL_CLIPS.every((clip) => clip.choreographyReviewed === false), 'no clip has had a qualified choreography review');
   for (const move of UNITY_PREVIEWS) {
@@ -95,6 +100,9 @@ test('a clip is a video file and nothing more: no renderer, stream or storage co
 test('the Arena shows the clip only for an unsettled standing position, and never over the local live preview', () => {
   const stage = repoFile('src/components/GrapplingStage.jsx').toString('utf8');
   assert.match(stage, /const IDLE_CLIP = Object\.freeze\(\{ moveId: 'standing_stance', label: 'Standing stance' \}\);/);
-  assert.match(stage, /const idleClip = idleStanding && engine !== 'unreal' && findUnrealClip\(IDLE_CLIP\.moveId\);/);
+  // The stance the clip shows is the player's when Unreal has rendered it, else the standard one.
+  assert.match(stage, /const idle = stanceLoop\(props\.fighter\?\.stance, props\.opponent\?\.stance\);/);
+  assert.match(stage, /const idleClip = idleStanding && engine !== 'unreal' && findUnrealClip\(idle\.moveId, idle\.performerSide\);/);
+  assert.match(stage, /<UnrealClipStage moveId=\{idle\.moveId\} performerSide=\{idle\.performerSide\} moveLabel=\{IDLE_CLIP\.label\} /);
   assert.match(stage, /\{idleClip \? <UnrealClipStage [^>]*fallback=\{stage\} \/> : stage\}/);
 });
