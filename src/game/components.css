@@ -1,0 +1,929 @@
+/* JiuQuest "Main Event" layer: components (design spec sections 3.2, 3.3, 3.5 and 4).
+   Resting paint and layout only: all motion, and any
+   transform inside :hover or :active live in motion.css. */
+
+/* ---- 4.1 Type and curriculum resets ---- */
+
+.app-shell.jq-game .panel h1,
+.app-shell.jq-game .panel h2,
+.app-shell.jq-game .modal h2 {
+  color: #f2f5f8;
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+  line-height: 1.15;
+}
+.app-shell.jq-game .panel h3 {
+  color: #f2f5f8;
+  font-size: 1.14rem;
+  font-weight: 600 !important;
+  line-height: 1.25;
+}
+.app-shell.jq-game .panel > p,
+.app-shell.jq-game .section-heading p {
+  color: #aab6c2;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+.app-shell.jq-game .section-heading > svg {
+  color: #8797a5;
+}
+/* Curriculum text that older layers uppercase: back to authored case. */
+.app-shell.jq-game .technique-group > h2,
+.app-shell.jq-game .technique-head small,
+.app-shell.jq-game .profile-art-tags span,
+.app-shell.jq-game .technique-art-badge strong,
+.app-shell.jq-game .impact-ring strong {
+  text-transform: none;
+}
+
+/* ---- 3.2 Plate ---- */
+
+.app-shell.jq-game .panel {
+  border: 1px solid #2c3a48;
+  border-radius: 12px 3px 12px 3px;
+  background:
+    linear-gradient(#a57f38, #a57f38) 1rem 0 / 1.7rem 2px no-repeat,
+    linear-gradient(180deg, #111822 0%, #0d131a 40%, #0b1017 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: none;
+}
+
+/* ---- 3.5 Focus, selection, scrollbars ---- */
+
+.app-shell.jq-game :focus-visible,
+.app-shell.jq-game .fighter-select:focus-within {
+  outline: 2px solid #f6d999;
+  outline-offset: 3px;
+}
+.app-shell.jq-game .move-row:focus-visible,
+.app-shell.jq-game .quest-row:focus-visible,
+.app-shell.jq-game .fighter-slot:focus-visible,
+.app-shell.jq-game .combat-group button:focus-visible,
+.app-shell.jq-game .position-lab-option:focus-visible,
+.app-shell.jq-game .bottom-nav button:focus-visible,
+.app-shell.jq-game .image-select-menu button:focus-visible,
+.app-shell.jq-game .player-track-menu button:focus-visible,
+.app-shell.jq-game .belt-tabs button:focus-visible,
+.app-shell.jq-game .unavailable-techniques > summary:focus-visible {
+  outline-offset: -2px;
+}
+.app-shell.jq-game .grappling-position-lab button:focus-visible {
+  outline: 2px solid #f6d999;
+}
+/* The selected swatch already has a gold ring at 2 to 4px; focus sits clear of it. */
+.app-shell.jq-game .swatch-row button:focus-visible,
+.app-shell.jq-game .tiny-swatches button:focus-visible {
+  outline-offset: 6px;
+}
+.app-shell.jq-game ::selection {
+  background: rgba(232, 194, 122, 0.32);
+  color: #ffffff;
+}
+.app-shell.jq-game .move-list,
+.app-shell.jq-game .combat-moves,
+.app-shell.jq-game .image-select-menu,
+.app-shell.jq-game .player-track-menu,
+.app-shell.jq-game .position-lab-options {
+  scrollbar-width: thin;
+  scrollbar-color: #2f3d4b transparent;
+}
+
+/* ---- 4.2 Buttons ---- */
+
+.app-shell.jq-game .primary-button,
+.app-shell.jq-game .danger-button {
+  position: relative;
+  isolation: isolate;
+  min-height: 2.9rem;
+  padding: 0.65rem 1.5rem;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: #17110a;
+  font-family: var(--display);
+  font-size: 1.14rem;
+  font-style: italic;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.app-shell.jq-game .primary-button::before,
+.app-shell.jq-game .danger-button::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  background: linear-gradient(180deg, #f6d999 0%, #e8c27a 50%, #c99a45 100%);
+}
+.app-shell.jq-game .primary-button svg { color: #17110a; }
+.app-shell.jq-game .primary-button:not(:disabled):hover,
+.app-shell.jq-game .danger-button:not(:disabled):hover {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+}
+.app-shell.jq-game .primary-button:not(:disabled):hover::before {
+  background: linear-gradient(180deg, #fbe5b0 0%, #f0cc85 50%, #d4a550 100%);
+}
+.app-shell.jq-game .primary-button:disabled {
+  opacity: 1;
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  color: #c9bfa6;
+}
+.app-shell.jq-game .primary-button:disabled svg { color: #c9bfa6; }
+.app-shell.jq-game .primary-button:disabled::before { background: #2e2a20; }
+.app-shell.jq-game .danger-button,
+.app-shell.jq-game .danger-button svg { color: #ffffff; }
+.app-shell.jq-game .danger-button::before {
+  background: linear-gradient(180deg, #c2283c 0%, #a81f33 100%);
+}
+.app-shell.jq-game .danger-button:not(:disabled):hover::before {
+  background: linear-gradient(180deg, #d0304a 0%, #b3233a 100%);
+}
+.app-shell.jq-game .danger-button:disabled {
+  opacity: 1;
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  color: #c9bfa6;
+}
+.app-shell.jq-game .danger-button:disabled svg { color: #c9bfa6; }
+.app-shell.jq-game .danger-button:disabled::before { background: #2e2a20; }
+@media (max-width: 980px) {
+  .app-shell.jq-game .primary-button,
+  .app-shell.jq-game .danger-button { min-height: 44px; }
+}
+@media (max-width: 760px) {
+  .app-shell.jq-game .primary-button,
+  .app-shell.jq-game .danger-button { font-size: 1.07rem; padding: 0.65rem 0.95rem; }
+}
+/* The base hover brightening is not inside a hover query, so on touch screens
+   a tapped button stays bright. Remove it there, but keep the press dimming. */
+@media (hover: none) {
+  .app-shell.jq-game button:not(:disabled):hover:not(:active) { filter: none; }
+}
+
+.app-shell.jq-game .secondary-button,
+.app-shell.jq-game .ghost-button {
+  min-height: 2.9rem;
+  border: 1px solid #5b6f84;
+  border-radius: 10px 3px 10px 3px;
+  background: #10171f;
+  box-shadow: none;
+  color: #f2f5f8;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+}
+.app-shell.jq-game .secondary-button:not(:disabled):hover,
+.app-shell.jq-game .ghost-button:not(:disabled):hover {
+  border-color: #e8c27a;
+  color: #f6d999;
+}
+.app-shell.jq-game .secondary-button:disabled,
+.app-shell.jq-game .ghost-button:disabled {
+  opacity: 1;
+  border-color: #2f3d4b;
+  background: #0b1017;
+  color: #8797a5;
+}
+@media (max-width: 980px) {
+  .app-shell.jq-game .secondary-button,
+  .app-shell.jq-game .ghost-button { min-height: 44px; }
+}
+
+/* Icon button (also the modal close). */
+.app-shell.jq-game .icon-button {
+  border: 1px solid #5b6f84;
+  border-radius: 8px 2px 8px 2px;
+  background: #0d131a;
+  color: #f2f5f8;
+}
+.app-shell.jq-game .icon-button:not(:disabled):hover { border-color: #e8c27a; color: #f6d999; }
+.app-shell.jq-game .icon-button:disabled { opacity: 1; border-color: #222e3a; color: #5b6f84; }
+@media (max-width: 980px) {
+  .app-shell.jq-game .icon-button { min-width: 44px; min-height: 44px; }
+}
+
+/* ---- 4.3 Kicker ---- */
+
+.app-shell.jq-game .dashboard-kicker,
+.app-shell.jq-game .combat-group h3,
+.app-shell.jq-game .combat-log h3,
+.app-shell.jq-game .training-animation-head h3,
+.app-shell.jq-game .scenario-box h3 {
+  color: #8797a5;
+  font-family: var(--display);
+  font-size: 0.86rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.app-shell.jq-game .technique-head small {
+  color: #8797a5;
+  font-family: var(--display);
+  font-size: 0.93rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  line-height: 1.2;
+}
+.app-shell.jq-game .dashboard-kicker { color: #e8c27a; font-size: 0.93rem; }
+.app-shell.jq-game .dashboard-kicker::before,
+.app-shell.jq-game .combat-group h3::before,
+.app-shell.jq-game .combat-log h3::before,
+.app-shell.jq-game .training-animation-head h3::before,
+.app-shell.jq-game .scenario-box h3::before,
+.app-shell.jq-game .technique-head small::before {
+  content: "";
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.45rem;
+  background: #e8c27a;
+  clip-path: polygon(35% 0, 100% 0, 65% 100%, 0 100%);
+}
+
+/* ---- 4.4 Technique row and glyph tile ---- */
+
+.app-shell.jq-game .tech-thumb.submission, .app-shell.jq-game [data-category="submission"] { --jq-cat: #ff5d6c; }
+.app-shell.jq-game .tech-thumb.escape,     .app-shell.jq-game [data-category="escape"]     { --jq-cat: #7cc0ff; }
+.app-shell.jq-game .tech-thumb.sweep,      .app-shell.jq-game [data-category="sweep"]      { --jq-cat: #8fe08a; }
+.app-shell.jq-game .tech-thumb.takedown,   .app-shell.jq-game [data-category="takedown"]   { --jq-cat: #ffb057; }
+.app-shell.jq-game .tech-thumb.control,    .app-shell.jq-game [data-category="control"]    { --jq-cat: #c7d36b; }
+.app-shell.jq-game .tech-thumb.defense,    .app-shell.jq-game [data-category="defense"]    { --jq-cat: #a9b9c9; }
+.app-shell.jq-game .tech-thumb.transition, .app-shell.jq-game [data-category="transition"] { --jq-cat: #b9a6ff; }
+.app-shell.jq-game .tech-thumb.pass,       .app-shell.jq-game [data-category="pass"]       { --jq-cat: #58d6e6; }
+.app-shell.jq-game .tech-thumb.strike,     .app-shell.jq-game [data-category="strike"]     { --jq-cat: #ff8a5c; }
+
+.app-shell.jq-game .tech-thumb,
+.app-shell.jq-game .tech-thumb.submission {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid color-mix(in srgb, var(--jq-cat) 45%, #222e3a);
+  border-radius: 8px 2px 8px 2px;
+  background: color-mix(in srgb, var(--jq-cat) 16%, #0b1017);
+  color: var(--jq-cat);
+}
+
+.app-shell.jq-game .move-row,
+.app-shell.jq-game .quest-row {
+  /* A containing block for the hidden words inside a row ("Learned", "Locked",
+     the category). Without it they are placed against the page and make it
+     scroll into empty space. Found in review. */
+  position: relative;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  min-height: 3.75rem;
+  margin-top: 0;
+  padding: 0.5rem 0.5rem 0.5rem 0.7rem;
+  border: 0;
+  border-bottom: 1px solid #1a232d;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #f2f5f8;
+}
+.app-shell.jq-game .move-row:hover,
+.app-shell.jq-game .quest-row:hover { border-color: #1a232d; }
+.app-shell.jq-game .move-row.selected {
+  border-color: #1a232d;
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.14), rgba(232, 194, 122, 0) 72%);
+  box-shadow: inset 3px 0 0 #e8c27a;
+}
+.app-shell.jq-game .move-row strong,
+.app-shell.jq-game .quest-row strong {
+  color: #f2f5f8;
+  font-family: var(--display);
+  font-size: 1.14rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em !important;
+  line-height: 1.2;
+}
+.app-shell.jq-game .move-row small,
+.app-shell.jq-game .quest-row small {
+  margin-top: 0.1rem;
+  color: #8797a5;
+  font-size: 0.86rem;
+  line-height: 1.3;
+}
+.app-shell.jq-game .move-row .progress-bar.mini,
+.app-shell.jq-game .quest-row .progress-bar.mini { margin-top: 0.3rem; }
+.app-shell.jq-game .move-row > svg { color: #8797a5; }
+.app-shell.jq-game .move-row > svg.lucide-check { color: #6fdcae; }
+.app-shell.jq-game .rep-count {
+  border: 0;
+  background: none;
+  color: #f6d999;
+  font-family: var(--display);
+  font-size: 1.07rem;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+/* Pipeline rows: the bare "XP" label has no value. It is hidden and the row
+   ends in a chevron, because the row opens Training. */
+.app-shell.jq-game .quest-row .xp-chip { display: none; }
+.app-shell.jq-game .quest-row::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin-right: 0.4rem;
+  border-top: 2px solid #8797a5;
+  border-right: 2px solid #8797a5;
+  transform: rotate(45deg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .app-shell.jq-game .move-row:hover,
+  .app-shell.jq-game .quest-row:hover { background-color: #141c26; }
+  .app-shell.jq-game .quest-row:hover::after { border-color: #f6d999; }
+}
+
+/* ---- 4.5 Chips ---- */
+
+.app-shell.jq-game .profile-art-tags span {
+  padding: 0.25rem 0.6rem;
+  border: 1px solid #5b6f84;
+  border-radius: 8px 2px 8px 2px;
+  background: #06090d;
+  color: #f2f5f8;
+  font-family: var(--display);
+  font-size: 0.93rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+}
+.app-shell.jq-game .clock-pill {
+  border: 1px solid #5b6f84;
+  border-radius: 8px 2px 8px 2px;
+  background: #06090d;
+  color: #f2f5f8;
+  font-size: 0.93rem;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.app-shell.jq-game .clock-pill[role="timer"] { color: #f6d999; }
+
+/* ---- 4.6 Progress bars ---- */
+
+.app-shell.jq-game .progress-bar { gap: 0.3rem; }
+.app-shell.jq-game .progress-bar span {
+  color: #aab6c2;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.app-shell.jq-game .progress-bar i {
+  height: 6px;
+  border-radius: 2px;
+  background-color: #06090d;
+  box-shadow: inset 0 0 0 1px #222e3a;
+}
+.app-shell.jq-game .progress-bar.mini i {
+  height: 3px;
+  background-color: #1a232d;
+  box-shadow: none;
+}
+.app-shell.jq-game .progress-bar b {
+  border-radius: 0;
+  background: linear-gradient(90deg, #a57f38, #e8c27a 70%, #f6d999);
+  box-shadow: none;
+  transform-origin: left center;
+}
+/* Unlock mark: five clean reps of fifty. A tick at 10% that is taller than the
+   track, so it can be seen on a 3px bar. */
+.app-shell.jq-game .move-row .progress-bar.mini i,
+.app-shell.jq-game .quest-row .progress-bar.mini i,
+.app-shell.jq-game .progress-row .progress-bar i {
+  position: relative;
+  overflow: visible;
+}
+.app-shell.jq-game .move-row .progress-bar.mini i::before,
+.app-shell.jq-game .quest-row .progress-bar.mini i::before,
+.app-shell.jq-game .progress-row .progress-bar i::before {
+  content: "";
+  position: absolute;
+  left: 10%;
+  top: -3px;
+  width: 2px;
+  height: calc(100% + 6px);
+  margin-left: -1px;
+  background: #a57f38;
+}
+.app-shell.jq-game .move-row .progress-bar.mini b,
+.app-shell.jq-game .quest-row .progress-bar.mini b,
+.app-shell.jq-game .progress-row .progress-bar b {
+  border-radius: 2px;
+}
+
+/* ---- 4.7 Form controls ---- */
+
+/* Range, checkbox and radio inputs are never painted by the layer: the Unity
+   scrubber is a range input and the stance pictures are radio inputs. */
+.app-shell.jq-game input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.app-shell.jq-game select,
+.app-shell.jq-game textarea {
+  border: 1px solid #5b6f84;
+  border-radius: 10px 3px 10px 3px;
+  background: #06090d;
+  box-shadow: none;
+  color: #f2f5f8;
+}
+.app-shell.jq-game input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):hover,
+.app-shell.jq-game select:hover,
+.app-shell.jq-game textarea:hover { border-color: #8797a5; }
+.app-shell.jq-game input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):focus,
+.app-shell.jq-game select:focus,
+.app-shell.jq-game textarea:focus {
+  border-color: #e8c27a;
+  box-shadow: 0 0 0 3px rgba(232, 194, 122, 0.2);
+}
+.app-shell.jq-game input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):disabled,
+.app-shell.jq-game select:disabled,
+.app-shell.jq-game textarea:disabled { opacity: 1; border-color: #2f3d4b; color: #8797a5; }
+.app-shell.jq-game ::placeholder { color: #8797a5; opacity: 1; }
+.app-shell.jq-game .fighter-select select { border: 0; }
+@media (max-width: 980px) {
+  .app-shell.jq-game input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+  .app-shell.jq-game select,
+  .app-shell.jq-game textarea { min-height: 44px; }
+}
+.app-shell.jq-game .field > span:first-child,
+.app-shell.jq-game .swatch-row > span {
+  color: #8797a5;
+  font-family: var(--display);
+  font-size: 0.86rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+}
+.app-shell.jq-game .field > small { color: #8797a5; font-size: 0.86rem; }
+
+.app-shell.jq-game .segmented {
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #5b6f84;
+  border-radius: 10px 3px 10px 3px;
+  background: #06090d;
+}
+.app-shell.jq-game .segmented button {
+  min-height: 2.5rem;
+  border: 1px solid transparent;
+  border-radius: 8px 2px 8px 2px;
+  background: transparent;
+  color: #aab6c2;
+  font-size: 0.93rem;
+}
+.app-shell.jq-game .segmented button:hover { color: #f2f5f8; }
+.app-shell.jq-game .segmented button.active {
+  border-color: #e8c27a;
+  background: rgba(232, 194, 122, 0.16);
+  color: #f6d999;
+  font-weight: 600 !important;
+}
+@media (max-width: 980px) {
+  .app-shell.jq-game .segmented button { min-height: 44px; }
+}
+
+/* ---- 4.8 Swatches ---- */
+
+.app-shell.jq-game .swatch-row button,
+.app-shell.jq-game .tiny-swatches button {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+}
+.app-shell.jq-game .swatch-row button { width: 2.3rem; height: 2.3rem; }
+.app-shell.jq-game .swatch-row button.active,
+.app-shell.jq-game .tiny-swatches button.active {
+  box-shadow: 0 0 0 2px #0d131a, 0 0 0 4px #e8c27a;
+}
+.app-shell.jq-game .swatch-row button.active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 0.36rem;
+  height: 0.7rem;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+  filter: drop-shadow(0 0 1px #000000) drop-shadow(0 0 1px #000000);
+}
+/* Light swatches: a dark check, no shadow. */
+.app-shell.jq-game .swatch-row button.active.swatch-color-f8fbff::after,
+.app-shell.jq-game .swatch-row button.active.swatch-color-f8f4ea::after,
+.app-shell.jq-game .swatch-row button.active.swatch-color-d7c09a::after,
+.app-shell.jq-game .swatch-row button.active.swatch-color-f1c6a8::after,
+.app-shell.jq-game .swatch-row button.active.swatch-color-d99b71::after {
+  border-color: #17110a;
+  filter: none;
+}
+@media (max-width: 980px) {
+  .app-shell.jq-game .swatch-row button { width: 44px; height: 44px; }
+  .app-shell.jq-game .swatch-row div { gap: 8px; }
+}
+@media (max-width: 760px) {
+  /* Test-pinned (tools/test_unreal_athlete.mjs:392-396). The athlete copy beside
+     the gi swatches is top-aligned so the first swatch row always overlaps it. */
+  .app-shell.jq-game .gi-colors.with-athlete { align-items: start; }
+}
+
+/* ---- 4.9 Image select ---- */
+
+.app-shell.jq-game .image-select-trigger {
+  border: 1px solid #5b6f84;
+  border-radius: 10px 3px 10px 3px;
+  background: #06090d;
+  color: #f2f5f8;
+}
+.app-shell.jq-game .image-select-trigger:hover,
+.app-shell.jq-game .image-select.open .image-select-trigger { border-color: #e8c27a; }
+.app-shell.jq-game .image-select-menu {
+  border: 1px solid #5b6f84;
+  border-radius: 10px 3px 10px 3px;
+  background: #141c26;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+  /* Rows keep the height of their picture where the menu is part of the page
+     (680px and below). Found in review. */
+  grid-auto-rows: max-content;
+}
+/* Where the menu is part of the page it scrolls under the tab bar like the
+   rest of the page, not over it. Found in review. */
+@media (max-width: 680px) {
+  .app-shell.jq-game .image-select-menu { z-index: auto; }
+}
+.app-shell.jq-game .image-select-menu button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px 2px 8px 2px;
+  background: transparent;
+  color: #f2f5f8;
+}
+.app-shell.jq-game .image-select-menu button:hover { background: #1b2531; }
+.app-shell.jq-game .image-select-menu button.active {
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.14), rgba(232, 194, 122, 0) 72%);
+  box-shadow: inset 3px 0 0 #e8c27a;
+}
+.app-shell.jq-game .image-select strong { font-family: var(--display); font-size: 1.07rem; font-weight: 600 !important; }
+.app-shell.jq-game .image-select small { color: #8797a5; font-size: 0.86rem; }
+
+/* ---- 3.3 Meta text on a selected row ---- */
+
+.app-shell.jq-game .move-row.selected small,
+.app-shell.jq-game .fighter-slot.selected small,
+.app-shell.jq-game .combat-group button.selected small,
+.app-shell.jq-game .position-lab-option.is-selected small,
+.app-shell.jq-game .image-select-menu button.active small {
+  color: #aab6c2;
+}
+
+/* ---- 4.10 Stat readout ---- */
+
+.app-shell.jq-game .stat {
+  place-items: start;
+  align-content: center;
+  gap: 0.1rem;
+  min-height: 0;
+  padding: 0.2rem 0 0.2rem 0.9rem;
+  border: 0;
+  border-left: 2px solid #222e3a;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+}
+.app-shell.jq-game .stat svg { display: none; }
+.app-shell.jq-game .stat strong {
+  color: #f2f5f8;
+  font-size: 2.3rem;
+  font-variant-numeric: tabular-nums lining-nums;
+  line-height: 1;
+}
+.app-shell.jq-game .stat span {
+  color: #8797a5;
+  font-size: 0.79rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+}
+
+/* ---- 4.11 Belt graphic ---- */
+
+.app-shell.jq-game .belt-wrap {
+  width: 6rem;
+  height: 1.15rem;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35), 0 0 0 1px #5b6f84;
+}
+
+/* ---- 4.12 Order card ---- */
+
+.app-shell.jq-game .order-card {
+  gap: 0.7rem;
+  min-height: 3.4rem;
+  padding: 0.55rem 0.6rem 0.55rem 0.7rem;
+  border: 1px solid #222e3a;
+  border-radius: 10px 3px 10px 3px;
+  background: #141c26;
+}
+.app-shell.jq-game .order-card > span {
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: #8797a5;
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums lining-nums;
+  line-height: 1;
+}
+.app-shell.jq-game .order-card p { color: #dfe6ec; font-size: 1.07rem; line-height: 1.55; }
+.app-shell.jq-game .order-card p strong { color: #f2f5f8; }
+.app-shell.jq-game .order-card button {
+  width: 2.9rem;
+  height: 2.9rem;
+  min-width: 2.9rem;
+  min-height: 2.9rem;
+  border: 1px solid #5b6f84;
+  border-radius: 8px 2px 8px 2px;
+  background: #0d131a;
+  color: #f2f5f8;
+}
+.app-shell.jq-game .order-card button:not(:disabled):hover { border-color: #e8c27a; color: #f6d999; }
+.app-shell.jq-game .order-card button:disabled { opacity: 1; border-color: #222e3a; color: #5b6f84; }
+@media (max-width: 980px) {
+  .app-shell.jq-game .order-card button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+}
+
+/* ---- 4.13 Result banner ---- */
+
+.app-shell.jq-game .result-card,
+.app-shell.jq-game .arena-outcome {
+  border: 0;
+  border-left: 3px solid #5b6f84;
+  border-radius: 0 10px 3px 0;
+  background: #080c12;
+  box-shadow: none;
+  padding: 0.8rem 1.1rem;
+}
+.app-shell.jq-game .result-card.success,
+.app-shell.jq-game .arena-outcome.success {
+  border-left-color: #e8c27a;
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.16), rgba(232, 194, 122, 0) 75%), #080c12;
+}
+.app-shell.jq-game .result-card.danger,
+.app-shell.jq-game .arena-outcome.danger,
+.app-shell.jq-game .arena-outcome.is-opponent {
+  border-left-color: #ff5d6c;
+  background: linear-gradient(90deg, rgba(255, 93, 108, 0.14), rgba(255, 93, 108, 0) 75%), #080c12;
+}
+.app-shell.jq-game .result-card strong,
+.app-shell.jq-game .result-card h2,
+.app-shell.jq-game .arena-outcome > span {
+  color: #f2f5f8;
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+  line-height: 1.15;
+}
+.app-shell.jq-game .result-card p { margin: 0.25rem 0 0; color: #aab6c2; }
+.app-shell.jq-game .arena-outcome small { color: #aab6c2; font-size: 0.93rem; }
+.app-shell.jq-game .arena-outcome svg { color: #e8c27a; }
+
+/* The match is over: the payoff moment gets a bigger banner (hook from M23). */
+.app-shell.jq-game .arena-outcome[data-finished="true"],
+.app-shell.jq-game .result-card[data-finished="true"] {
+  padding: 1.1rem 1.25rem;
+  border-left-width: 6px;
+}
+.app-shell.jq-game .arena-outcome[data-finished="true"] > span,
+.app-shell.jq-game .result-card[data-finished="true"] h2 {
+  font-size: 2.3rem;
+  font-style: italic;
+  line-height: 1;
+}
+.app-shell.jq-game .arena-outcome[data-finished="true"] svg {
+  width: 28px;
+  height: 28px;
+  vertical-align: -0.1em;
+}
+@media (max-width: 520px) {
+  .app-shell.jq-game .arena-outcome[data-finished="true"] > span,
+  .app-shell.jq-game .result-card[data-finished="true"] h2 { font-size: 1.85rem; }
+}
+
+/* ---- 4.14 Stage frame and caption ---- */
+
+.app-shell.jq-game .grappling-snapshot-stage {
+  border: 0;
+  border-radius: 0;
+  background: #000000;
+}
+.app-shell.jq-game .snapshot-image-wrap { background: #000000; }
+.app-shell.jq-game .snapshot-caption {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #222e3a;
+  background: #080c12;
+}
+.app-shell.jq-game .snapshot-position > span {
+  color: #f2f5f8;
+  font-family: var(--display);
+  font-size: 1.3rem;
+  font-weight: 600 !important;
+  line-height: 1.15;
+}
+.app-shell.jq-game .snapshot-position small { color: #8797a5; font-size: 0.79rem; }
+.app-shell.jq-game .snapshot-athlete { color: #f2f5f8; font-size: 0.86rem; }
+.app-shell.jq-game .snapshot-athlete small { color: #8797a5; font-size: 0.79rem; }
+.app-shell.jq-game .snapshot-kit i { border-color: rgba(255, 255, 255, 0.35); }
+.app-shell.jq-game .snapshot-round {
+  border: 0;
+  border-radius: 8px 2px 8px 2px;
+  background: rgba(4, 6, 10, 0.7);
+  color: #f2f5f8;
+  font-size: 0.79rem;
+}
+.app-shell.jq-game .snapshot-replay,
+.app-shell.jq-game .snapshot-loading button {
+  min-height: 44px;
+  border: 1px solid #5b6f84;
+  border-radius: 8px 2px 8px 2px;
+  background: #10171f;
+  color: #f2f5f8;
+  font-size: 0.86rem;
+}
+.app-shell.jq-game .snapshot-replay:not(:disabled):hover { border-color: #e8c27a; color: #f6d999; }
+.app-shell.jq-game .snapshot-loading { color: #aab6c2; }
+
+/* ---- 4.19 Unity stage chrome (paint only, no box change) ---- */
+
+.app-shell.jq-game .unity-stage {
+  border-color: #222e3a;
+  border-radius: 10px 3px 10px 3px;
+  background: #000000;
+  box-shadow: none;
+}
+.app-shell.jq-game .unity-stage:fullscreen { border-radius: 0; }
+.app-shell.jq-game .unity-stage-heading {
+  border-bottom-color: #222e3a;
+  background: #080c12;
+}
+.app-shell.jq-game .unity-eyebrow {
+  color: #8797a5;
+  font-family: var(--display);
+  font-size: 0.79rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+}
+.app-shell.jq-game .unity-stage-heading h3 {
+  font-family: var(--display);
+  font-weight: 600 !important;
+}
+.app-shell.jq-game .unity-draft {
+  border-color: #5b6f84;
+  border-radius: 8px 2px 8px 2px;
+  color: #aab6c2;
+  font-family: var(--display);
+  font-size: 0.79rem;
+}
+.app-shell.jq-game .unity-controls {
+  border-top-color: #222e3a;
+  background: #080c12;
+}
+.app-shell.jq-game .unity-stage button,
+.app-shell.jq-game .unity-unavailable button {
+  border-color: #5b6f84;
+  border-radius: 8px 2px 8px 2px;
+  background: #10171f;
+  color: #f2f5f8;
+}
+/* Ghost, so the page keeps one gold action. */
+.app-shell.jq-game .unity-stage button.unity-play {
+  border-color: #e8c27a;
+  background: #10171f;
+  box-shadow: none;
+  color: #f6d999;
+  font-weight: 600 !important;
+}
+.app-shell.jq-game .unity-camera-controls button[aria-pressed="true"] {
+  border-color: #e8c27a;
+  background: rgba(232, 194, 122, 0.16);
+  box-shadow: inset 0 -2px 0 #e8c27a;
+  color: #f6d999;
+}
+.app-shell.jq-game .unity-scrubber input,
+.app-shell.jq-game .unity-load-state progress { accent-color: #e8c27a; }
+.app-shell.jq-game .unity-transport label,
+.app-shell.jq-game .unity-scrubber,
+.app-shell.jq-game .unity-camera-controls > span,
+.app-shell.jq-game .unity-scene-note,
+.app-shell.jq-game .unity-unavailable > small,
+.app-shell.jq-game .unity-snapshot-fallback > p {
+  color: #8797a5;
+  font-size: 0.79rem;
+}
+.app-shell.jq-game .unity-scene-note,
+.app-shell.jq-game .unity-stage-message { border-top-color: #1a232d; }
+.app-shell.jq-game .unity-stage-message { color: #f6d999; font-size: 0.79rem; }
+/* The loading and error overlay is black like the rest of the stage, not the
+   old blue glow. It is removed once the canvas is ready. */
+.app-shell.jq-game .unity-load-state { background: #000000; color: #aab6c2; }
+.app-shell.jq-game .unity-load-state strong { color: #f2f5f8; }
+.app-shell.jq-game .unity-unavailable > p { background: #080c12; color: #aab6c2; }
+.app-shell.jq-game .unity-snapshot-fallback { border-top-color: #222e3a; }
+/* The two labels the component already draws over the canvas: same place,
+   same size, quieter paint. Gold edge for you, steel edge for the opponent. */
+.app-shell.jq-game .unity-athletes span,
+.app-shell.jq-game .unity-orbit-hint {
+  border-color: #5b6f84;
+  border-radius: 8px 2px 8px 2px;
+  background: rgba(4, 6, 10, 0.86);
+  box-shadow: none;
+  color: #f2f5f8;
+}
+.app-shell.jq-game .unity-athletes span:first-child { border-left-color: #e8c27a; }
+.app-shell.jq-game .unity-athletes span:last-child { border-right-color: #7fb2e6; }
+@media (hover: hover) and (pointer: fine) {
+  .app-shell.jq-game .unity-stage button:not(:disabled):hover,
+  .app-shell.jq-game .unity-unavailable button:not(:disabled):hover { border-color: #e8c27a; }
+}
+
+/* ---- 4.15 Modal ---- */
+
+.app-shell.jq-game .modal-backdrop {
+  background: rgba(2, 4, 7, 0.78);
+  backdrop-filter: none;
+}
+.app-shell.jq-game .modal {
+  border: 1px solid #a57f38;
+  border-radius: 12px 3px 12px 3px;
+  background: #141c26;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+}
+.app-shell.jq-game .modal .close { min-width: 44px; min-height: 44px; }
+.app-shell.jq-game .gate-form label { color: #aab6c2; }
+.app-shell.jq-game .form-error { color: #ff5d6c; }
+
+/* ---- 4.16 Toast ---- */
+
+.app-shell.jq-game .app-feedback {
+  border: 1px solid #5b6f84;
+  border-left: 3px solid #7fb2e6;
+  border-radius: 10px 3px 10px 3px;
+  background: #141c26;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  color: #f2f5f8;
+}
+.app-shell.jq-game .app-feedback.success { border-color: #5b6f84; border-left-color: #6fdcae; }
+.app-shell.jq-game .app-feedback.error { border-color: #5b6f84; border-left-color: #ff5d6c; }
+.app-shell.jq-game .app-feedback button { min-width: 32px; min-height: 32px; justify-content: center; align-items: center; }
+@media (max-width: 980px) {
+  .app-shell.jq-game .app-feedback { right: 12px; bottom: calc(var(--jq-tab-h) + env(safe-area-inset-bottom, 0px) + 12px); }
+  .app-shell.jq-game .app-feedback button { min-width: 44px; min-height: 44px; }
+}
+/* Phones: the toast goes to the top, clear of the thumb zone. */
+@media (max-width: 760px) {
+  .app-shell.jq-game .app-feedback {
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    right: 12px;
+    bottom: auto;
+    left: 12px;
+    max-width: none;
+  }
+}
+
+/* ---- 4.17 Empty state ---- */
+
+.app-shell.jq-game .empty-state { place-items: start; text-align: left; }
+.app-shell.jq-game .sequence-panel .empty-state { min-height: 0; padding: 0.4rem 0 1rem; }
+.app-shell.jq-game .sequence-panel .empty-state svg,
+.app-shell.jq-game .empty-state svg { color: #8797a5; }
+.app-shell.jq-game .empty-state p { color: #aab6c2; }
+.app-shell.jq-game .arena-help { color: #8797a5; font-size: 0.86rem; }
+
+/* ---- 4.18 Forced colours ---- */
+
+@media (forced-colors: active) {
+  .app-shell.jq-game .primary-button,
+  .app-shell.jq-game .danger-button { border-color: ButtonText; }
+  .app-shell.jq-game .primary-button::before,
+  .app-shell.jq-game .danger-button::before,
+  .app-shell.jq-game .round-core::before,
+  .app-shell.jq-game .round-core::after { display: none; }
+  .app-shell.jq-game .move-row.selected,
+  .app-shell.jq-game .fighter-slot.selected,
+  .app-shell.jq-game .combat-group button.selected,
+  .app-shell.jq-game .position-lab-option.is-selected { outline: 2px solid Highlight; outline-offset: -2px; }
+  /* Focus must not look like the selected mark above. Found in review. */
+  .app-shell.jq-game .move-row:focus-visible,
+  .app-shell.jq-game .fighter-slot:focus-visible,
+  .app-shell.jq-game .combat-group button:focus-visible,
+  .app-shell.jq-game .grappling-position-lab .position-lab-option:focus-visible { outline: 3px solid CanvasText; outline-offset: -3px; }
+  /* The score's text backplate is taller than its line and covered the two
+     small labels around it. Found in review. */
+  .app-shell.jq-game .round-core > span,
+  .app-shell.jq-game .round-core small { position: relative; z-index: 1; }
+}

@@ -1,0 +1,126 @@
+/* JiuQuest "Main Event" layer: Profile (design spec section 6.4).
+   Resting paint and layout only: all motion, and any
+   transform inside :hover or :active live in motion.css. */
+
+/* Stage: a black studio wall, full bleed, no tick.
+   Overrides the plate fill of `.panel` (components.css) on purpose; it wins
+   only because this file loads later. */
+.app-shell.jq-game .profile-stage {
+  gap: 0;
+  padding: 0;
+  background: #000000;
+}
+.app-shell.jq-game .profile-stage .profile-art {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Name plate: a lower third under the picture. */
+.app-shell.jq-game .profile-rank {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.3rem 1rem;
+  padding: 0.9rem 1.1rem 1rem;
+  border: 0;
+  border-top: 2px solid #e8c27a;
+  border-radius: 0;
+  background: #080c12;
+}
+/* Overrides the `.panel h1` size and tracking from components.css on purpose. */
+.app-shell.jq-game .profile-rank h1 {
+  font-size: 2.3rem;
+  font-style: italic;
+  letter-spacing: 0.02em !important;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+.app-shell.jq-game .profile-rank p { color: #aab6c2; }
+/* The belt chip sits on the name row, at the right. It adds no row. */
+.app-shell.jq-game .profile-rank .profile-art-tags {
+  position: static;
+  grid-column: 3;
+  grid-row: 1;
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* Fighter Creator. */
+/* Overrides the `.panel h1` size and tracking from components.css on purpose. */
+.app-shell.jq-game .builder-panel .section-heading h1 {
+  font-size: 2.4rem;
+  font-style: italic;
+  letter-spacing: 0.02em !important;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.app-shell.jq-game .fighter-look-picker button {
+  border: 1px solid #222e3a;
+  border-radius: 10px 3px 10px 3px;
+  background: #0d131a;
+  color: #f2f5f8;
+}
+.app-shell.jq-game .fighter-look-picker button:hover { border-color: #5b6f84; }
+.app-shell.jq-game .fighter-look-picker button.active {
+  border-color: #e8c27a;
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.14), rgba(232, 194, 122, 0) 72%), #0d131a;
+  box-shadow: inset 3px 0 0 #e8c27a;
+}
+.app-shell.jq-game .fighter-look-picker button small { color: #aab6c2; font-size: 0.86rem; }
+.app-shell.jq-game .fighter-look-picker button em {
+  border: 1px solid #a57f38;
+  border-radius: 6px 2px 6px 2px;
+  color: #f6d999;
+  font-size: 0.79rem;
+}
+.app-shell.jq-game .fighter-look-note {
+  padding: 0.1rem 0 0.1rem 0.85rem;
+  border: 0;
+  border-left: 2px solid #7fb2e6;
+  border-radius: 0;
+  background: none;
+  color: #aab6c2;
+  font-size: 0.93rem;
+}
+.app-shell.jq-game .builder-panel .form-grid.compact,
+.app-shell.jq-game .builder-panel .button-row {
+  padding-top: 1rem;
+  border-top: 1px solid #1a232d;
+}
+.app-shell.jq-game .button-row { align-items: center; }
+.app-shell.jq-game .save-indicator { color: #8797a5; font-size: 0.86rem; }
+.app-shell.jq-game .save-indicator svg { color: #6fdcae; }
+.app-shell.jq-game .save-indicator.form-error,
+.app-shell.jq-game .save-indicator.form-error svg { color: #ff5d6c; }
+/* "Clear Progress": far right of its row, crimson text and edge. Overrides the
+   secondary-button edge and text colour from components.css on purpose. */
+.app-shell.jq-game .button-row > .secondary-button {
+  margin-left: auto;
+  border-color: rgba(255, 93, 108, 0.55);
+  color: #ff5d6c;
+}
+.app-shell.jq-game .button-row > .secondary-button:not(:disabled):hover {
+  border-color: #ff5d6c;
+  color: #ff5d6c;
+}
+@media (max-width: 760px) {
+  .app-shell.jq-game .profile-rank h1 { font-size: 2rem; }
+  .app-shell.jq-game .builder-panel .section-heading h1 { font-size: 2.1rem; }
+}
+/* Narrow phones: the chip goes under the name. */
+@media (max-width: 520px) {
+  .app-shell.jq-game .profile-rank { grid-template-columns: auto minmax(0, 1fr); }
+  .app-shell.jq-game .profile-rank .profile-art-tags { grid-column: 2; grid-row: 2; }
+}
+
+/* ---- Lead fixes after the build (not in the design spec) ---- */
+
+/* Tablet widths: the stage column is narrow, so the chip goes under the name
+   here too, as it does on narrow phones. */
+@media (min-width: 761px) and (max-width: 1120px) {
+  .app-shell.jq-game .profile-rank { grid-template-columns: auto minmax(0, 1fr); }
+  .app-shell.jq-game .profile-rank .profile-art-tags { grid-column: 2; grid-row: 2; }
+}
+
+/* "New Slot" stays on one line. */
+.app-shell.jq-game .builder-panel .section-heading > button { white-space: nowrap; }

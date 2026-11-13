@@ -1,6 +1,6 @@
 # Starting stances
 
-A fighter has one of seven fighting stances. It is chosen in the Fighter Creator, or in the Arena under the stage while both athletes are on their feet. Both places change the same saved field, `fighter.stance`. The stance is where the fighter's standing animations begin.
+A fighter has one of seven fighting stances. It is chosen in the Fighter Creator, or in the Arena under the stage while the position is Standing and no exchange result is on screen. Both places change the same saved field, `fighter.stance`. The stance is where the fighter's standing animations begin.
 
 ## What plays
 
@@ -20,6 +20,8 @@ The ids are `wrestling`, `sumo`, `boxing`, `karate`, `muay_thai`, `sambo` and `c
 2. otherwise a rival's stance, but only beside a player in the wrestling stance, because one clip holds one named stance;
 3. otherwise `standing_stance`.
 
+Published so far: `standing_stance` (both athletes, side and front views), and `stance_sambo` and `stance_sumo` for the player (side view only, so the stage shows no camera buttons for them). The other four stances fall back to `standing_stance`.
+
 It also reports `exact`: whether the clip shows the player in the stance they chose. When it does not, the Arena says so in one line under the picker and keeps the choice. Nothing is substituted silently.
 
 `stanceEntry(fighterStance, camera)` returns the entry clip for a stance when one is published. Nothing calls it yet. No entry clip and no technique clip that starts on the feet is published, and the stage only shows a clip while the athletes stand idle. Playing stance loop, then entry, then technique still has to be built into the stage when the first standing technique clip arrives.
@@ -31,6 +33,8 @@ The seven pictures in the pickers are illustrations of the Unreal athlete, not U
 ## Bringing in new stance clips
 
 Stance clips arrive in the Unreal render pack's `clips/technique-clips.json` like any other clip, and `tools/import_unreal_clips.py` imports them. The importer leaves out any entry marked `"draft": true` and lists what it left out.
+
+The sambo and sumo loops were imported on November 13, 2026 from the render job's encoded output, after a frame review, before the pack manifest listed them. Their published files are pinned like any other clip. The next import from the pack keeps them only if the pack lists the same two files by then.
 
 After an import that adds a stance:
 

@@ -4,12 +4,18 @@
 // arithmetic says, that a missing layer falls back to the classic picture, and
 // that the page fits phones. It checks still images composited by the browser.
 // It does not run Unreal or any stream.
+//
+// While a still is held back (HELD_UNREAL_POSITION_STILLS in
+// src/unreal/positionStills.js) there is no still on the page to inspect. The
+// suite then checks the other side of the same rule: a player with the Unreal
+// look gets the classic picture in every one of those places and downloads no
+// still file. The full checks run again as soon as the still is shown again.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
-import { findUnrealPositionStill } from '../src/unreal/positionStills.js';
+import { HELD_UNREAL_POSITION_STILLS, findUnrealPositionStill } from '../src/unreal/positionStills.js';
 
 const root = resolve('dist');
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'unreal-position-still');
@@ -21,6 +27,7 @@ const report = { startedAtUtc: new Date().toISOString(), status: 'running', scop
 const STORAGE_KEY = 'jiuquest:v1';
 const WHITE = '#f8fbff', BLACK = '#151922';
 const STILL = findUnrealPositionStill('standing');
+const HELD = HELD_UNREAL_POSITION_STILLS.includes(STILL.position);
 // The player: white jacket, black pants, so all four gi halves in the picture differ.
 const PLAYER = { selectedFighterId: 'tinted', fighters: [{ id: 'tinted', name: 'Tinted', look: 'unreal', giTop: WHITE, giPants: BLACK }] };
 const DESIGNED = { selectedFighterId: 'designed', fighters: [{ id: 'designed', name: 'Designed', gender: 'girl', hairStyle: 'braided top', skinTone: '#a86b4d', hairColor: '#3b251b', emblem: 'lion', giTop: '#1d7d68', giPants: WHITE }] };
@@ -98,6 +105,10 @@ async function inspect(stage) {
   const state = await stage.locator('.unreal-position-still').evaluate(async (element) => {
     const style = getComputedStyle(element);
     const base = element.querySelector('img');
+    // The page asks for the base picture when the still first appears. Wait
+    // for it to arrive before measuring it; a picture that fails still fails
+    // the size check below.
+    if (!base.complete) await new Promise((done) => { base.addEventListener('load', done, { once: true }); base.addEventListener('error', done, { once: true }); });
     const layers = [...element.querySelectorAll('.unreal-position-layer')].map((layer) => {
       const layerStyle = getComputedStyle(layer);
       return { name: layer.dataset.layer, image: layerStyle.backgroundImage, color: layerStyle.backgroundColor, blend: layerStyle.backgroundBlendMode, mix: layerStyle.mixBlendMode, opacity: layerStyle.opacity };
@@ -163,11 +174,8 @@ function expected(sample, tints) {
   return sample.base.map((value, channel) => Math.min(255, Math.round(value + Object.entries(tints).reduce((sum, [layer, color]) => sum + sample.layers[layer][channel] * hex(color)[channel] / 255, 0))));
 }
 
-try {
-  const base = process.env.JIUQUEST_PREVIEW_URL?.replace(/\/$/, '') || await staticSite();
-  browser = await chromium.launch(browserOptions);
-  report.browserVersion = browser.version();
-
+// Everything the still must do when it is shown.
+async function stillShown(base) {
   // ---- Training, a player with the Unreal athlete ----
   const desktop = await open({ viewport: { width: 1440, height: 900 } }, PLAYER);
   await page.goto(`${base}/`);
@@ -293,6 +301,82 @@ try {
     await phone.close();
   }
   checks.push('At 390 and 320 pixels the picture fills the width, keeps its colors, and nothing scrolls sideways.');
+}
+
+// While the still is held back: the classic picture in the same places, for the
+// same player, and no still file on the wire.
+async function stillHeldBack(base) {
+  const desktop = await open({ viewport: { width: 1440, height: 900 } }, PLAYER);
+  await page.goto(`${base}/`);
+  await nav('Training');
+  await technique('Guillotine choke');
+  let stage = await settled('main', 'classic');
+  assert.match(await stage.locator('.snapshot-position').innerText(), /^Standing\s+Position snapshot · your appearance$/);
+  layouts.push({ viewport: page.viewportSize(), where: 'training', picture: await box(stage.locator('canvas.snapshot-canvas')) });
+  await stage.scrollIntoViewIfNeeded();
+  await capture('desktop-training-standing');
+  // A rear clinch, where the still would have stood in as a general reference.
+  await technique('Rear Takedown');
+  stage = await settled('main', 'classic');
+  assert.match(await stage.locator('.snapshot-position').innerText(), /General reference · exact setup not pictured$/);
+  await nav('Overview');
+  await settled('main', 'classic');
+  await nav('Lab');
+  await settled('main', 'classic');
+  checks.push('With the standing still held back, a player with the Unreal look sees the classic picture in Training (a standing technique and a rear clinch), in the Overview teaser and in the Lab.');
+
+  // ---- Arena, with position pictures instead of the Unity player ----
+  await page.goto(`${base}/?engine=snapshot`);
+  await nav('Arena');
+  await page.getByLabel('Your starting position', { exact: true }).selectOption('standing-headlock');
+  await page.getByRole('button', { name: 'Position Start', exact: true }).click();
+  stage = await settled('.mat-window', 'classic');
+  assert.match(await stage.locator('.snapshot-position').innerText(), /General reference · exact setup not pictured$/);
+  await page.reload();
+  await nav('Arena');
+  await page.getByRole('button', { name: 'Standing Start', exact: true }).click();
+  await page.locator('.combat-moves .combat-group').first().locator('button:not([disabled])').first().click();
+  await page.locator('.sequence-panel .order-stack').waitFor();
+  await page.getByRole('button', { name: 'Submit sequence', exact: true }).click();
+  await page.locator('.arena-outcome').waitFor();
+  // Wherever the exchange settles, the picture is the classic one.
+  await page.locator('.mat-window .snapshot-position > span').first().waitFor();
+  const settledLabel = (await page.locator('.mat-window .snapshot-position > span').first().innerText()).trim();
+  stage = await settled('.mat-window', 'classic');
+  await stage.scrollIntoViewIfNeeded();
+  await capture('desktop-arena-settled');
+  report.arenaSettled = { label: settledLabel, stillChecked: false };
+  checks.push('In the Arena a standing headlock start and a settled exchange both show the classic picture.');
+  await desktop.close();
+
+  // ---- Phones ----
+  for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 640 }]) {
+    const phone = await open({ viewport, isMobile: true, hasTouch: true }, PLAYER);
+    await page.goto(`${base}/`);
+    await nav('Training');
+    await technique('Guillotine choke');
+    stage = await settled('main', 'classic');
+    assert.equal(await fits(), true, `${viewport.width}-pixel Training must not scroll sideways`);
+    const picture = await box(stage.locator('canvas.snapshot-canvas'));
+    assert.ok(picture.width >= viewport.width * 0.75, `the picture uses most of the phone's width (${Math.round(picture.width)})`);
+    layouts.push({ viewport, where: 'training', picture });
+    await stage.scrollIntoViewIfNeeded();
+    await capture(`phone-${viewport.width}`);
+    await phone.close();
+  }
+  checks.push('At 390 and 320 pixels the classic picture fills the width and nothing scrolls sideways.');
+  assert.deepEqual(stillRequests, [], 'no still layer is downloaded while the still is held back');
+  checks.push('No still file is requested anywhere while the still is held back.');
+}
+
+try {
+  const base = process.env.JIUQUEST_PREVIEW_URL?.replace(/\/$/, '') || await staticSite();
+  browser = await chromium.launch(browserOptions);
+  report.browserVersion = browser.version();
+
+  report.stillHeldBack = HELD;
+  if (HELD) await stillHeldBack(base);
+  else await stillShown(base);
 
   assert.deepEqual(errors, []);
   assert.deepEqual(consoleErrors, [], 'Unexpected browser console errors');

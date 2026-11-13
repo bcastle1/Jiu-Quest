@@ -1,0 +1,68 @@
+/* JiuQuest "Main Event" layer: tokens (design spec section 2).
+   One rule. 2.1 remaps the properties premium.css and the component files
+   already read; 2.2 adds the layer's own. */
+.app-shell.jq-game {
+  /* 2.1 Remapped existing properties */
+  --bg: #04060a;
+  --bg-2: #080c12;
+  --panel: #0d131a;
+  --panel-strong: #141c26;
+  --line: #222e3a;
+  --line-cool: #5b6f84;
+  --text: #f2f5f8;
+  --muted: #aab6c2;
+  --subtle: #8797a5;
+  --gold: #e8c27a;
+  --gold-strong: #f6d999;
+  --gold-deep: #a57f38;
+  --gold-ink: #17110a;
+  --violet: #8f6bff;
+  --blue: #7fb2e6;
+  --red: #ff5d6c;
+  --green: #6fdcae;
+  --radius: 10px;
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --glow-gold: 0 0 0 1px rgba(232, 194, 122, 0.35), 0 0 0 0 transparent;
+
+  /* 2.2 New properties */
+  --jq-void: #04060a;
+  --jq-rise: #080c12;
+  --jq-plate: #0d131a;
+  --jq-plate-hi: #141c26;
+  --jq-well: #06090d;
+  --jq-hair: #1a232d;
+  --jq-line: #222e3a;
+  --jq-line-plate: #2c3a48;
+  --jq-edge: #5b6f84;
+  --jq-text: #f2f5f8;
+  --jq-text-2: #aab6c2;
+  --jq-text-3: #8797a5;
+  --jq-gold: #e8c27a;
+  --jq-gold-hi: #f6d999;
+  --jq-gold-deep: #a57f38;
+  --jq-gold-ink: #17110a;
+  --jq-gold-wash: rgba(232, 194, 122, 0.14);
+  --jq-steel: #7fb2e6;
+  --jq-crimson: #ff5d6c;
+  --jq-crimson-fill: #c2283c;
+  --jq-crimson-fill-2: #a81f33;
+  --jq-jade: #6fdcae;
+  --jq-violet: #8f6bff;
+  --jq-cat: #8797a5;
+  --jq-cat-submission: #ff5d6c;
+  --jq-cat-escape: #7cc0ff;
+  --jq-cat-sweep: #8fe08a;
+  --jq-cat-takedown: #ffb057;
+  --jq-cat-control: #c7d36b;
+  --jq-cat-defense: #a9b9c9;
+  --jq-cat-transition: #b9a6ff;
+  --jq-cat-pass: #58d6e6;
+  --jq-cat-strike: #ff8a5c;
+  --jq-r-plate: 12px 3px 12px 3px;
+  --jq-r-row: 10px 3px 10px 3px;
+  --jq-r-chip: 8px 2px 8px 2px;
+  --jq-tap: 44px;
+  --jq-tab-h: 66px;
+  --jq-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}

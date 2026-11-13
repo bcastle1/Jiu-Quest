@@ -112,7 +112,7 @@
 }
 
 /* A narrow hero has no room beside the headline, so the Unreal athletes stand
-   behind it: the opening frame of the standing-stance clip, under the same
+   behind it: the poster of the standing-stance clip (its halfway frame), under the same
    shading the classic hero art had. Browsers without container queries keep
    this at every width. */
 .app-shell .hero-stage.has-athlete {

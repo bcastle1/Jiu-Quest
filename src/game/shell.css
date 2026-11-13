@@ -1,0 +1,399 @@
+/* JiuQuest "Main Event" layer: shell (design spec section 5).
+   Geometry of the top bar, sidebar and main column is left as it is. */
+
+/* ---- 5.1 Desktop header ---- */
+
+.app-shell.jq-game .topbar {
+  border-bottom: 0;
+  background:
+    linear-gradient(90deg, #e8c27a 0, #e8c27a 12.6rem, rgba(232, 194, 122, 0.22) 12.6rem, rgba(232, 194, 122, 0.22) 60%, transparent 100%) bottom / 100% 2px no-repeat,
+    #080c12;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.app-shell.jq-game .brand-lockup {
+  color: #f2f5f8;
+  font-size: 1.85rem;
+  font-style: italic;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+}
+.app-shell.jq-game .brand-sigil {
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(180deg, #f6d999, #e8c27a 55%, #c99a45);
+  box-shadow: none;
+  clip-path: polygon(18% 0, 100% 0, 82% 100%, 0 100%);
+  color: #17110a;
+  font-size: 1rem;
+  font-style: normal;
+}
+.app-shell.jq-game .fighter-select,
+.app-shell.jq-game .music-toggle,
+.app-shell.jq-game .player-track-trigger {
+  border: 1px solid #5b6f84;
+  border-radius: 10px 3px 10px 3px;
+  background: #0d131a;
+  box-shadow: none;
+  color: #f2f5f8;
+}
+.app-shell.jq-game .fighter-select:hover,
+.app-shell.jq-game .music-toggle:hover,
+.app-shell.jq-game .player-track-trigger:hover { border-color: #8797a5; }
+.app-shell.jq-game .fighter-select strong {
+  font-family: var(--display);
+  font-size: 1.14rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em !important;
+}
+.app-shell.jq-game .fighter-select small { color: #8797a5; font-size: 0.86rem; }
+.app-shell.jq-game .fighter-select .mini-portrait { box-shadow: 0 0 0 1px #a57f38, 0 0 0 3px #080c12; }
+.app-shell.jq-game .music-toggle svg,
+.app-shell.jq-game .player-track-trigger svg { color: #8797a5; }
+.app-shell.jq-game .music-toggle.active,
+.app-shell.jq-game .player-track-select.open .player-track-trigger { border-color: #a57f38; }
+.app-shell.jq-game .music-toggle.active svg { color: #e8c27a; }
+.app-shell.jq-game .music-toggle .toggle-dot { background: #2f3d4b; box-shadow: 0 0 0 1px #5b6f84; }
+.app-shell.jq-game .music-toggle.active .toggle-dot { background: #e8c27a; box-shadow: none; }
+.app-shell.jq-game .player-track-menu {
+  border: 1px solid #5b6f84;
+  border-radius: 10px 3px 10px 3px;
+  background: #141c26;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+  backdrop-filter: none;
+}
+.app-shell.jq-game .player-track-menu small { color: #8797a5; font-size: 0.79rem; }
+.app-shell.jq-game .player-track-menu button { min-height: 44px; color: #f2f5f8; }
+.app-shell.jq-game .player-track-menu button em { color: #8797a5; }
+.app-shell.jq-game .player-track-menu button.active { color: #f6d999; box-shadow: inset 3px 0 0 #e8c27a; }
+@media (hover: hover) and (pointer: fine) {
+  .app-shell.jq-game .player-track-menu button:hover { background: #1b2531; }
+}
+
+/* ---- 5.2 Desktop sidebar ---- */
+
+.app-shell.jq-game .bottom-nav {
+  border-right: 1px solid #1a232d;
+  background: linear-gradient(180deg, #080c12, #04060a);
+  backdrop-filter: none;
+}
+.app-shell.jq-game .bottom-nav button {
+  min-height: 3.4rem;
+  margin-left: -0.65rem;
+  padding: 0.7rem 0.85rem 0.7rem 1.5rem;
+  border: 0;
+  border-radius: 0 10px 3px 0;
+  background: transparent;
+  color: #9aa9b6;
+  font-size: 1.3rem;
+  font-style: italic;
+  font-weight: 700 !important;
+}
+.app-shell.jq-game .bottom-nav button span {
+  font-weight: 700 !important;
+  letter-spacing: 0.05em !important;
+}
+.app-shell.jq-game .bottom-nav button svg { color: #8797a5; }
+.app-shell.jq-game .bottom-nav button:hover { background-color: transparent; color: #f2f5f8; }
+.app-shell.jq-game .bottom-nav button.active {
+  border: 0;
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.16), rgba(232, 194, 122, 0) 85%);
+  color: #f6d999;
+}
+.app-shell.jq-game .bottom-nav button.active svg { color: #e8c27a; }
+.app-shell.jq-game .bottom-nav button.active::before {
+  inset: 6px auto 6px 0;
+  width: 4px;
+  height: auto;
+  border-radius: 0;
+  background: #e8c27a;
+  box-shadow: none;
+  clip-path: polygon(0 0, 100% 3px, 100% calc(100% - 3px), 0 100%);
+}
+@media (max-width: 1120px) {
+  .app-shell.jq-game .topbar {
+    background:
+      linear-gradient(90deg, #e8c27a 0, #e8c27a 10.5rem, rgba(232, 194, 122, 0.22) 10.5rem, rgba(232, 194, 122, 0.22) 60%, transparent 100%) bottom / 100% 2px no-repeat,
+      #080c12;
+  }
+  .app-shell.jq-game .bottom-nav button {
+    margin-left: -0.5rem;
+    padding-left: 1.2rem;
+    font-size: 1.15rem;
+  }
+}
+
+/* ---- 5.3 Admin button and save status ---- */
+
+.app-shell.jq-game .corner-admin {
+  border: 1px solid #222e3a;
+  border-radius: 8px 2px 8px 2px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: #8797a5;
+  font-size: 0.86rem;
+}
+.app-shell.jq-game .corner-admin:hover { border-color: #5b6f84; color: #f2f5f8; }
+
+.app-shell.jq-game .save-status {
+  min-height: 16px;
+  margin: 0 0 8px;
+  color: #8797a5;
+  font-size: 0.79rem;
+}
+.app-shell.jq-game .save-status > span::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: #6fdcae;
+  vertical-align: 0.05em;
+}
+/* The saved notice sits at the right, so the view title is the first thing read. */
+.app-shell.jq-game .save-status:not(.error) { justify-content: flex-end; }
+.app-shell.jq-game .save-status.error { color: #ff5d6c; }
+.app-shell.jq-game .save-status.error > span::before { background: #ff5d6c; }
+.app-shell.jq-game .save-retry {
+  min-height: 32px;
+  border: 1px solid #5b6f84;
+  border-radius: 8px 2px 8px 2px;
+  background: #10171f;
+  color: #f2f5f8;
+}
+@media (max-width: 980px) {
+  .app-shell.jq-game .save-retry { min-height: 44px; }
+}
+
+/* ---- 5.4 Tab bar and Admin at 980px and below ---- */
+
+@media (max-width: 980px) {
+  .app-shell.jq-game .topbar {
+    background:
+      linear-gradient(90deg, rgba(232, 194, 122, 0.5), rgba(232, 194, 122, 0.12) 60%, transparent) bottom / 100% 1px no-repeat,
+      #080c12;
+  }
+  .app-shell.jq-game .bottom-nav {
+    padding: 0.35rem 0.25rem max(0.35rem, env(safe-area-inset-bottom));
+    border-top: 1px solid #222e3a;
+    border-right: 0;
+    background: #080c12;
+    backdrop-filter: none;
+  }
+  .app-shell.jq-game .bottom-nav button {
+    gap: 4px;
+    min-height: 56px;
+    margin-left: 0;
+    padding: 6px 2px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #9aa9b6;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 600 !important;
+    line-height: 1;
+  }
+  .app-shell.jq-game .bottom-nav button span {
+    font-weight: 600 !important;
+    letter-spacing: 0.04em !important;
+    white-space: nowrap;
+  }
+  .app-shell.jq-game .bottom-nav button svg { width: 22px; height: 22px; color: #9aa9b6; }
+  .app-shell.jq-game .bottom-nav button.active {
+    border: 0;
+    background: linear-gradient(180deg, rgba(232, 194, 122, 0.14), rgba(232, 194, 122, 0) 70%);
+    color: #f6d999;
+  }
+  .app-shell.jq-game .bottom-nav button.active svg { color: #e8c27a; }
+  .app-shell.jq-game .bottom-nav button.active::before {
+    inset: 0 22% auto;
+    width: auto;
+    height: 3px;
+    clip-path: none;
+  }
+  .app-shell.jq-game .corner-admin {
+    position: static;
+    display: block;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    width: max-content;
+    min-height: 44px;
+    margin: 1.5rem auto 0;
+    padding: 0.6rem 1.2rem;
+  }
+}
+@media (max-width: 520px) {
+  .app-shell.jq-game .bottom-nav { padding-left: 2px; padding-right: 2px; }
+  .app-shell.jq-game .bottom-nav button { padding-left: 0; padding-right: 0; }
+  .app-shell.jq-game .bottom-nav button span { letter-spacing: 0.03em !important; }
+}
+@media (max-width: 359px) {
+  .app-shell.jq-game .bottom-nav button span { letter-spacing: 0 !important; }
+}
+
+/* ---- 5.5 Phone header (760px and below): one 52px row ---- */
+
+@media (max-width: 760px) {
+  .app-shell.jq-game .topbar {
+    grid-template-columns: auto minmax(0, 1fr) 44px 44px;
+    gap: 6px;
+    min-height: 52px;
+    padding: 4px 10px;
+  }
+  .app-shell.jq-game .topbar > .brand-lockup {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 44px;
+    min-height: 44px;
+    gap: 8px;
+    justify-content: center;
+    font-size: 1.45rem;
+  }
+  .app-shell.jq-game .topbar > .fighter-select {
+    grid-column: 2;
+    grid-row: 1;
+    order: 0;
+    justify-self: end;
+    width: min(100%, 17rem);
+    min-height: 44px;
+    padding: 3px 8px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .app-shell.jq-game .topbar > .fighter-select .mini-portrait { display: block; width: 30px; height: 30px; }
+  .app-shell.jq-game .topbar > .music-toggle {
+    position: relative;
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: stretch;
+    justify-content: center;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+  .app-shell.jq-game .music-toggle > span:not(.toggle-dot) {
+    display: block;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .app-shell.jq-game .music-toggle .toggle-dot { display: none; }
+  .app-shell.jq-game .music-toggle::before {
+    content: "";
+    position: absolute;
+    left: 9px;
+    right: 9px;
+    top: 50%;
+    height: 2px;
+    background: #8797a5;
+    transform: rotate(-45deg);
+  }
+  .app-shell.jq-game .music-toggle.active::before { display: none; }
+  .app-shell.jq-game .music-toggle.active::after {
+    content: "";
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #e8c27a;
+  }
+  .app-shell.jq-game .topbar > .player-track-select {
+    grid-column: 4;
+    grid-row: 1;
+    order: 0;
+    min-width: 0;
+  }
+  .app-shell.jq-game .player-track-trigger {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+  .app-shell.jq-game .player-track-trigger > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .app-shell.jq-game .player-track-trigger > svg:last-child { display: none; }
+  .app-shell.jq-game .player-track-menu { right: 0; left: auto; width: min(19rem, calc(100vw - 20px)); }
+}
+@media (max-width: 520px) {
+  .app-shell.jq-game .brand-lockup > span:not(.brand-sigil) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+@media (max-width: 359px) {
+  .app-shell.jq-game .topbar > .fighter-select .mini-portrait { display: none; }
+}
+
+/* Not in the spec's 5.5 block (reported in the hand-off). With the inherited
+   1.5 line-height the name and belt lines are 42px, the chip 50px and the
+   header 58px. The line-heights of the spec's own type table (row title 1.2,
+   meta 1.3) make the two lines 35px, so the chip is its 44px minimum and the
+   header is the 52px row that 5.5 specifies. Phones only. */
+@media (max-width: 760px) {
+  .app-shell.jq-game .topbar > .fighter-select strong { line-height: 1.2; }
+  .app-shell.jq-game .topbar > .fighter-select small { line-height: 1.3; }
+}
+
+/* ---- Lead fixes after the build (not in the design spec) ---- */
+
+/* Track menu: the old blue fill and card borders give way to the row language. */
+.app-shell.jq-game .player-track-menu button {
+  border: 0;
+  border-bottom: 1px solid #1a232d;
+  border-radius: 0;
+  background: transparent;
+}
+.app-shell.jq-game .player-track-menu button:last-child { border-bottom: 0; }
+.app-shell.jq-game .player-track-menu button.active {
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.14), rgba(232, 194, 122, 0) 72%);
+}
+
+/* A long fighter name stays inside its chip. */
+.app-shell.jq-game .fighter-select > span { min-width: 0; }
+.app-shell.jq-game .fighter-select strong,
+.app-shell.jq-game .fighter-select small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Between 981 and 1120 pixels the track button was 8px wider than its column
+   and lost its right edge. Found in review. */
+@media (min-width: 981px) and (max-width: 1120px) {
+  .app-shell.jq-game .player-track-select { min-width: 0; }
+}
+
+/* At 980 pixels and below the tab bar is fixed over the page, and a browser
+   counts a control under it as already in view. Leave room under any control
+   that focus scrolls to, so it is never hidden there. Found in review. */
+@media (max-width: 980px) {
+  .app-shell.jq-game main :is(button, a, select, input, textarea, summary),
+  .app-shell.jq-game .corner-admin {
+    scroll-margin-bottom: calc(var(--jq-tab-h, 56px) + 1rem + env(safe-area-inset-bottom, 0px));
+  }
+}

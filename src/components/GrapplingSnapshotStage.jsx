@@ -28,8 +28,10 @@ export default function GrapplingSnapshotStage({ state, fighter, opponent, fight
   const sceneKey = `${snapshot.key}-${snapshot.leadSide}-${appearanceKey}`;
   const renderKey = `${sceneKey}-${attempt}-${replay}`;
   // A player who chose the Unreal athlete sees the Unreal still for this
-  // position when one exists. The classic picture stays as the fallback if any
-  // of its layers cannot load, and for every position Unreal has not rendered.
+  // position when one exists and is not held back
+  // (HELD_UNREAL_POSITION_STILLS). The classic picture stays as the fallback
+  // if any of its layers cannot load, and for every position Unreal has not
+  // rendered.
   // A caller whose words describe the classic picture turns the stills off.
   const unreal = unrealStills && usesUnrealAthlete(fighter) ? chooseUnrealPositionStill(snapshot) : null;
   const stillStatus = useUnrealPositionStill(unreal?.still ?? null);

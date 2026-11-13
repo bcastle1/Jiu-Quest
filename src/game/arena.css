@@ -1,0 +1,300 @@
+/* JiuQuest "Main Event" layer: Arena (design spec section 6.3).
+   Resting paint and layout only. Everything that moves lives in motion.css. */
+
+/* Heading on one line. */
+.app-shell.jq-game .arena-page-heading { margin-bottom: 0.6rem; }
+.app-shell.jq-game .arena-page-heading h1 {
+  font-size: 2.4rem;
+  letter-spacing: 0.02em !important;
+  line-height: 1;
+}
+.app-shell.jq-game .arena-page-heading p { margin: 0; color: #aab6c2; }
+@media (min-width: 761px) {
+  .app-shell.jq-game .arena-page-heading > div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15rem 1rem;
+    min-width: 0;
+  }
+}
+
+/* Stage panel: a rectangular letterbox, no tick. */
+.app-shell.jq-game .arena-panel {
+  background: #080c12;
+}
+
+/* Versus bar. */
+.app-shell.jq-game .arena-top {
+  min-height: 6.2rem;
+  padding: 0.45rem 1rem;
+  border-bottom: 1px solid #222e3a;
+  background:
+    linear-gradient(105deg, rgba(232, 194, 122, 0.16) 0, rgba(232, 194, 122, 0.16) 32%, transparent 32.2%),
+    linear-gradient(255deg, rgba(127, 178, 230, 0.16) 0, rgba(127, 178, 230, 0.16) 32%, transparent 32.2%),
+    #080c12;
+  box-shadow: inset 3px 0 0 #e8c27a, inset -3px 0 0 #7fb2e6;
+}
+.app-shell.jq-game .fighter-card strong {
+  font-size: 1.6rem;
+  font-style: italic;
+  letter-spacing: 0.02em !important;
+  line-height: 1;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+.app-shell.jq-game .fighter-card small { color: #8797a5; font-size: 0.86rem; }
+/* Score plate: an outline layer and a body layer, same hexagon. */
+.app-shell.jq-game .round-core {
+  position: relative;
+  isolation: isolate;
+  min-width: 7.5rem;
+  padding: 0.3rem 1.6rem;
+}
+.app-shell.jq-game .round-core::before,
+.app-shell.jq-game .round-core::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%);
+}
+.app-shell.jq-game .round-core::before {
+  inset: 0;
+  background: #5b6f84;
+}
+.app-shell.jq-game .round-core::after {
+  inset: 1px;
+  background: #141c26;
+}
+.app-shell.jq-game .round-core > span {
+  color: #8797a5;
+  font-size: 0.86rem;
+  letter-spacing: 0.1em !important;
+  line-height: 1.1;
+}
+.app-shell.jq-game .round-core strong {
+  color: #f2f5f8;
+  font-size: 3rem;
+  font-variant-numeric: tabular-nums lining-nums;
+  line-height: 0.9;
+  text-shadow: none !important;
+}
+.app-shell.jq-game .round-core strong > span { color: #e8c27a; }
+.app-shell.jq-game .round-core small {
+  color: #8797a5;
+  font-size: 0.79rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+  line-height: 1.1;
+}
+
+/* Clip stage chrome: paint only, sizes untouched. */
+.app-shell.jq-game .mat-window { background: #000000; }
+.app-shell.jq-game .unreal-clip-stage { background: #000000; }
+/* Kickers on the stage are neutral: "Standing Start" is the only gold control. Colour only. */
+.app-shell.jq-game .unreal-clip-heading span,
+.app-shell.jq-game .stance-picker-heading span { color: #8797a5; }
+.app-shell.jq-game .unreal-clip-controls button {
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 10px 3px 10px 3px;
+  background: rgba(8, 12, 18, 0.82);
+  color: #f2f5f8;
+}
+.app-shell.jq-game .unreal-clip-controls button:hover { border-color: #e8c27a; }
+.app-shell.jq-game .unreal-clip-controls button.unreal-clip-play {
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(8, 12, 18, 0.82);
+  color: #f2f5f8;
+  font-weight: 600 !important;
+}
+.app-shell.jq-game .unreal-clip-cameras button[aria-pressed="true"] {
+  border-color: #e8c27a;
+  background: rgba(8, 12, 18, 0.82);
+  color: #f6d999;
+  box-shadow: inset 0 -2px 0 #e8c27a;
+}
+.app-shell.jq-game .unreal-clip-legend small { color: #8797a5; }
+
+/* Stance strip as character select. Same height as today. */
+.app-shell.jq-game .stance-picker {
+  border-top: 1px solid #222e3a;
+  background: #06090d;
+}
+.app-shell.jq-game .stance-picker-options label { border-radius: 8px 2px 8px 2px; }
+.app-shell.jq-game .stance-picker-options label:hover { border-color: #a57f38; }
+.app-shell.jq-game .stance-picker-options label.selected {
+  border-color: #f6d999;
+  box-shadow: 0 3px 0 0 #e8c27a;
+}
+.app-shell.jq-game .stance-picker-note { color: #aab6c2; }
+/* Below the component's own breakpoint the pictures are a grid, so every
+   picture is the same size on every row. */
+@media (max-width: 1030px) {
+  .app-shell.jq-game .stance-picker-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+    gap: 5px;
+  }
+  .app-shell.jq-game .stance-picker-options label { max-width: none; }
+}
+
+/* Start controls. */
+.app-shell.jq-game .combat-actions {
+  border-top: 1px solid #222e3a;
+  background: #080c12;
+}
+.app-shell.jq-game .combat-actions:has(> .position-start-choice) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 0.6rem 0.7rem;
+}
+.app-shell.jq-game .combat-actions:has(> .position-start-choice) > select {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+}
+.app-shell.jq-game .combat-actions:has(> .position-start-choice) > .position-start-choice select { min-width: 0; }
+.app-shell.jq-game .position-start-choice { color: #8797a5; font-size: 0.86rem; }
+@media (min-width: 1121px) {
+  .app-shell.jq-game .combat-actions:has(> .position-start-choice) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .app-shell.jq-game .combat-actions:has(> .position-start-choice) > select { grid-column: 1; }
+  .app-shell.jq-game .combat-actions:has(> .position-start-choice) > .secondary-button:last-child { grid-column: 2 / -1; }
+}
+
+/* Choose a technique. */
+.app-shell.jq-game .combat-group h3 { margin-bottom: 0.3rem; }
+.app-shell.jq-game .combat-group button {
+  min-height: 3.9rem;
+  margin-top: 0;
+  padding: 0.6rem 2rem 0.6rem 0.85rem;
+  border: 0;
+  border-bottom: 1px solid #1a232d;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #f2f5f8;
+}
+.app-shell.jq-game .combat-group button span {
+  font-size: 1.14rem;
+  letter-spacing: 0.01em !important;
+  line-height: 1.2;
+}
+.app-shell.jq-game .combat-group button small { color: #8797a5; font-size: 0.86rem; }
+/* Category: a small square in the category colour before the category word
+   (the same mark Insights uses). The left edge is kept for selection only. */
+.app-shell.jq-game .combat-group button small::before {
+  content: "";
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.4rem;
+  border-radius: 2px;
+  background: var(--jq-cat);
+}
+.app-shell.jq-game .combat-group button::after { color: #8797a5; }
+.app-shell.jq-game .combat-group button:not(:disabled):hover {
+  border-color: #1a232d;
+  box-shadow: none;
+}
+.app-shell.jq-game .combat-group button:not(:disabled):hover::after { color: #f6d999; }
+.app-shell.jq-game .combat-group button.selected,
+.app-shell.jq-game .combat-group button.selected:not(:disabled):hover {
+  border-color: #1a232d;
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.14), rgba(232, 194, 122, 0) 72%);
+  box-shadow: inset 3px 0 0 #e8c27a;
+}
+.app-shell.jq-game .combat-group button:disabled,
+.app-shell.jq-game .combat-moves button.unavailable {
+  opacity: 1;
+  box-shadow: none;
+  cursor: default;
+}
+.app-shell.jq-game .combat-group button:disabled span { color: #8797a5; }
+.app-shell.jq-game .combat-group button:disabled small::before { background: #2f3d4b; }
+.app-shell.jq-game .combat-group button:disabled::after { display: none; }
+/* Rows for another position show the required position, not a category word: no mark. */
+.app-shell.jq-game .combat-moves button.unavailable small::before { display: none; }
+/* The chosen row keeps its bar, its wash and a gold chevron while the steps are ordered. */
+.app-shell.jq-game .combat-group button.selected:disabled { box-shadow: inset 3px 0 0 #e8c27a; }
+.app-shell.jq-game .combat-group button.selected:disabled span { color: #f2f5f8; }
+.app-shell.jq-game .combat-group button.selected small::before { background: var(--jq-cat); }
+.app-shell.jq-game .combat-group button.selected::after,
+.app-shell.jq-game .combat-group button.selected:disabled::after {
+  display: block;
+  color: #e8c27a;
+}
+.app-shell.jq-game .combat-moves button.unavailable { border-bottom-style: dashed; }
+.app-shell.jq-game .unavailable-techniques { border-top: 1px solid #222e3a; }
+/* 44px tall with the text in the middle: 0.95rem + 18px line + 0.95rem. */
+.app-shell.jq-game .unavailable-techniques summary {
+  min-height: 44px;
+  padding: 0.95rem 0;
+  color: #aab6c2;
+  font-size: 0.93rem;
+  line-height: 1.4;
+}
+
+/* Sequence panel and history. */
+.app-shell.jq-game .combat-log { border-left-color: #222e3a; }
+.app-shell.jq-game .combat-log p {
+  padding: 0.35rem 0 0.35rem 0.8rem;
+  border: 0;
+  border-left: 2px solid #5b6f84;
+  border-radius: 0;
+  background: none;
+  color: #aab6c2;
+  font-size: 0.93rem;
+}
+/* The first line under the heading is the latest exchange... */
+.app-shell.jq-game .combat-log h3 + p { border-left-color: #e8c27a; color: #f2f5f8; }
+/* ...unless it is the placeholder shown before the match begins (class from M23). */
+.app-shell.jq-game .combat-log h3 + p.combat-log-empty { border-left-color: #5b6f84; color: #aab6c2; }
+.app-shell.jq-game .sequence-actions { align-items: center; margin-top: 0.9rem; }
+
+@media (hover: hover) and (pointer: fine) {
+  .app-shell.jq-game .combat-group button:not(:disabled):hover { background-color: #141c26; }
+}
+@media (max-width: 1120px) {
+  .app-shell.jq-game .arena-top { padding: 0.45rem 0.8rem; }
+  .app-shell.jq-game .round-core { min-width: 6rem; padding: 0.3rem 1.1rem; }
+}
+@media (max-width: 760px) {
+  .app-shell.jq-game .arena-page-heading h1 { font-size: 2.1rem; }
+  .app-shell.jq-game .combat-moves { max-height: none; overflow: visible; }
+  .app-shell.jq-game .combat-group { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .app-shell.jq-game .combat-group button { min-height: 52px; }
+}
+@media (max-width: 520px) {
+  .app-shell.jq-game .arena-page-heading > .ghost-button {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .app-shell.jq-game .arena-top { min-height: 5.6rem; padding: 0.4rem 0.6rem; }
+  .app-shell.jq-game .fighter-card strong { font-size: 1.15rem; }
+  .app-shell.jq-game .round-core { min-width: 5.4rem; padding: 0.25rem 0.9rem; }
+  .app-shell.jq-game .round-core strong { font-size: 2.3rem; }
+}
+/* Narrowest phones: each start button gets its own row, so "STANDING START" stays on one line. */
+@media (max-width: 359px) {
+  .app-shell.jq-game .combat-actions:has(> .position-start-choice) { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---- Lead fix after the build (not in the design spec) ---- */
+
+/* Phones: a little more room inside the score plate, so "EXCHANGES WON" clears
+   the angled outline. */
+@media (max-width: 520px) {
+  .app-shell.jq-game .round-core { padding: 0.25rem 1.1rem; }
+}
+
+/* Narrowest phones: names in the versus bar break between words, not inside
+   one. Found in review. */
+@media (max-width: 359px) {
+  .app-shell.jq-game .fighter-card strong { font-size: 1rem; }
+  .app-shell.jq-game .round-core > span,
+  .app-shell.jq-game .round-core small { letter-spacing: 0.02em !important; }
+}

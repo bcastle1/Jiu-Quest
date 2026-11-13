@@ -39,6 +39,19 @@ const POSITIONS = [
   },
 ];
 
+// On narrow screens the options are a sideways rail. Keyboard focus brings its
+// option fully into the rail. A pointer press does not move the rail, so the
+// option stays under the finger. A browser that does not know :focus-visible
+// leaves the rail where it is.
+function followKeyboardFocus(event) {
+  const option = event.currentTarget;
+  try {
+    if (option.matches(':focus-visible')) option.scrollIntoView({ block: 'nearest', inline: 'start' });
+  } catch {
+    // No :focus-visible in this browser.
+  }
+}
+
 function roleDescription(position, side) {
   if (position.neutral) return 'Neutral position. You are the athlete on the left.';
   const subject = side === 'fighter' ? 'You' : 'Your opponent';
@@ -108,6 +121,7 @@ export default function GrapplingPositionLab({ fighter, opponent, beltStatus, no
           {POSITIONS.map((item, index) => (
             <button key={item.id} type="button" aria-pressed={positionId === item.id}
               className={`position-lab-option ${positionId === item.id ? 'is-selected' : ''}`}
+              onFocus={followKeyboardFocus}
               onClick={() => choosePosition(item)}>
               <span className="position-lab-number">{String(index + 1).padStart(2, '0')}</span>
               <span className="position-lab-option-copy"><span>{item.name}</span><small>{item.detail}</small></span>

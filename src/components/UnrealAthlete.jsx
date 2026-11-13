@@ -68,10 +68,6 @@ export function UnrealAthleteStage({ fighter, beltStatus, className = '', auraCo
   return (
     <div className={`profile-art unreal-athlete-stage ${className}`.trim()} style={{ '--athlete-aura': auraColor }}>
       <UnrealAthlete fighter={fighter} belt={beltStatus.belt} className="unreal-athlete-stage-figure" />
-      <div className="profile-art-tags">
-        <span>{fighter.country}</span>
-        <span>{beltLabels[beltStatus.belt]}</span>
-      </div>
     </div>
   );
 }

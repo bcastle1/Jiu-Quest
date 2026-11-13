@@ -65,7 +65,8 @@ export default function CombatArenaView({
   const canStart = !combat.active || isFinished;
   const selectedOrder = combat.order ?? [];
   const unityPlayback = resolveArenaUnityPlayback(combat.result);
-  // Both athletes on their feet and nothing settled yet: the stance is what shows.
+  // Both athletes on their feet and no exchange result on screen (choosing a
+  // technique clears it, in any round): the stance is what shows.
   const idleStanding = !combat.result && combat.position === 'standing';
   // What to say when the clip cannot show a stance yet. Null when it can.
   const stanceNoteFor = (stance) => (stanceLoop(stance, opponent.stance).exact
@@ -159,6 +160,7 @@ export default function CombatArenaView({
       className={`${combat.selectedMoveId === move.id ? "selected" : ""} ${available ? "" : "unavailable"}`.trim()}
       disabled={!available || !canChoose}
       aria-pressed={combat.selectedMoveId === move.id}
+      data-category={move.category}
       onClick={() => {
         chooseCombatMove(move);
         announce(`${move.name} selected. Put the ${move.steps.length} steps in order before the timer ends.`);
@@ -189,7 +191,7 @@ export default function CombatArenaView({
             <AthleteScore athlete={fighter} belt={beltStatus.belt} stripes={beltStatus.stripes} />
             <div className="round-core">
               <span>{isFinished ? "Final score" : `Round ${combat.round} of 8`}</span>
-              <strong aria-label={`${fighter.name}: ${combat.playerExchanges ?? 0} exchanges. ${opponent.name}: ${combat.npcExchanges ?? 0} exchanges.`}>
+              <strong key={`${combat.playerExchanges ?? 0}-${combat.npcExchanges ?? 0}`} aria-label={`${fighter.name}: ${combat.playerExchanges ?? 0} exchanges. ${opponent.name}: ${combat.npcExchanges ?? 0} exchanges.`}>
                 {combat.playerExchanges ?? 0}<span aria-hidden="true"> : </span>{combat.npcExchanges ?? 0}
               </strong>
               <small>Exchanges won</small>
@@ -233,6 +235,7 @@ export default function CombatArenaView({
               aria-live="polite"
               aria-atomic="true"
               aria-label={isFinished ? "Match result" : "Settled exchange"}
+              data-finished={isFinished ? "true" : undefined}
             >
               <span>{isFinished && <Trophy size={16} aria-hidden="true" />} {combat.result.headline}</span>
               <small>{combat.result.line}</small>
@@ -320,7 +323,7 @@ export default function CombatArenaView({
               </div>
             </>
           ) : combat.result ? (
-            <div className={`result-card ${combat.result.playerWins ? "success" : "danger"}`}>
+            <div className={`result-card ${combat.result.playerWins ? "success" : "danger"}`} data-finished={isFinished ? "true" : undefined}>
               <h2>{isFinished ? "Match complete" : "Exchange settled"}</h2>
               <p>{combat.result.headline}</p>
               <p>{isFinished ? "Start a new match when you are ready." : "The next exchange begins from the position shown above."}</p>
@@ -336,7 +339,7 @@ export default function CombatArenaView({
           <div className="combat-log" role="log" aria-label="Exchange history" aria-live="polite" aria-relevant="additions">
             <h3>Exchange history</h3>
             {(combat.log ?? []).map((line, index) => <p key={`${line}-${index}`}>{line}</p>)}
-            {!combat.log?.length && <p>Your exchanges will appear here when the match begins.</p>}
+            {!combat.log?.length && <p className="combat-log-empty">Your exchanges will appear here when the match begins.</p>}
           </div>
         </div>
       </section>

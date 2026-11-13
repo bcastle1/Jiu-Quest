@@ -1,0 +1,198 @@
+/* Motion (design spec section 7). This is the only file in the layer that
+   animates anything, and the only one that sets a transform inside :hover or
+   :active. Transform and opacity only; one shot; nothing loops.
+   The order of the blocks matters: (1) inherited fades off, (2) hover resets,
+   (3) hover lift, (4) keyframes, press and reward, (5) reduced motion. */
+
+/* 1. Inherited fades on colour, border, background and shadow are removed.
+   Sources: styles.css:6033-6038 (button, input, select, textarea),
+   premium.css:316-322, 436-444, 545, 604, 841, GrapplingPositionLab.css:45. */
+.app-shell.jq-game button,
+.app-shell.jq-game input,
+.app-shell.jq-game select,
+.app-shell.jq-game textarea,
+.app-shell.jq-game .mode-card,
+.app-shell.jq-game .quest-row,
+.app-shell.jq-game .move-row,
+.app-shell.jq-game .fighter-slot,
+.app-shell.jq-game .order-card,
+.app-shell.jq-game .step-line,
+.app-shell.jq-game .progress-row,
+.app-shell.jq-game .stat,
+.app-shell.jq-game .showcase-card,
+.app-shell.jq-game .position-lab-option {
+  transition: none;
+}
+
+/* 2. Hover transforms from premium.css are removed everywhere, so nothing
+   sticks after a tap. This block must stay above the press rules. */
+.app-shell.jq-game .move-row:hover,
+.app-shell.jq-game .quest-row:hover,
+.app-shell.jq-game .fighter-slot:hover,
+.app-shell.jq-game .mode-card:hover,
+.app-shell.jq-game .showcase-card:hover,
+.app-shell.jq-game .combat-group button:not(:disabled):hover,
+.app-shell.jq-game .primary-button:not(:disabled):hover,
+.app-shell.jq-game .danger-button:not(:disabled):hover {
+  transform: none;
+}
+
+/* 3. Hover lift: mouse only, never on the card that holds a picture. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .app-shell.jq-game .mode-card:not(.unreal-preview-card):hover { transform: translateY(-2px); }
+  .app-shell.jq-game .primary-button:not(:disabled):hover,
+  .app-shell.jq-game .danger-button:not(:disabled):hover { transform: translateY(-1px); }
+}
+
+/* 4. Keyframes, press and reward. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes jq-tick {
+    from { transform: scale(1.14); opacity: 0.55; }
+    to   { transform: none; opacity: 1; }
+  }
+  @keyframes jq-rise {
+    from { transform: translateY(8px); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+  }
+  @keyframes jq-fill {
+    from { transform: scaleX(0); }
+    to   { transform: none; }
+  }
+  @keyframes jq-toast {
+    from { transform: translateY(10px); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+  }
+  @keyframes jq-toast-top {
+    from { transform: translateY(-10px); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+  }
+
+  /* Press: every tap answers. Transform only. */
+  .app-shell.jq-game .primary-button,
+  .app-shell.jq-game .secondary-button,
+  .app-shell.jq-game .ghost-button,
+  .app-shell.jq-game .danger-button,
+  .app-shell.jq-game .icon-button,
+  .app-shell.jq-game .mode-card:not(.unreal-preview-card),
+  .app-shell.jq-game .move-row,
+  .app-shell.jq-game .quest-row,
+  .app-shell.jq-game .combat-group button,
+  .app-shell.jq-game .position-lab-option,
+  .app-shell.jq-game .position-lab-role button,
+  .app-shell.jq-game .position-lab-reset,
+  .app-shell.jq-game .belt-tabs button,
+  .app-shell.jq-game .bottom-nav button,
+  .app-shell.jq-game .order-card button,
+  .app-shell.jq-game .segmented button,
+  .app-shell.jq-game .swatch-row button,
+  .app-shell.jq-game .fighter-look-picker button,
+  .app-shell.jq-game .music-toggle,
+  .app-shell.jq-game .player-track-trigger,
+  .app-shell.jq-game .player-track-menu button,
+  .app-shell.jq-game .unreal-clip-controls button,
+  .app-shell.jq-game .snapshot-replay,
+  .app-shell.jq-game .save-retry,
+  .app-shell.jq-game .corner-admin,
+  .app-shell.jq-game .slot-delete,
+  .app-shell.jq-game .app-feedback button {
+    transition: transform 180ms var(--jq-ease);
+  }
+  .app-shell.jq-game .primary-button:not(:disabled):active,
+  .app-shell.jq-game .secondary-button:not(:disabled):active,
+  .app-shell.jq-game .ghost-button:not(:disabled):active,
+  .app-shell.jq-game .danger-button:not(:disabled):active,
+  .app-shell.jq-game .icon-button:not(:disabled):active,
+  .app-shell.jq-game .mode-card:not(.unreal-preview-card):active,
+  .app-shell.jq-game .move-row:active,
+  .app-shell.jq-game .quest-row:active,
+  .app-shell.jq-game .combat-group button:not(:disabled):active,
+  .app-shell.jq-game .position-lab-option:active,
+  .app-shell.jq-game .position-lab-role button:not(:disabled):active,
+  .app-shell.jq-game .position-lab-reset:active,
+  .app-shell.jq-game .belt-tabs button:active,
+  .app-shell.jq-game .bottom-nav button:active,
+  .app-shell.jq-game .order-card button:not(:disabled):active,
+  .app-shell.jq-game .segmented button:active,
+  .app-shell.jq-game .swatch-row button:active,
+  .app-shell.jq-game .fighter-look-picker button:active,
+  .app-shell.jq-game .music-toggle:active,
+  .app-shell.jq-game .player-track-trigger:active,
+  .app-shell.jq-game .player-track-menu button:active,
+  .app-shell.jq-game .unreal-clip-controls button:active,
+  .app-shell.jq-game .snapshot-replay:not(:disabled):active,
+  .app-shell.jq-game .save-retry:active,
+  .app-shell.jq-game .corner-admin:active,
+  .app-shell.jq-game .slot-delete:active,
+  .app-shell.jq-game .app-feedback button:active {
+    transform: scale(0.98);
+    transition-duration: 90ms;
+  }
+
+  /* Reward. */
+  .app-shell.jq-game .progress-orb strong,
+  .app-shell.jq-game .round-core strong {
+    animation: jq-tick 260ms var(--jq-ease) 1 both;
+  }
+  .app-shell.jq-game .progress-orb strong { transform-origin: right center; }
+  .app-shell.jq-game .result-card,
+  .app-shell.jq-game .arena-outcome {
+    animation: jq-rise 280ms var(--jq-ease) 1 both;
+  }
+  .app-shell.jq-game .app-feedback {
+    animation: jq-toast 180ms var(--jq-ease) 1 both;
+  }
+  /* Headline bars fill once on arrival. Never on list rows. */
+  .app-shell.jq-game .rank-card .progress-bar b,
+  .app-shell.jq-game .progress-hero .progress-bar b,
+  .app-shell.jq-game .test-panel > .progress-bar b,
+  .app-shell.jq-game .combat-bonus .progress-bar b {
+    animation: jq-fill 480ms var(--jq-ease) 1 both;
+  }
+}
+/* On phones the toast is at the top (4.16) and drops in from above. */
+@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
+  .app-shell.jq-game .app-feedback { animation-name: jq-toast-top; }
+}
+
+/* 5. Reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .app-shell.jq-game .primary-button,
+  .app-shell.jq-game .secondary-button,
+  .app-shell.jq-game .ghost-button,
+  .app-shell.jq-game .danger-button,
+  .app-shell.jq-game .icon-button,
+  .app-shell.jq-game .mode-card,
+  .app-shell.jq-game .move-row,
+  .app-shell.jq-game .quest-row,
+  .app-shell.jq-game .combat-group button,
+  .app-shell.jq-game .position-lab-option,
+  .app-shell.jq-game .position-lab-role button,
+  .app-shell.jq-game .position-lab-reset,
+  .app-shell.jq-game .belt-tabs button,
+  .app-shell.jq-game .bottom-nav button,
+  .app-shell.jq-game .order-card button,
+  .app-shell.jq-game .segmented button,
+  .app-shell.jq-game .swatch-row button,
+  .app-shell.jq-game .fighter-look-picker button,
+  .app-shell.jq-game .music-toggle,
+  .app-shell.jq-game .player-track-trigger,
+  .app-shell.jq-game .player-track-menu button,
+  .app-shell.jq-game .unreal-clip-controls button,
+  .app-shell.jq-game .snapshot-replay,
+  .app-shell.jq-game .save-retry,
+  .app-shell.jq-game .corner-admin,
+  .app-shell.jq-game .slot-delete,
+  .app-shell.jq-game .app-feedback button,
+  .app-shell.jq-game .showcase-card {
+    transition: none;
+    transform: none;
+  }
+  .app-shell.jq-game .progress-orb strong,
+  .app-shell.jq-game .round-core strong,
+  .app-shell.jq-game .result-card,
+  .app-shell.jq-game .arena-outcome,
+  .app-shell.jq-game .app-feedback,
+  .app-shell.jq-game .progress-bar b {
+    animation: none;
+  }
+}

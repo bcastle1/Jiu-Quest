@@ -1,0 +1,204 @@
+/* JiuQuest "Main Event" layer: Lab (design spec section 6.6).
+   Resting paint and layout only; all motion lives in motion.css.
+   Focus rings, the scrollbar of the option list, the meta colour of the
+   selected option, forced colours and the picture frame and caption (4.14)
+   are in components.css. */
+
+/* Header: a page heading, not a box. */
+.app-shell.jq-game .position-lab-header.panel {
+  padding: 0 0 0.25rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.app-shell.jq-game .position-lab-eyebrow {
+  color: #8797a5;
+  font-family: var(--display);
+  font-size: 0.86rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+}
+.app-shell.jq-game .position-lab-eyebrow svg { color: #e8c27a; }
+.app-shell.jq-game .position-lab-header h1 {
+  margin: 0.3rem 0;
+  font-size: 2.4rem;
+  font-style: italic;
+  letter-spacing: 0.02em !important;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.app-shell.jq-game .position-lab-header p { color: #aab6c2; font-size: 1rem; }
+.app-shell.jq-game .position-lab-level {
+  padding: 0.25rem 0.6rem;
+  border: 1px solid #222e3a;
+  border-radius: 8px 2px 8px 2px;
+  background: #06090d;
+  color: #aab6c2;
+  font-size: 0.86rem;
+}
+
+/* Viewer: the picture bleeds to the panel edges. */
+.app-shell.jq-game .grappling-position-lab .position-lab-viewer {
+  padding: 0;
+  overflow: hidden;
+}
+.app-shell.jq-game .position-lab-viewer-heading {
+  margin-bottom: 0;
+  padding: 1rem 1.1rem;
+}
+.app-shell.jq-game .position-lab-viewer-heading h2 { font-size: 1.7rem; line-height: 1.05; }
+.app-shell.jq-game .position-lab-viewer-heading p { color: #aab6c2; font-size: 0.93rem; }
+.app-shell.jq-game .position-lab-reset {
+  min-height: 2.9rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid #5b6f84;
+  border-radius: 10px 3px 10px 3px;
+  background: #10171f;
+  color: #f2f5f8;
+  font-size: 0.93rem;
+}
+.app-shell.jq-game .position-lab-reset:hover { border-color: #e8c27a; background: #10171f; color: #f6d999; }
+.app-shell.jq-game .position-lab-observation {
+  margin: 0.9rem 1.1rem 1.1rem;
+  padding: 0.1rem 0 0.1rem 0.85rem;
+  border-left: 2px solid #7fb2e6;
+  color: #aab6c2;
+}
+.app-shell.jq-game .position-lab-observation svg { color: #7fb2e6; }
+.app-shell.jq-game .position-lab-observation p { font-size: 1rem; line-height: 1.55; }
+
+/* Chooser. */
+.app-shell.jq-game .position-lab-control-heading span {
+  color: #8797a5;
+  font-size: 0.79rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase;
+}
+.app-shell.jq-game .position-lab-options { gap: 0; }
+.app-shell.jq-game .position-lab-option {
+  min-height: 3.5rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.7rem;
+  border: 0;
+  border-bottom: 1px solid #1a232d;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #f2f5f8;
+}
+.app-shell.jq-game .position-lab-option:hover { border-color: #1a232d; background: transparent; }
+.app-shell.jq-game .position-lab-option.is-selected {
+  border-color: #1a232d;
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.14), rgba(232, 194, 122, 0) 72%);
+  box-shadow: inset 3px 0 0 #e8c27a;
+}
+.app-shell.jq-game .position-lab-number {
+  color: #8797a5;
+  font-family: var(--display);
+  font-size: 1.15rem;
+  font-weight: 700 !important;
+}
+.app-shell.jq-game .position-lab-option.is-selected .position-lab-number,
+.app-shell.jq-game .position-lab-option.is-selected > svg { color: #e8c27a; }
+.app-shell.jq-game .position-lab-option-copy { font-size: 1.07rem; }
+.app-shell.jq-game .position-lab-option-copy > span { font-family: var(--display); font-size: 1.14rem; font-weight: 600 !important; }
+.app-shell.jq-game .position-lab-option-copy small { color: #8797a5; font-size: 0.86rem; }
+
+/* Role toggle. */
+.app-shell.jq-game .position-lab-role legend {
+  color: #8797a5;
+  font-size: 0.86rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase;
+}
+.app-shell.jq-game .position-lab-role > div {
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #5b6f84;
+  border-radius: 10px 3px 10px 3px;
+  background: #06090d;
+}
+.app-shell.jq-game .position-lab-role button {
+  min-height: 2.9rem;
+  border: 1px solid transparent;
+  border-radius: 8px 2px 8px 2px;
+  background: transparent;
+  color: #aab6c2;
+  font-size: 0.93rem;
+}
+.app-shell.jq-game .position-lab-role button[aria-pressed="true"] {
+  border-color: #e8c27a;
+  background: rgba(232, 194, 122, 0.16);
+  color: #f6d999;
+}
+.app-shell.jq-game .position-lab-role:disabled button { opacity: 1; color: #8797a5; }
+.app-shell.jq-game .position-lab-role p,
+.app-shell.jq-game .position-lab-feedback { color: #aab6c2; font-size: 0.86rem; }
+.app-shell.jq-game .position-lab-note { border-top-color: #1a232d; color: #8797a5; font-size: 0.86rem; }
+
+@media (hover: hover) and (pointer: fine) {
+  .app-shell.jq-game .position-lab-option:hover { background-color: #141c26; }
+}
+/* 1050px and below the component file lays the options out as a grid: use cards. */
+@media (max-width: 1050px) {
+  .app-shell.jq-game .position-lab-options { gap: 8px; }
+  .app-shell.jq-game .position-lab-option {
+    border: 1px solid #222e3a;
+    border-radius: 10px 3px 10px 3px;
+    background: #141c26;
+  }
+  .app-shell.jq-game .position-lab-option:hover { border-color: #5b6f84; background: #141c26; }
+  .app-shell.jq-game .position-lab-option.is-selected {
+    border-color: #e8c27a;
+    background: linear-gradient(90deg, rgba(232, 194, 122, 0.14), rgba(232, 194, 122, 0) 72%), #141c26;
+    box-shadow: none;
+  }
+}
+/* Touch layout: 44px controls. */
+@media (max-width: 980px) {
+  .app-shell.jq-game .position-lab-reset { min-height: 44px; }
+  .app-shell.jq-game .position-lab-role button { min-height: 44px; }
+}
+/* Phones: a snap rail under the caption and tip, on the first screen.
+   DOM order is unchanged. */
+@media (max-width: 760px) {
+  .app-shell.jq-game .position-lab-header h1 { font-size: 2.1rem; }
+  /* The sentence repeats the title; hiding it saves about 47px. */
+  .app-shell.jq-game .position-lab-header p { display: none; }
+  .app-shell.jq-game .position-lab-observation p { font-size: 0.93rem; }
+  /* "Choose a position / 8 views" is clipped, not removed: the heading stays
+     in the accessibility tree and the aside keeps its aria-label. Saves 36px. */
+  .app-shell.jq-game .position-lab-control-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .app-shell.jq-game .position-lab-options {
+    display: flex;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    padding: 2px 2px 8px;
+  }
+  .app-shell.jq-game .position-lab-option {
+    flex: 0 0 9.5rem;
+    min-height: 4.4rem;
+    scroll-snap-align: start;
+  }
+  /* Not in the spec (reported in the hand-off). With the values above the rail
+     measured y = 738 to 823 at 390x844, under the tab bar at 777: the role
+     sentence wraps to two lines and the card details wrap to two lines, which
+     the spec's estimate (700 to 772) did not count. These five rules win the
+     space back so the whole rail is on the first screen. */
+  .app-shell.jq-game .grappling-position-lab { gap: 8px; }
+  .app-shell.jq-game .position-lab-viewer-heading { padding: 0.7rem 1.1rem 0.5rem; }
+  .app-shell.jq-game .position-lab-observation { margin: 0.5rem 1.1rem 0.6rem; }
+  .app-shell.jq-game .position-lab-option { flex: 0 0 auto; width: auto; min-width: 9.5rem; }
+  .app-shell.jq-game .position-lab-option-copy small { white-space: nowrap; }
+}

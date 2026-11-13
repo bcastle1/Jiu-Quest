@@ -7,7 +7,7 @@ import { findUnrealClip } from '../unreal/techniqueClips.js';
 import { stanceLoop } from '../unreal/stances.js';
 
 // The one moment a pre-rendered Unreal clip is the right picture so far: both
-// athletes on their feet before an exchange has settled. The player's stance
+// athletes on their feet with no exchange result on screen. The player's stance
 // picks the clip once Unreal has rendered that stance; until then it is the
 // standard one.
 const IDLE_CLIP = Object.freeze({ moveId: 'standing_stance', label: 'Standing stance' });

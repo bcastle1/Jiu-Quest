@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { UNREAL_POSITION_STILLS, chooseUnrealPositionStill, findUnrealPositionStill, unrealPositionTints } from '../src/unreal/positionStills.js';
+import { HELD_UNREAL_POSITION_STILLS, UNREAL_POSITION_STILLS, chooseUnrealPositionStill, findUnrealPositionStill, unrealPositionTints } from '../src/unreal/positionStills.js';
 import { createArenaState, getArenaSnapshot } from '../src/arena/outcome.js';
 import { beltColors } from '../src/data/curriculum.js';
 
@@ -66,19 +66,31 @@ test('only the standing position has an Unreal still so far', () => {
 });
 
 test('a still replaces the classic picture only where it is at least as exact', () => {
+  // The rule itself, with no still held back.
+  const choose = (snapshot) => chooseUnrealPositionStill(snapshot, []);
   assert.equal(snapshotOf('standing').family, 'standing');
   // The neutral stance is exactly what the still shows.
-  assert.deepEqual(chooseUnrealPositionStill(snapshotOf('standing')), { still: findUnrealPositionStill('standing'), exact: true });
+  assert.deepEqual(choose(snapshotOf('standing')), { still: findUnrealPositionStill('standing'), exact: true });
   // The classic clinch picture shows the grips; the still does not, so it stays out.
   assert.equal(snapshotOf('clinch').exactPositionAvailable, true);
-  assert.equal(chooseUnrealPositionStill(snapshotOf('clinch')), null);
+  assert.equal(choose(snapshotOf('clinch')), null);
   // Neither picture shows these setups, so the still stands in as a general reference.
   for (const position of ['rear-clinch', 'standing-headlock']) {
     assert.equal(snapshotOf(position).exactPositionAvailable, false);
-    assert.deepEqual(chooseUnrealPositionStill(snapshotOf(position)), { still: findUnrealPositionStill('standing'), exact: false });
+    assert.deepEqual(choose(snapshotOf(position)), { still: findUnrealPositionStill('standing'), exact: false });
   }
-  for (const position of ['guard-top', 'guard-bottom', 'mount-top', 'mount-bottom', 'side-top', 'back-control', 'kneeling']) assert.equal(chooseUnrealPositionStill(snapshotOf(position)), null, position);
+  for (const position of ['guard-top', 'guard-bottom', 'mount-top', 'mount-bottom', 'side-top', 'back-control', 'kneeling']) assert.equal(choose(snapshotOf(position)), null, position);
+  assert.equal(choose(null), null);
+});
+
+test('the upright standing still is held back, so players see the crouched classic picture', () => {
+  // Empty this list, and this test with it, when the still is rendered again from the crouched clip.
+  assert.deepEqual(HELD_UNREAL_POSITION_STILLS, ['standing']);
+  assert.throws(() => { HELD_UNREAL_POSITION_STILLS.push('guard'); }, TypeError);
+  for (const position of ['standing', 'rear-clinch', 'standing-headlock']) assert.equal(chooseUnrealPositionStill(snapshotOf(position)), null, position);
   assert.equal(chooseUnrealPositionStill(null), null);
+  // The files stay published and pinned, ready for the new render to replace them.
+  assert.ok(findUnrealPositionStill('standing'));
 });
 
 test('each layer takes its own athlete\'s color, and only a safe color', () => {
@@ -100,7 +112,7 @@ test('each layer takes its own athlete\'s color, and only a safe color', () => {
   ]);
 });
 
-test('the snapshot stage shows the still to Unreal-look players and keeps the classic picture as the fallback', () => {
+test('the snapshot stage asks the selection rule for Unreal-look players and keeps the classic picture as the fallback', () => {
   const stage = repoFile('src/components/GrapplingSnapshotStage.jsx').toString('utf8');
   assert.match(stage, /const unreal = unrealStills && usesUnrealAthlete\(fighter\) \? chooseUnrealPositionStill\(snapshot\) : null;/);
   // The Lab describes a grip exchange for Standing, which the classic picture shows and the still does not.

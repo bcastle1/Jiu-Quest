@@ -1,27 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
+  ArrowDown,
+  ArrowUp,
   BadgePlus,
   BookOpen,
   Check,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
+  Crosshair,
   Crown,
   Dumbbell,
+  Footprints,
   Gauge,
+  HandFist,
+  HandGrab,
   Headphones,
   Home,
   Lock,
+  MoveDownRight,
   Music,
   Plus,
   RotateCcw,
   Save,
   Settings,
   Shield,
+  Shuffle,
   Swords,
   Trash2,
   Trophy,
+  Undo2,
+  Unlink,
   User,
   Volume2,
   X,
@@ -791,7 +800,7 @@ function App() {
   };
 
   return (
-    <div className={`app-shell view-${view}`}>
+    <div className={`app-shell jq-game view-${view}`}>
       <div className="energy-field" aria-hidden="true" />
       {notice && <div className={`app-feedback ${notice.tone}`} role={notice.tone === "error" ? "alert" : "status"} aria-live={notice.tone === "error" ? "assertive" : "polite"}>
         <span>{notice.message}</span><button aria-label="Dismiss notification" onClick={() => setNotice(null)}><X size={16} /></button>
@@ -957,8 +966,8 @@ function Header({
 
   return (
     <header className="topbar">
-      <button className="brand-lockup" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Scroll to top">
-        <span className="brand-sigil">JQ</span>
+      <button className="brand-lockup" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="JiuQuest, scroll to top">
+        <span className="brand-sigil" aria-hidden="true">JQ</span>
         <span>JiuQuest</span>
       </button>
       <label className="fighter-select">
@@ -993,7 +1002,7 @@ function Header({
       </button>
       {musicTracks.length ? (
         <div className={`player-track-select ${trackMenuOpen ? "open" : ""}`}>
-          <button type="button" className="player-track-trigger" onClick={() => setTrackMenuOpen((open) => !open)}>
+          <button type="button" className="player-track-trigger" aria-expanded={trackMenuOpen} aria-haspopup="true" onClick={() => setTrackMenuOpen((open) => !open)}>
             <Headphones size={16} />
             <span>{activeTrack?.title ?? "Select Track"}</span>
             <ChevronDown size={16} />
@@ -1006,6 +1015,7 @@ function Header({
                   key={track.id}
                   type="button"
                   className={track.id === activeTrack?.id ? "active" : ""}
+                  aria-pressed={track.id === activeTrack?.id}
                   onClick={() => {
                     selectMusicTrack(track.id);
                     setTrackMenuOpen(false);
@@ -1051,29 +1061,26 @@ function Dashboard({
         <h2>Roster</h2>
         <div className="fighter-slots">
           {fighters.map((item) => (
-            <button
-              key={item.id}
-              className={`fighter-slot ${item.id === fighter.id ? "selected" : ""}`}
-              onClick={() => setStore((current) => ({ ...current, selectedFighterId: item.id }))}
-            >
-              <MiniPortrait fighter={item} beltStatus={getBeltStatus(item)} />
-              <span>
-                <strong>{item.name}</strong>
-                <small>{beltLabels[getBeltStatus(item).belt]}</small>
-              </span>
-              {item.id === fighter.id ? <Check size={18} /> : null}
-              {fighters.length > 1 ? (
-                <span
-                  className="slot-delete"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    deleteFighter(item.id);
-                  }}
-                >
-                  <Trash2 size={15} />
+            <div className="fighter-slot-wrap" key={item.id}>
+              <button
+                type="button"
+                className={`fighter-slot ${item.id === fighter.id ? "selected" : ""}`}
+                aria-pressed={item.id === fighter.id}
+                onClick={() => setStore((current) => ({ ...current, selectedFighterId: item.id }))}
+              >
+                <MiniPortrait fighter={item} beltStatus={getBeltStatus(item)} />
+                <span>
+                  <strong>{item.name}</strong>
+                  <small>{beltLabels[getBeltStatus(item).belt]}</small>
                 </span>
+                {item.id === fighter.id ? <Check size={18} /> : null}
+              </button>
+              {fighters.length > 1 ? (
+                <button type="button" className="slot-delete" aria-label={`Delete ${item.name}`} onClick={() => deleteFighter(item.id)}>
+                  <Trash2 size={15} />
+                </button>
               ) : null}
-            </button>
+            </div>
           ))}
           {fighters.length < MAX_FIGHTERS && (
             <button className="fighter-slot create" onClick={createNewFighter}>
@@ -1131,16 +1138,16 @@ function Dashboard({
           </div>
         </div>
         <div className="mode-cards">
-          <button className="mode-card skill" onClick={() => setView("training")}>
-            <span className="mode-mark">01</span>
+          <button type="button" className="mode-card skill" onClick={() => setView("training")}>
+            <span className="mode-mark"><Dumbbell size={22} aria-hidden="true" /><span className="mode-mark-number">01</span></span>
             <span>
               <strong>Skill Development</strong>
               <small>Run structured reps</small>
             </span>
             <ChevronRight size={28} />
           </button>
-          <button className="mode-card combat" onClick={() => setView("combat")}>
-            <span className="mode-mark fist">02</span>
+          <button type="button" className="mode-card combat" onClick={() => setView("combat")}>
+            <span className="mode-mark fist"><Swords size={22} aria-hidden="true" /><span className="mode-mark-number">02</span></span>
             <span>
               <strong>Ground Combat</strong>
               <small>Test scenario decisions</small>
@@ -1173,7 +1180,9 @@ function Dashboard({
           <h2>Technique Pipeline</h2>
           {featuredMoves.map((move) => (
             <button
+              type="button"
               className="quest-row"
+              data-category={move.category}
               key={move.id}
               onClick={() => {
                 setSelectedMoveId(move.id);
@@ -1184,6 +1193,7 @@ function Dashboard({
               <span>
                 <strong>{move.name}</strong>
                 <small>{move.startingPosition ?? move.lesson}</small>
+                <span className="sr-only">{move.category}</span>
                 <ProgressBar value={((fighter.progress?.[move.id] ?? 0) / 50) * 100} mini />
               </span>
               <span className="xp-chip">XP</span>
@@ -1213,8 +1223,8 @@ function Dashboard({
         </div>
 
         <div className="stats-strip">
-          <Stat icon={Dumbbell} label="Clean Reps" value={trainingTotals.attempts} />
-          <Stat icon={BookOpen} label="Learned" value={trainingTotals.learned} />
+          <Stat icon={Dumbbell} label="Clean Reps" value={trainingTotals.attempts} className="stat-in-hero" />
+          <Stat icon={BookOpen} label="Learned" value={trainingTotals.learned} className="stat-in-hero" />
           <Stat icon={Trophy} label="Wins" value={fighter.wins} />
         </div>
       </aside>
@@ -1233,6 +1243,9 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
           <div>
             <h1>{fighter.name || "Unnamed Fighter"}</h1>
             <p>{fighter.country} - {fighter.stance}</p>
+          </div>
+          <div className="profile-art-tags">
+            <span>{beltLabels[beltStatus.belt]}</span>
           </div>
         </div>
       </div>
@@ -1381,9 +1394,9 @@ function Training({
       <div className="panel training-sidebar">
         <h1>Skill Development</h1>
         <p>Train the step order until the technique becomes combat-ready. Five clean reps unlock the move. Fifty reps caps the efficiency bonus.</p>
-        <div className="belt-tabs">
+        <div className="belt-tabs" role="group" aria-label="Belt">
           {BELTS.slice(1).map((belt) => (
-            <button key={belt} className={selectedBelt === belt ? "active" : ""} onClick={() => setSelectedBelt(belt)}>
+            <button key={belt} type="button" className={selectedBelt === belt ? "active" : ""} aria-pressed={selectedBelt === belt} data-belt={belt} onClick={() => setSelectedBelt(belt)}>
               <span style={{ background: beltColors[belt] }} />
               {beltLabels[belt]}
             </button>
@@ -1392,14 +1405,17 @@ function Training({
         <div className="move-list">
           {techniqueGroups.map((group) => (
             <section className="technique-group" key={group.id} aria-label={group.label || 'Techniques'}>
-              {group.label && <h2>{group.label}<small>{group.moves.length}</small></h2>}
+              {group.label && <h2>{group.label}{" "}<small>{group.moves.length}</small></h2>}
               {group.moves.map((move) => {
             const count = fighter.progress?.[move.id] ?? 0;
             const learned = count >= 5;
             return (
               <button
                 key={move.id}
+                type="button"
                 className={`move-row ${selectedMove.id === move.id ? "selected" : ""}`}
+                aria-pressed={selectedMove.id === move.id}
+                data-category={move.category}
                 onClick={() => setSelectedMoveId(move.id)}
               >
                 <TechniqueThumbnail move={move} fighter={fighter} />
@@ -1408,7 +1424,11 @@ function Training({
                   <small>{move.category} - {move.phase}</small>
                   <ProgressBar value={(count / 50) * 100} mini />
                 </span>
-                {move.preview ? <Lock size={15} /> : learned ? <Check size={16} /> : <span className="rep-count">{count}/5</span>}
+                {move.preview
+                  ? <><Lock size={15} /><span className="sr-only">{learned ? "Learned" : "Locked"}</span></>
+                  : learned
+                    ? <><Check size={16} /><span className="sr-only">Learned</span></>
+                    : <span className="rep-count">{count}/5</span>}
               </button>
             );
               })}
@@ -1425,7 +1445,7 @@ function Training({
             {selectedMove.description && <p>{selectedMove.description}</p>}
           </span>
           <div className="progress-orb">
-            <strong>{selectedProgress}/50</strong>
+            <strong key={selectedProgress}>{selectedProgress}/50</strong>
             <small>clean reps</small>
           </div>
         </div>
@@ -1461,17 +1481,17 @@ function Training({
           <Gauge size={28} />
         </div>
         <ProgressBar value={(selectedProgress / 5) * 100} label={selectedProgress >= 5 ? "Arena unlocked" : `${Math.max(0, 5 - selectedProgress)} clean reps to unlock`} />
-        <div className="order-stack">
+        <div className="order-stack" role="list" aria-label={`${selectedMove.name} step order`}>
           {trainingOrder.map((step, index) => (
-            <div key={`${step}-${index}`} className="order-card">
+            <div key={`${step}-${index}`} className="order-card" role="listitem">
               <span>{index + 1}</span>
               <p><TechniqueStep move={selectedMove} step={step} /></p>
               <div>
-                <button onClick={() => setTrainingOrder((list) => moveItem(list, index, index - 1))} aria-label="Move step up">
-                  <ChevronLeft size={16} />
+                <button type="button" disabled={index === 0} onClick={() => setTrainingOrder((list) => moveItem(list, index, index - 1))} aria-label={`Move step ${index + 1} up: ${step}`}>
+                  <ArrowUp size={16} />
                 </button>
-                <button onClick={() => setTrainingOrder((list) => moveItem(list, index, index + 1))} aria-label="Move step down">
-                  <ChevronRight size={16} />
+                <button type="button" disabled={index === trainingOrder.length - 1} onClick={() => setTrainingOrder((list) => moveItem(list, index, index + 1))} aria-label={`Move step ${index + 1} down: ${step}`}>
+                  <ArrowDown size={16} />
                 </button>
               </div>
             </div>
@@ -1485,12 +1505,14 @@ function Training({
           <RotateCcw size={18} />
           Try Test Again
         </button>
-        {trainingResult && (
-          <div className={`result-card ${trainingResult.tone}`}>
-            <strong>{trainingResult.title}</strong>
-            <p>{trainingResult.message}</p>
-          </div>
-        )}
+        <div className="result-live" role="status" aria-live="polite" aria-atomic="true">
+          {trainingResult && (
+            <div key={`${trainingResult.tone}-${selectedProgress}`} className={`result-card ${trainingResult.tone}`}>
+              <strong>{trainingResult.title}</strong>
+              <p>{trainingResult.message}</p>
+            </div>
+          )}
+        </div>
         <div className="belt-mini">
           {usesUnrealAthlete(fighter)
             ? <UnrealAthlete fighter={fighter} belt={beltStatus.belt} className="mini-fighter" />
@@ -1505,6 +1527,7 @@ function Training({
 function ProgressLab({ fighter, beltStatus }) {
   const learned = moves.filter((move) => (fighter.progress?.[move.id] ?? 0) >= 5);
   const blueMoves = moves.filter((move) => move.belt === "blue" && !move.preview);
+  const currentBeltIndex = BELTS.indexOf(beltStatus.belt);
   return (
     <section className="progress-grid">
       <div className="panel progress-hero">
@@ -1512,13 +1535,17 @@ function ProgressLab({ fighter, beltStatus }) {
         <div>
           <h1>{fighter.name}'s Rank Path</h1>
           <p>{beltStatus.next}</p>
+          <div className="profile-art-tags">
+            <span>{fighter.country}</span>
+            <span>{beltLabels[beltStatus.belt]}</span>
+          </div>
           <Belt belt={beltStatus.belt} stripes={beltStatus.stripes} />
           <ProgressBar value={beltStatus.blueRatio * 100} label={`${beltStatus.learnedBlue}/${beltStatus.blueTotal} blue-belt techniques learned`} />
         </div>
       </div>
       <div className="panel belt-roadmap">
-        {BELTS.map((belt) => (
-          <div key={belt} className={belt === beltStatus.belt ? "current" : ""}>
+        {BELTS.map((belt, index) => (
+          <div key={belt} className={belt === beltStatus.belt ? "current" : ""} aria-current={belt === beltStatus.belt ? "step" : undefined} data-state={index < currentBeltIndex ? "done" : index === currentBeltIndex ? "current" : "locked"}>
             <span style={{ background: beltColors[belt] }} />
             <strong>{beltLabels[belt]}</strong>
             <small>
@@ -1536,9 +1563,9 @@ function ProgressLab({ fighter, beltStatus }) {
         {moves.map((move) => {
           const count = fighter.progress?.[move.id] ?? 0;
           return (
-            <div key={move.id} className="progress-row">
+            <div key={move.id} className="progress-row" data-category={move.category} data-belt={move.belt}>
               <span>
-                <strong>{move.name}</strong>
+                <strong>{move.name}</strong>{" "}
                 <small>{beltLabels[move.belt]} - {move.category}</small>
               </span>
               <ProgressBar value={(count / 50) * 100} label={`${count}/50`} />
@@ -1999,7 +2026,7 @@ Create an original instrumental JiuQuest background track for a Brazilian jiu-ji
                   />
                   Show to players
                 </label>
-                <button className="icon-button" onClick={() => removeTrack(track.id)} disabled={tracks.length <= 1}>
+                <button type="button" className="icon-button" aria-label={`Delete ${track.title}`} onClick={() => removeTrack(track.id)} disabled={tracks.length <= 1}>
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -2198,10 +2225,6 @@ function FighterProfileArt({ fighter, beltStatus, className = "" }) {
         <strong>{titleCase(fighter.stance)}</strong>
         <FighterArt fighter={fighter} beltStatus={beltStatus} pose={stancePoseId} className="stance-reference-fighter" showAura={false} />
       </aside>
-      <div className="profile-art-tags">
-        <span>{fighter.country}</span>
-        <span>{beltLabels[beltStatus.belt]}</span>
-      </div>
     </div>
   );
 }
@@ -2353,7 +2376,7 @@ function MiniPortrait({ fighter, beltStatus }) {
 
 function Belt({ belt, stripes = 0 }) {
   return (
-    <span className={`belt-rank belt-${belt}`}>
+    <span className={`belt-rank belt-${belt}`} role="img" aria-label={`${beltLabels[belt]}, ${stripes} stripe${stripes === 1 ? "" : "s"}`}>
       <span className="belt-wrap" style={{ background: beltColors[belt] }}>
         <i />
         {Array.from({ length: stripes }).map((_, index) => (
@@ -2364,10 +2387,23 @@ function Belt({ belt, stripes = 0 }) {
   );
 }
 
+const categoryIcons = {
+  submission: Crosshair,
+  escape: Unlink,
+  sweep: Undo2,
+  takedown: MoveDownRight,
+  control: HandGrab,
+  defense: Shield,
+  transition: Shuffle,
+  pass: Footprints,
+  strike: HandFist,
+};
+
 function TechniqueThumbnail({ move, fighter }) {
+  const Icon = categoryIcons[move.category] ?? Dumbbell;
   return (
     <span className={`tech-thumb ${move.category}`} style={{ "--aura": auraColors[fighter.aura] ?? "#8a5cff" }}>
-      {move.isSubmission ? <Swords size={18} /> : move.category === "escape" ? <Shield size={18} /> : <Dumbbell size={18} />}
+      <Icon size={18} />
     </span>
   );
 }
@@ -2503,7 +2539,7 @@ function FighterCard({ fighter, beltStatus, reverse = false }) {
 
 function BottomNav({ view, setView }) {
   return (
-    <nav className="bottom-nav">
+    <nav className="bottom-nav" aria-label="Main">
       {navItems.map(({ id, label, icon: Icon }) => (
         <button
           key={id}
@@ -2521,19 +2557,26 @@ function BottomNav({ view, setView }) {
 }
 
 function ProgressBar({ value, label, mini = false }) {
+  const percent = Math.max(0, Math.min(100, value));
   return (
-    <div className={`progress-bar ${mini ? "mini" : ""}`}>
-      {label ? <span>{label}</span> : null}
-      <i>
-        <b style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+    <div className={`progress-bar ${mini ? "mini" : ""}`} aria-hidden={mini ? "true" : undefined}>
+      {label ? <span aria-hidden="true">{label}</span> : null}
+      <i
+        role={mini ? undefined : "progressbar"}
+        aria-valuemin={mini ? undefined : 0}
+        aria-valuemax={mini ? undefined : 100}
+        aria-valuenow={mini ? undefined : Math.round(percent)}
+        aria-label={mini ? undefined : (label ?? "Progress")}
+      >
+        <b style={{ width: `${percent}%` }} />
       </i>
     </div>
   );
 }
 
-function Stat({ icon: Icon, label, value }) {
+function Stat({ icon: Icon, label, value, className = "" }) {
   return (
-    <div className="stat">
+    <div className={`stat ${className}`.trim()}>
       <Icon size={19} />
       <strong>{value}</strong>
       <span>{label}</span>
@@ -2652,6 +2695,7 @@ function SwatchInput({ value, onChange, options = customizationOptions.giColors,
           key={option}
           type="button"
           className={value === option ? "active" : ""}
+          aria-pressed={value === option}
           style={{ background: option }}
           onClick={() => onChange(option)}
           aria-label={`${label} ${option}`}

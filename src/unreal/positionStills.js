@@ -20,13 +20,21 @@ export function findUnrealPositionStill(key) {
   return stills.find((still) => still.position === key) ?? null;
 }
 
+// Stills that are published but not shown to players for now. The standing
+// still was rendered from the first standing_stance clip, in which both
+// athletes stand upright. The owner wants standing athletes crouched, and the
+// classic picture of the position already is. Take 'standing' out of this list
+// when Unreal delivers the still's layers from the crouched clip.
+export const HELD_UNREAL_POSITION_STILLS = Object.freeze(['standing']);
+
 // The still for one settled position, or null when the classic picture is the
-// better one. A still that shows the exact position always wins. A still that
-// is only a general reference replaces a classic picture that is also only a
-// general reference, and never one that shows the exact position.
-export function chooseUnrealPositionStill(snapshot) {
+// better one or the still is held back. A still that shows the exact position
+// always wins. A still that is only a general reference replaces a classic
+// picture that is also only a general reference, and never one that shows the
+// exact position.
+export function chooseUnrealPositionStill(snapshot, held = HELD_UNREAL_POSITION_STILLS) {
   const still = findUnrealPositionStill(snapshot?.key);
-  if (!still) return null;
+  if (!still || held.includes(still.position)) return null;
   const exact = still.families.includes(snapshot.family);
   return exact || !snapshot.exactPositionAvailable ? { still, exact } : null;
 }

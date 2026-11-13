@@ -1,0 +1,360 @@
+/* JiuQuest "Main Event" layer: Overview (design spec section 6.1).
+   Resting paint and layout only: all motion, and any
+   transform inside :hover or :active live in motion.css. */
+
+/* ---- Desktop rules (all widths unless overridden) ---- */
+
+.app-shell.jq-game .dashboard-grid,
+.app-shell.jq-game .dashboard-center,
+.app-shell.jq-game .quest-rail { gap: 0.9rem; }
+
+/* Hero: the title screen. */
+.app-shell.jq-game .hero-stage {
+  border: 1px solid #2c3a48;
+  border-radius: 12px 3px 12px 3px;
+  box-shadow: none;
+}
+.app-shell.jq-game .hero-content p { max-width: 26rem; color: #c9d3dc; }
+.app-shell.jq-game .hero-metrics {
+  display: flex;
+  gap: 0;
+  width: auto;
+  max-width: 27rem;
+}
+.app-shell.jq-game .hero-metrics span {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.15rem;
+  min-width: 0;
+  min-height: 0;
+  margin-right: 1.1rem;
+  padding: 0 1.1rem 0 0;
+  border: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.app-shell.jq-game .hero-metrics span:last-child { margin-right: 0; padding-right: 0; border-right: 0; }
+.app-shell.jq-game .hero-metrics em {
+  color: #f6d999;
+  font-size: 1.7rem;
+  font-variant-numeric: tabular-nums lining-nums;
+  line-height: 1;
+}
+.app-shell.jq-game .hero-metrics small {
+  color: #8797a5;
+  font-size: 0.79rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+}
+
+/* Mode select: the screen's two actions. */
+.app-shell.jq-game .mode-card {
+  min-height: 5.6rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid #2c3a48;
+  border-radius: 12px 3px 12px 3px;
+  background: #0d131a;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: #f2f5f8;
+}
+.app-shell.jq-game .mode-card.skill {
+  border-color: #a57f38;
+  background: linear-gradient(100deg, rgba(232, 194, 122, 0.18) 0, rgba(232, 194, 122, 0.18) 38%, transparent 38.2%), #0d131a;
+}
+.app-shell.jq-game .mode-card.combat {
+  border-color: rgba(255, 93, 108, 0.5);
+  background: linear-gradient(100deg, rgba(255, 93, 108, 0.18) 0, rgba(255, 93, 108, 0.18) 38%, transparent 38.2%), #0d131a;
+}
+.app-shell.jq-game .mode-card:hover { border-color: #e8c27a; box-shadow: none; }
+.app-shell.jq-game .mode-card.combat:hover { border-color: #ff5d6c; }
+.app-shell.jq-game .mode-card strong {
+  font-size: 1.7rem;
+  font-style: italic;
+  letter-spacing: 0.02em !important;
+  line-height: 1;
+}
+.app-shell.jq-game .mode-card small { color: #aab6c2; font-size: 0.93rem; }
+.app-shell.jq-game .mode-card > svg { color: #8797a5; }
+.app-shell.jq-game .mode-card:hover > svg { color: #f6d999; }
+.app-shell.jq-game .mode-mark,
+.app-shell.jq-game .mode-mark.fist {
+  border: 1px solid #a57f38;
+  border-radius: 8px 2px 8px 2px;
+  background: #06090d;
+  color: #f6d999;
+  font-weight: 700 !important;
+}
+.app-shell.jq-game .mode-card.combat .mode-mark {
+  border-color: rgba(255, 93, 108, 0.5);
+  background: #06090d;
+  color: #ff5d6c;
+}
+/* The mark is an icon (M24). The old list number stays in the DOM and is hidden here. */
+.app-shell.jq-game .mode-mark .mode-mark-number { display: none; }
+.app-shell.jq-game .mode-mark svg { width: 1.5rem; height: 1.5rem; }
+.app-shell.jq-game .mode-card.unreal-preview-card {
+  min-height: 4rem;
+  padding: 0.5rem 1.1rem;
+  border-color: #2c3a48;
+  background: #0d131a;
+}
+/* The preview card holds an athlete picture, so it gets no press transform
+   (section 7). It is a link, so the base button press filter does not reach it. */
+.app-shell.jq-game .mode-card.unreal-preview-card:active { border-color: #e8c27a; }
+.app-shell.jq-game .mode-card.unreal-preview-card strong {
+  font-size: 1.2rem;
+  font-style: normal;
+  font-weight: 600 !important;
+}
+.app-shell.jq-game .unreal-preview-card-thumb {
+  width: 2.8rem;
+  height: 2.8rem;
+  border: 1px solid #222e3a;
+  border-radius: 8px 2px 8px 2px;
+}
+
+/* Showcase: older illustrated art, framed and quieter. Paint only.
+   The cards are plain figures with no action, so they have no hover state. */
+.app-shell.jq-game .showcase-card,
+.app-shell.jq-game .showcase-card:hover {
+  border: 1px solid #2c3a48;
+  border-radius: 10px 3px 10px 3px;
+  box-shadow: none;
+}
+.app-shell.jq-game .showcase-card img { filter: saturate(0.82); }
+.app-shell.jq-game .showcase-card figcaption { font-size: 0.86rem; }
+
+/* Roster. */
+.app-shell.jq-game .fighter-slots { gap: 0; }
+.app-shell.jq-game .fighter-slot-wrap { position: relative; }
+.app-shell.jq-game .fighter-slot {
+  min-height: 4.2rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.7rem;
+  border: 0;
+  border-bottom: 1px solid #1a232d;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #f2f5f8;
+}
+.app-shell.jq-game .fighter-slot:hover { border-color: #1a232d; }
+.app-shell.jq-game .fighter-slot.selected {
+  border-color: #1a232d;
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.14), rgba(232, 194, 122, 0) 72%);
+  box-shadow: inset 3px 0 0 #e8c27a;
+}
+.app-shell.jq-game .fighter-slot.selected > svg { color: #e8c27a; }
+.app-shell.jq-game .fighter-slot strong {
+  font-family: var(--display);
+  font-size: 1.14rem;
+  font-weight: 600 !important;
+}
+.app-shell.jq-game .fighter-slot small { color: #8797a5; font-size: 0.86rem; }
+.app-shell.jq-game .fighter-slot-wrap:has(> .slot-delete) > .fighter-slot { padding-right: 3rem; }
+.app-shell.jq-game .fighter-slot-wrap > .slot-delete {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  display: grid;
+  place-items: center;
+  width: 2.3rem;
+  height: 2.3rem;
+  margin-top: -1.15rem;
+  border: 0;
+  border-radius: 8px 2px 8px 2px;
+  background: transparent;
+  color: #ff5d6c;
+  cursor: pointer;
+}
+.app-shell.jq-game .fighter-slot-wrap > .slot-delete:hover { background: rgba(255, 93, 108, 0.14); }
+.app-shell.jq-game .plus-box {
+  border: 1px dashed #5b6f84;
+  border-radius: 8px 2px 8px 2px;
+  background: none;
+  color: #8797a5;
+}
+/* "New Fighter" is not this screen's primary action. */
+.app-shell.jq-game .fighter-rail > .primary-button {
+  border: 1px solid #5b6f84;
+  border-radius: 10px 3px 10px 3px;
+  background: #10171f;
+  color: #f2f5f8;
+  font-size: 1.04rem;
+  font-style: normal;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+}
+.app-shell.jq-game .fighter-rail > .primary-button::before { content: none; }
+.app-shell.jq-game .fighter-rail > .primary-button svg { color: #f2f5f8; }
+.app-shell.jq-game .fighter-rail > .primary-button:not(:disabled):hover {
+  border-color: #e8c27a;
+  background: #10171f;
+  color: #f6d999;
+}
+.app-shell.jq-game .fighter-rail > .primary-button:disabled {
+  border-color: #2f3d4b;
+  background: #0b1017;
+  color: #8797a5;
+}
+
+/* Right rail. */
+.app-shell.jq-game .rank-card { gap: 0.7rem; }
+.app-shell.jq-game .rank-card .belt-wrap { width: 100%; max-width: 12rem; height: 1.4rem; }
+.app-shell.jq-game .rank-card h2 { font-size: 2rem; line-height: 1.05; }
+.app-shell.jq-game .rank-card p { margin: 0.2rem 0 0.6rem; color: #aab6c2; }
+.app-shell.jq-game .quest-list > .secondary-button { margin-top: 0.9rem; }
+/* The preview picture bleeds to the plate edges. The plate clips it, so a
+   change in panel padding can never let it stick out. */
+.app-shell.jq-game .combat-card { overflow: hidden; }
+.app-shell.jq-game .combat-card .arena-preview {
+  margin: 0.8rem -1rem;
+  border: 0;
+  border-radius: 0;
+}
+/* Deviation from spec 6.1 (reported in the hand-off): the spec narrows this
+   bleed to -0.75rem at 680px and below, on the premise that panel padding is
+   0.75rem there. It is not: the later, unconditional rule at
+   styles.css:5336-5354 keeps it at 1rem at every width, so the narrower bleed
+   left a 3.5px strip of plate at each side of the picture on phones. The
+   -1rem bleed above is therefore kept at every width. */
+/* Clean reps and learned moves are shown once, in the hero. The record strip
+   keeps one number, so it gets a surface of its own instead of floating. */
+.app-shell.jq-game.view-dashboard .quest-rail .stats-strip {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0.7rem 1rem;
+  border: 1px solid #2c3a48;
+  border-radius: 12px 3px 12px 3px;
+  background: #0d131a;
+}
+.app-shell.jq-game.view-dashboard .quest-rail .stat {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding-left: 0;
+  border-left: 0;
+}
+/* Keep this rule after the one above and keep its extra classes: it must outrank display: flex. */
+.app-shell.jq-game.view-dashboard .quest-rail .stats-strip .stat.stat-in-hero { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .app-shell.jq-game .fighter-slot:hover { background-color: #141c26; }
+}
+/* Touch layout: the destructive control is a full 44px target. */
+@media (max-width: 980px) {
+  .app-shell.jq-game .fighter-slot-wrap > .slot-delete { width: 44px; height: 44px; margin-top: -22px; right: 0.1rem; }
+  .app-shell.jq-game .fighter-slot-wrap:has(> .slot-delete) > .fighter-slot { padding-right: 3.4rem; }
+}
+
+/* ---- Phone (760px and below) ---- */
+
+@media (max-width: 760px) {
+  /* Order: hero, modes, rank, pipeline, readiness, record, roster, showcase. */
+  .app-shell.jq-game .dashboard-center,
+  .app-shell.jq-game .quest-rail { display: contents; }
+  .app-shell.jq-game .dashboard-grid > .fighter-rail { grid-row: auto; order: 7; }
+  .app-shell.jq-game .hero-stage { order: 1; }
+  .app-shell.jq-game .mode-cards { order: 2; }
+  .app-shell.jq-game .rank-card { order: 3; }
+  .app-shell.jq-game .quest-list { order: 4; }
+  .app-shell.jq-game .combat-card { order: 5; }
+  .app-shell.jq-game .quest-rail > .stats-strip { order: 6; grid-column: auto; }
+  .app-shell.jq-game .showcase-strip { order: 8; }
+
+  /* Hero: both athletes in full above the words. Same picture URL as the base rule. */
+  .app-shell.jq-game .hero-stage.has-athlete {
+    min-height: 0;
+    background: #05080b url('/assets/unreal-clips/standing_stance/fighter-side.webp') 50% 0 / 100% auto no-repeat;
+  }
+  .app-shell.jq-game .hero-stage.has-athlete .dojo-backdrop {
+    background: linear-gradient(180deg, rgba(5, 8, 11, 0) 52cqw, #05080b 56.25cqw);
+  }
+  .app-shell.jq-game .hero-stage.has-athlete .hero-content {
+    padding-top: calc(56.25cqw + 0.6rem);
+  }
+  /* Not in the spec's 6.1 block (reported in the hand-off). The spec assumes
+     the hero is always narrower than 700px here, but in this one-column layout
+     it is the page width less 28px, so from about 728px to 760px the container
+     query in UnrealAthlete.css:127-141 shows the large hero athlete on top of
+     the picture and covers the second athlete. The picture is the hero at
+     every width in this range, so the extra figure stays hidden. */
+  .app-shell.jq-game .hero-stage.has-athlete .hero-athlete { display: none; }
+  .app-shell.jq-game .hero-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    max-width: none;
+  }
+  .app-shell.jq-game .hero-metrics span { margin-right: 0.6rem; padding-right: 0.6rem; }
+  .app-shell.jq-game .hero-metrics em { font-size: 1.5rem; }
+
+  .app-shell.jq-game .rank-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.9rem;
+  }
+  .app-shell.jq-game .rank-card .belt-wrap { width: 5.6rem; }
+  .app-shell.jq-game .rank-card h2 { font-size: 1.6rem; }
+}
+@media (max-width: 520px) {
+  .app-shell.jq-game .mode-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-shell.jq-game .mode-card.skill,
+  .app-shell.jq-game .mode-card.combat {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 0.5rem;
+    min-height: 6.6rem;
+    padding: 0.8rem;
+  }
+  .app-shell.jq-game .mode-card.skill > svg,
+  .app-shell.jq-game .mode-card.combat > svg { display: none; }
+  .app-shell.jq-game .mode-card.skill .mode-mark,
+  .app-shell.jq-game .mode-card.combat .mode-mark { width: 2.2rem; height: 2.2rem; }
+  .app-shell.jq-game .mode-card strong { font-size: 1.3rem; overflow-wrap: normal; }
+  .app-shell.jq-game .mode-card.unreal-preview-card { min-height: 56px; }
+  /* The sentence repeats what the two mode tiles say and costs about 65px. */
+  .app-shell.jq-game .hero-content p { display: none; }
+}
+
+/* ---- Lead fixes after the build (not in the design spec) ---- */
+
+/* Hero numbers: when a label wraps to two lines on a phone, the three numerals
+   stay level and the labels hang below them. */
+.app-shell.jq-game .hero-metrics span { justify-content: flex-end; }
+
+/* Roster rows. With a mouse in the narrow desktop rail, the delete button waits
+   until its row is pointed at or it is reached by keyboard, and a name stays
+   on one line. Wherever the button is always there (touch screens, and every
+   device from 761 to 980 pixels), the name and belt wrap in the narrow rail
+   so they are not cut short to make room for it. */
+.app-shell.jq-game .fighter-slot > span { min-width: 0; }
+.app-shell.jq-game .fighter-slot strong,
+.app-shell.jq-game .fighter-slot small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* In the narrow rail, where the delete button is always shown, the name and
+   belt wrap instead of being cut. The rows of that list, the New Fighter row
+   included, sit a little tighter and the name is a little smaller, so an
+   ordinary name breaks at its space and not inside a word. Found in review. */
+@media (min-width: 761px) {
+  .app-shell.jq-game .fighter-slot-wrap:has(> .slot-delete) > .fighter-slot strong,
+  .app-shell.jq-game .fighter-slot-wrap:has(> .slot-delete) > .fighter-slot small { white-space: normal; overflow-wrap: anywhere; }
+  .app-shell.jq-game .fighter-slots:has(.slot-delete) .fighter-slot { column-gap: 0.4rem; padding-left: 0.4rem; }
+  .app-shell.jq-game .fighter-slots:has(.slot-delete) .fighter-slot strong { font-size: 1rem; }
+}
+/* Not on a laptop that also has a touch screen: a finger must never land on a
+   delete button it cannot see. Found in review. */
+@media (min-width: 981px) and (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
+  .app-shell.jq-game .fighter-slot-wrap:has(> .slot-delete) > .fighter-slot { padding-right: 0.5rem; }
+  .app-shell.jq-game .fighter-slot-wrap > .slot-delete { opacity: 0; }
+  .app-shell.jq-game .fighter-slot-wrap:hover > .slot-delete,
+  .app-shell.jq-game .fighter-slot-wrap > .slot-delete:focus-visible { opacity: 1; background: #141c26; }
+  .app-shell.jq-game .fighter-slot-wrap:has(> .slot-delete) > .fighter-slot strong,
+  .app-shell.jq-game .fighter-slot-wrap:has(> .slot-delete) > .fighter-slot small { white-space: nowrap; overflow-wrap: normal; }
+  .app-shell.jq-game .fighter-slots:has(.slot-delete) .fighter-slot { column-gap: 0.65rem; padding-left: 0.7rem; }
+  .app-shell.jq-game .fighter-slots:has(.slot-delete) .fighter-slot strong { font-size: 1.14rem; }
+}

@@ -1,0 +1,191 @@
+/* JiuQuest "Main Event" layer: Insights (design spec section 6.5).
+   Resting paint and layout only; all motion lives in motion.css. */
+
+/* Grid: hero and record on top, ladder, then the table. */
+@media (min-width: 981px) {
+  .app-shell.jq-game .progress-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+  }
+  .app-shell.jq-game .progress-hero { grid-column: 1; grid-row: 1; }
+  .app-shell.jq-game .combat-bonus { grid-column: 2; grid-row: 1; align-self: stretch; }
+  .app-shell.jq-game .belt-roadmap { grid-column: 1 / -1; grid-row: 2; }
+  .app-shell.jq-game .progress-table { grid-column: 1 / -1; grid-row: 3; }
+}
+@media (max-width: 980px) {
+  .app-shell.jq-game .progress-hero { order: 1; }
+  .app-shell.jq-game .belt-roadmap { order: 2; }
+  .app-shell.jq-game .combat-bonus { order: 3; }
+  .app-shell.jq-game .progress-table { order: 4; }
+}
+
+/* Rank hero. The portrait has a fixed height, so the figure always fits its
+   column; the column itself is painted black to the bottom of the card by the
+   first background layer. No plate tick here. */
+.app-shell.jq-game .progress-hero {
+  grid-template-columns: 13rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(#000000, #000000) 0 0 / 13rem 100% no-repeat,
+    linear-gradient(180deg, #111822 0%, #0d131a 40%, #0b1017 100%);
+}
+.app-shell.jq-game .progress-hero .progress-profile-art {
+  height: 22rem;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.app-shell.jq-game .progress-hero > div:last-child {
+  display: grid;
+  align-self: center;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 1.4rem;
+}
+.app-shell.jq-game .progress-hero h1 {
+  font-size: 2.3rem;
+  font-style: italic;
+  letter-spacing: 0.02em !important;
+  line-height: 1.02;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.app-shell.jq-game .progress-hero p { margin: 0; color: #aab6c2; }
+.app-shell.jq-game .progress-hero .profile-art-tags {
+  position: static;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.app-shell.jq-game .progress-hero .progress-bar i { height: 8px; }
+
+/* Belt ladder. */
+.app-shell.jq-game .belt-roadmap {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0 0.9rem;
+  padding: 1.1rem 1.25rem;
+}
+.app-shell.jq-game .belt-roadmap div,
+.app-shell.jq-game .belt-roadmap div.current {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 0.3rem;
+  min-height: 0;
+  padding: 0 0 0.6rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.app-shell.jq-game .belt-roadmap div > span {
+  width: 100%;
+  height: 6px;
+  margin-bottom: 0.35rem;
+  border-radius: 2px;
+}
+.app-shell.jq-game .belt-roadmap div:last-child > span { box-shadow: 0 0 0 1px #5b6f84; }
+.app-shell.jq-game .belt-roadmap strong { color: #8797a5; font-size: 1.14rem; }
+.app-shell.jq-game .belt-roadmap small { color: #8797a5; font-size: 0.86rem; }
+/* Three states from M14: earned, current, still locked. */
+.app-shell.jq-game .belt-roadmap div[data-state="done"] strong { color: #f2f5f8; }
+.app-shell.jq-game .belt-roadmap div[data-state="locked"] > span { opacity: 0.45; }
+/* The black belt bar is an outline on dark already; it is not dimmed further. */
+.app-shell.jq-game .belt-roadmap div[data-state="locked"]:last-child > span { opacity: 1; }
+.app-shell.jq-game .belt-roadmap div.current { border-bottom-color: #e8c27a; }
+.app-shell.jq-game .belt-roadmap div.current > span { height: 8px; }
+.app-shell.jq-game .belt-roadmap div.current strong { color: #f2f5f8; }
+.app-shell.jq-game .belt-roadmap div.current small { color: #aab6c2; }
+
+/* Record. */
+.app-shell.jq-game .combat-bonus p { color: #aab6c2; }
+.app-shell.jq-game .combat-bonus .stats-strip { grid-column: auto; gap: 0.9rem; }
+
+/* Technique Efficiency. */
+.app-shell.jq-game .progress-table h2 { margin-bottom: 0.6rem; }
+.app-shell.jq-game .progress-row {
+  grid-template-columns: minmax(0, 1fr) 9rem;
+  gap: 0.8rem;
+  min-height: 3.4rem;
+  margin: 0;
+  padding: 0.45rem 0;
+  border: 0;
+  border-bottom: 1px solid #1a232d;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 3.4rem;
+}
+.app-shell.jq-game .progress-row > span { display: grid; gap: 2px; min-width: 0; }
+.app-shell.jq-game .progress-row strong { color: #f2f5f8; font-size: 1.14rem; line-height: 1.2; }
+.app-shell.jq-game .progress-row small { color: #8797a5; font-size: 0.86rem; }
+.app-shell.jq-game .progress-row small::before {
+  content: "";
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.4rem;
+  border-radius: 2px;
+  background: var(--jq-cat);
+}
+.app-shell.jq-game .progress-row .progress-bar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+}
+.app-shell.jq-game .progress-row .progress-bar i { order: 1; height: 4px; }
+.app-shell.jq-game .progress-row .progress-bar span {
+  order: 2;
+  min-width: 3.4ch;
+  color: #f6d999;
+  font-family: var(--display);
+  font-size: 0.93rem;
+  font-weight: 600 !important;
+  text-align: right;
+}
+/* Untrained techniques recede. */
+.app-shell.jq-game .progress-row:has(.progress-bar b[style*="width: 0%"]) strong { color: #8797a5; }
+.app-shell.jq-game .progress-row:has(.progress-bar b[style*="width: 0%"]) .progress-bar span { color: #8797a5; }
+
+@media (min-width: 1121px) {
+  .app-shell.jq-game .progress-table {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 2rem;
+  }
+  .app-shell.jq-game .progress-table h2 { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .app-shell.jq-game .progress-hero {
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    background:
+      linear-gradient(#000000, #000000) 0 0 / 7.5rem 100% no-repeat,
+      linear-gradient(180deg, #111822 0%, #0d131a 40%, #0b1017 100%);
+  }
+  .app-shell.jq-game .progress-hero .progress-profile-art { height: 13.5rem; }
+  .app-shell.jq-game .progress-hero > div:last-child { padding: 1rem; }
+  .app-shell.jq-game .progress-hero h1 { font-size: 1.85rem; }
+  .app-shell.jq-game .belt-roadmap { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0.4rem 1rem; }
+  .app-shell.jq-game .belt-roadmap div,
+  .app-shell.jq-game .belt-roadmap div.current {
+    grid-template-columns: 2.6rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.7rem 0 0.7rem 0.6rem;
+    border-bottom: 1px solid #1a232d;
+  }
+  .app-shell.jq-game .belt-roadmap div > span,
+  .app-shell.jq-game .belt-roadmap div.current > span { height: 6px; margin-bottom: 0; }
+  .app-shell.jq-game .belt-roadmap div.current { box-shadow: inset 3px 0 0 #e8c27a; }
+  .app-shell.jq-game .progress-row { grid-template-columns: minmax(0, 1fr) 6.5rem; }
+}
+
+/* ---- Lead fix after the build (not in the design spec) ---- */
+
+/* Classic look: the stance card that rides on the classic picture would cover
+   the fighter in this narrow portrait column. Found in review. */
+.app-shell.jq-game .progress-hero .stance-reference-card { display: none; }
