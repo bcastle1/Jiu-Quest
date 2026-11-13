@@ -420,8 +420,10 @@
 
 /* ---- 4.7 Form controls ---- */
 
-/* Range, checkbox and radio inputs are never painted by the layer: the Unity
-   scrubber is a range input and the stance pictures are radio inputs. */
+/* Range, checkbox and radio inputs are skipped by the control rules in this
+   block: the Unity scrubber is a range input and the stance pictures are radio
+   inputs. The Admin screens paint their own range and checkbox inputs in
+   admin.css, scoped to .admin-grid. */
 .app-shell.jq-game input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
 .app-shell.jq-game select,
 .app-shell.jq-game textarea {

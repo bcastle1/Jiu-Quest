@@ -1,4 +1,17 @@
 /* Standalone Unreal character preview (?preview=unreal). Captured stills only. */
+/* This page is outside .app-shell, so nothing in src/game reaches it. It wears
+   the same "Main Event" look by writing the same values here: near-black page,
+   graphite cards, gold for the accent and the selected view, neutral text.
+   The global resets in src/styles.css force font-weight 400 on every element,
+   so each heavier weight below carries !important. */
+/* The page column is 1224px at most. This paints the window around it the
+   same colour while the preview is mounted; without :has() the window keeps
+   the site's own near-black base. */
+html:has(.unreal-preview-page),
+body:has(.unreal-preview-page) {
+  background: #04060a;
+}
+
 /* The game shell sizes every <main> around its sidebar. This page has no
    sidebar, so it states its own width instead of inheriting that offset. */
 .unreal-preview-page {
@@ -6,7 +19,7 @@
   max-width: 1224px;
   margin: 0 auto;
   padding: 22px 32px 48px;
-  background: radial-gradient(ellipse at 38% 34%, #26505122, transparent 65%);
+  background: #04060a;
 }
 
 .unreal-preview-top {
@@ -16,7 +29,7 @@
   gap: 16px;
   margin-bottom: 26px;
   padding-bottom: 15px;
-  border-bottom: 1px solid #b4c7c51a;
+  border-bottom: 1px solid #1a232d;
 }
 
 .unreal-preview-brand {
@@ -24,7 +37,10 @@
   align-items: center;
   gap: 12px;
   font-size: 19px;
-  color: #f2e6c9;
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 700 !important;
+  color: #f2f5f8;
 }
 
 .unreal-preview-mark {
@@ -33,11 +49,13 @@
   width: 38px;
   height: 38px;
   font-size: 13px;
-  color: #e6c685;
-  border: 1px solid #ac8e52;
+  font-style: normal;
+  font-weight: 700 !important;
+  color: #17110a;
+  border: 1px solid #c99a45;
   border-radius: 9px 2px;
-  background: linear-gradient(145deg, #385350, #182b31);
-  box-shadow: inset 0 0 0 3px #142c31;
+  background: linear-gradient(180deg, #f6d999, #e8c27a 55%, #c99a45);
+  box-shadow: none;
 }
 
 .unreal-preview-top a,
@@ -46,21 +64,34 @@
   align-items: center;
   gap: 10px;
   min-height: 44px;
-  color: #b8d1ca;
+  color: #f2f5f8;
   font-size: 12px;
   text-decoration: none;
   white-space: nowrap;
 }
 
+/* The arrow carries the accent so the link reads as an action at rest. */
+.unreal-preview-top a span,
+.unreal-preview-viewer figcaption a span {
+  color: #e8c27a;
+}
+
 .unreal-preview-top a:hover,
-.unreal-preview-viewer figcaption a:hover {
-  color: #f0d192;
+.unreal-preview-viewer figcaption a:hover,
+.unreal-preview-top a:hover span,
+.unreal-preview-viewer figcaption a:hover span {
+  color: #f6d999;
 }
 
 .unreal-preview-eyebrow {
   display: block;
-  color: #c8af77;
+  color: #e8c27a;
   font-size: 10px;
+}
+
+/* Section labels inside the status card are neutral, like the game's kickers. */
+.unreal-preview-notes .unreal-preview-eyebrow {
+  color: #8797a5;
 }
 
 .unreal-preview-intro {
@@ -73,16 +104,18 @@
 
 .unreal-preview-intro h1 {
   margin: 9px 0;
-  font-family: 'Trebuchet MS', ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--display);
   font-size: clamp(28px, 3.4vw, 46px);
+  font-style: italic;
+  font-weight: 700 !important;
   line-height: 1.1;
-  color: #f5f1e8;
+  color: #f2f5f8;
 }
 
 .unreal-preview-intro p {
   max-width: 640px;
   margin: 10px 0 0;
-  color: #a4bebf;
+  color: #aab6c2;
   font-size: 13px;
   line-height: 1.6;
 }
@@ -91,14 +124,14 @@
   display: block;
   text-align: right;
   font-size: 11px;
-  color: #d7bb80;
+  color: #e8c27a;
   white-space: nowrap;
 }
 
 .unreal-preview-mode > span {
   display: block;
   margin-top: 8px;
-  color: #839da4;
+  color: #aab6c2;
 }
 
 .unreal-preview-grid {
@@ -111,9 +144,9 @@
 .unreal-preview-viewer figure {
   margin: 0;
   overflow: hidden;
-  border: 1px solid #75999945;
+  border: 1px solid #222e3a;
   border-radius: 12px;
-  background: #0f1c25;
+  background: #0d131a;
 }
 
 /* The captures have a black studio backdrop, so the frame is black too. */
@@ -135,10 +168,10 @@
   top: 12px;
   left: 12px;
   padding: 6px 9px;
-  border: 1px solid #9cb6bd55;
+  border: 1px solid rgba(232, 194, 122, 0.5);
   border-radius: 4px;
-  background: #0b2029e8;
-  color: #d5e4e2;
+  background: rgba(4, 6, 10, 0.88);
+  color: #f2f5f8;
   font-size: 10px;
 }
 
@@ -148,18 +181,19 @@
   gap: 4px 16px;
   align-items: center;
   padding: 12px 18px;
-  background: linear-gradient(135deg, #12252c, #0f1c25);
+  background: #0d131a;
+  box-shadow: inset 0 1px 0 #222e3a;
 }
 
 .unreal-preview-viewer figcaption strong {
   grid-column: 1;
   font-size: 15px;
-  color: #f1e5cc;
+  color: #f2f5f8;
 }
 
 .unreal-preview-viewer figcaption > span {
   grid-column: 1;
-  color: #a4bebf;
+  color: #aab6c2;
   font-size: 12px;
   line-height: 1.5;
 }
@@ -183,29 +217,40 @@
   align-items: center;
   min-height: 44px;
   padding: 8px;
-  border: 1px solid #688d8e50;
+  border: 1px solid #5b6f84;
   border-radius: 10px;
-  background: #13262c80;
-  color: #c9dad7;
+  background: #0d131a;
+  color: #f2f5f8;
   font-size: 13px;
   line-height: 1.35;
   text-align: left;
 }
 
 .unreal-preview-views button:hover {
-  border-color: #80baa7;
+  border-color: #e8c27a;
 }
 
+/* Selected, as in the game: gold edge, a gold bar on the left, a gold wash and
+   a gold label. The bar is a shape, so the state does not rest on hue alone. */
 .unreal-preview-views button[aria-pressed='true'] {
-  border-color: #80baa7;
-  background: #284d4a;
-  color: #edf8ed;
-  box-shadow: inset 0 0 0 1px #80baa730;
+  border-color: #e8c27a;
+  background: linear-gradient(90deg, rgba(232, 194, 122, 0.14), rgba(232, 194, 122, 0) 72%), #0d131a;
+  color: #f6d999;
+  box-shadow: inset 3px 0 0 #e8c27a;
+}
+
+/* Forced colours remove the edge colour, the wash and the bar, so the selected
+   view gets an outline of its own there. Focus, below, still wins. */
+@media (forced-colors: active) {
+  .unreal-preview-views button[aria-pressed='true'] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
 }
 
 .unreal-preview-views button:focus-visible,
 .unreal-preview-page a:focus-visible {
-  outline: 2px solid #e0be7a;
+  outline: 2px solid #f6d999;
   outline-offset: 3px;
 }
 
@@ -221,15 +266,16 @@
 
 .unreal-preview-notes {
   padding: 19px;
-  border: 1px solid #75999945;
+  border: 1px solid #222e3a;
   border-radius: 12px;
-  background: linear-gradient(155deg, #182f35, #101e28);
+  /* The short gold rule on the top edge is the game's plate tick. */
+  background: linear-gradient(#a57f38, #a57f38) 14px 0 / 24px 2px no-repeat, #0d131a;
 }
 
 .unreal-preview-notes > div + div {
   margin-top: 17px;
   padding-top: 17px;
-  border-top: 1px solid #8caaa82c;
+  border-top: 1px solid #1a232d;
 }
 
 .unreal-preview-notes ul {
@@ -243,7 +289,7 @@
 .unreal-preview-notes li {
   position: relative;
   padding-left: 16px;
-  color: #deebe6;
+  color: #f2f5f8;
   font-size: 13px;
   line-height: 1.45;
 }
@@ -255,20 +301,20 @@
   left: 0;
   width: 6px;
   height: 6px;
-  border: 1px solid #80baa7;
+  border: 1px solid #e8c27a;
   border-radius: 50%;
-  background: #80baa7;
+  background: #e8c27a;
 }
 
-/* Hollow markers for work that has not been shown yet. */
+/* Hollow, neutral markers for work that has not been shown yet. */
 .unreal-preview-notes > div + div li::before {
-  border-color: #d7bb80;
+  border-color: #8797a5;
   background: transparent;
 }
 
 .unreal-preview-notes p {
   margin: 12px 0 0;
-  color: #92a9ab;
+  color: #8797a5;
   font-size: 11px;
   line-height: 1.7;
 }
@@ -276,8 +322,8 @@
 .unreal-preview-notes .unreal-preview-safe {
   margin-top: 17px;
   padding-top: 14px;
-  border-top: 1px solid #ffffff12;
-  color: #94c1ab;
+  border-top: 1px solid #1a232d;
+  color: #aab6c2;
 }
 
 @media (max-width: 1000px) and (min-width: 861px) {
@@ -431,7 +477,7 @@
   display: block;
   width: 3.4rem;
   height: 3.4rem;
-  border: 1px solid #344b71;
+  border: 1px solid #222e3a;
   border-radius: var(--radius);
   background: #000;
   object-fit: cover;

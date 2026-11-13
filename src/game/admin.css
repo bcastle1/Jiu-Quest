@@ -1,0 +1,83 @@
+/* JiuQuest "Main Event" layer: Admin console and Music Generator (design
+   spec section 11, the follow-up on the Admin screens).
+   Paint only: no size, spacing, grid, flex, position or display is set
+   here, so nothing on these screens moves. Every rule is scoped to
+   .admin-grid, the section both Admin screens render, so nothing here
+   reaches the Training scrubber or the Profile swatches. */
+
+/* Sliders: the housing premium.css gives every input becomes a passive
+   well (3.3) and the browser's own track and thumb take the gold accent. */
+.app-shell.jq-game .admin-grid input[type="range"] {
+  accent-color: #e8c27a;
+  border-color: transparent;
+  border-radius: 10px 3px 10px 3px;
+  background: #06090d;
+  box-shadow: none;
+}
+.app-shell.jq-game .admin-grid input[type="range"]:focus {
+  border-color: #e8c27a;
+  box-shadow: 0 0 0 3px rgba(232, 194, 122, 0.2);
+}
+
+/* Checkbox: gold accent, and no well painted behind the box. */
+.app-shell.jq-game .admin-grid input[type="checkbox"] {
+  accent-color: #e8c27a;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* The same ring as every other control (3.5), stated for these two. */
+.app-shell.jq-game .admin-grid input[type="range"]:focus-visible,
+.app-shell.jq-game .admin-grid input[type="checkbox"]:focus-visible {
+  outline: 2px solid #f6d999;
+  outline-offset: 3px;
+}
+
+/* One surface deep (3.3): a rival editor and a track editor are sections
+   of their plate, divided by a hairline, not boxes inside it. */
+.app-shell.jq-game .admin-grid .npc-editor,
+.app-shell.jq-game .admin-grid .track-card {
+  border-color: transparent;
+  border-bottom-color: #1a232d;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app-shell.jq-game .admin-grid .npc-editor:last-child,
+.app-shell.jq-game .admin-grid .track-card:last-child {
+  border-bottom-color: transparent;
+}
+
+/* Rival picture: a passive well, without the violet wash. */
+.app-shell.jq-game .admin-grid .npc-preview-card {
+  background: #06090d;
+}
+
+/* Reference tracks sit side by side, so they are cards (3.3). */
+.app-shell.jq-game .admin-grid .source-reference-list div {
+  border-color: #222e3a;
+  border-radius: 10px 3px 10px 3px;
+  background: #0d131a;
+  box-shadow: none;
+}
+
+/* The prompt to copy: a passive well. */
+.app-shell.jq-game .admin-grid .workflow-prompt {
+  border-color: transparent;
+  border-radius: 10px 3px 10px 3px;
+  background: #06090d;
+  color: #dfe6ec;
+}
+
+/* DNS records: hairline rows. */
+.app-shell.jq-game .admin-grid .deploy-admin code {
+  border-color: transparent;
+  border-bottom-color: #1a232d;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #dfe6ec;
+}
+.app-shell.jq-game .admin-grid .deploy-admin code:last-child {
+  border-bottom-color: transparent;
+}
