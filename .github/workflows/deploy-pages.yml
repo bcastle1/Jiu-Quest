@@ -52,7 +52,16 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Verify real Unity player and mobile layouts
-        run: pnpm test:browser
+        # bash with pipefail keeps the suites' exit status through tee. On a
+        # failure the end of their output becomes a public annotation, because
+        # this repository's raw logs need a GitHub sign-in to read.
+        shell: bash
+        run: |
+          set -o pipefail
+          status=0
+          pnpm test:browser 2>&1 | tee browser-suites.log || status=$?
+          if [ "$status" -ne 0 ]; then node tools/ci_error_annotation.mjs browser-suites.log || true; fi
+          exit "$status"
 
       - name: Record exact release
         run: node -e "const fs=require('node:fs');const u=JSON.parse(fs.readFileSync('releases/unity/release.json'));fs.writeFileSync('dist/release.json',JSON.stringify({commit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,repository:process.env.GITHUB_REPOSITORY,combatEngine:'unity',unityArchiveSha256:u.sha256,unitySourceFingerprint:u.sourceFingerprint}))"
