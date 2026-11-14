@@ -1,7 +1,7 @@
 // Two-athlete position stills rendered in Unreal Engine, as tintable layers.
 // Unreal rendered one frozen frame five times: everything black, then each
 // athlete's gi in white, then each athlete's belt in white.
-// tools/build_unreal_position_layers.py turns those renders into layers the
+// tools/build_unreal_position_layers.mjs (or its twin, the .py) turns those renders into layers the
 // page adds together, each multiplied by a color:
 //
 //   picture = base + leadJacket * lead.giTop + leadPants * lead.giPants + leadBelt * lead belt
@@ -20,12 +20,15 @@ export function findUnrealPositionStill(key) {
   return stills.find((still) => still.position === key) ?? null;
 }
 
-// Stills that are published but not shown to players for now. The standing
-// still was rendered from the first standing_stance clip, in which both
-// athletes stand upright. The owner wants standing athletes crouched, and the
-// classic picture of the position already is. Take 'standing' out of this list
-// when Unreal delivers the still's layers from the crouched clip.
-export const HELD_UNREAL_POSITION_STILLS = Object.freeze(['standing']);
+// Stills that are published but not shown to players: every player sees the
+// classic picture of a position listed here, and no layer of its still is
+// downloaded. Nothing is held now. The crouched standing still was held while
+// the lead athlete's belt tail poked through the back of his thigh, and is
+// shown since Unreal's repair renders of November 13, 2026 (15:34) were built
+// into its layers. To hold a still again, put its position key in this list,
+// for example Object.freeze(['standing']), and update the hold-back test in
+// tests/unrealPositionStills.test.js with it.
+export const HELD_UNREAL_POSITION_STILLS = Object.freeze([]);
 
 // The still for one settled position, or null when the classic picture is the
 // better one or the still is held back. A still that shows the exact position

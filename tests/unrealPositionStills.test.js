@@ -83,14 +83,29 @@ test('a still replaces the classic picture only where it is at least as exact', 
   assert.equal(choose(null), null);
 });
 
-test('the upright standing still is held back, so players see the crouched classic picture', () => {
-  // Empty this list, and this test with it, when the still is rendered again from the crouched clip.
-  assert.deepEqual(HELD_UNREAL_POSITION_STILLS, ['standing']);
-  assert.throws(() => { HELD_UNREAL_POSITION_STILLS.push('guard'); }, TypeError);
-  for (const position of ['standing', 'rear-clinch', 'standing-headlock']) assert.equal(chooseUnrealPositionStill(snapshotOf(position)), null, position);
+test('the crouched standing still is shown: nothing is held back since the belt-tail repair renders', () => {
+  // Unreal rendered the still's five passes again on November 13, 2026 (15:34) with the lead athlete's
+  // belt tail off the back of his thigh: same camera, frame and pose, only the tail mesh changed.
+  // To hold a still back again, list it in HELD_UNREAL_POSITION_STILLS and change this test with it.
+  assert.deepEqual(HELD_UNREAL_POSITION_STILLS, []);
+  assert.throws(() => { HELD_UNREAL_POSITION_STILLS.push('standing'); }, TypeError);
+  const standing = findUnrealPositionStill('standing');
+  // The rule as players get it: the exact stance, and a general reference for setups neither picture shows.
+  assert.deepEqual(chooseUnrealPositionStill(snapshotOf('standing')), { still: standing, exact: true });
+  for (const position of ['rear-clinch', 'standing-headlock']) assert.deepEqual(chooseUnrealPositionStill(snapshotOf(position)), { still: standing, exact: false }, position);
+  assert.equal(chooseUnrealPositionStill(snapshotOf('clinch')), null);
   assert.equal(chooseUnrealPositionStill(null), null);
-  // The files stay published and pinned, ready for the new render to replace them.
-  assert.ok(findUnrealPositionStill('standing'));
+  // Holding a still back still works.
+  assert.equal(chooseUnrealPositionStill(snapshotOf('standing'), ['standing']), null);
+  // The still is frame 0 of the crouched standing_stance clip, built from the repair renders.
+  assert.deepEqual([standing.sourceClip, standing.sourceFrame], ['standing_stance/fighter-side.mp4', 0]);
+  assert.deepEqual({ ...standing.sources }, {
+    'base.png': '4ac1480b46662f79c906a016fbdc7c973d91ab56a74a04daf98e9114ea623b6f',
+    'lead-gi-white.png': '8493e9783e87d1fc1b27ac6fec9d5e6f3226e3529e3a5a09ec0d51b6314fad30',
+    'other-gi-white.png': '35ff493757d913861dc2c6b69168b8b897a5743e4855b4191093296e6f94ee17',
+    'lead-belt-white.png': 'ea05f13a0672e9df46431c48ede4bbd1402942f2d52650a72da013927eb8d2be',
+    'other-belt-white.png': 'eba6ef8c8676d925ec76a975cccffe3172b4524f4336153a4c9e9941fdc9fc62',
+  });
 });
 
 test('each layer takes its own athlete\'s color, and only a safe color', () => {

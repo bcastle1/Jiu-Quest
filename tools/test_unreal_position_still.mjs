@@ -31,9 +31,14 @@ const HELD = HELD_UNREAL_POSITION_STILLS.includes(STILL.position);
 // The player: white jacket, black pants, so all four gi halves in the picture differ.
 const PLAYER = { selectedFighterId: 'tinted', fighters: [{ id: 'tinted', name: 'Tinted', look: 'unreal', giTop: WHITE, giPants: BLACK }] };
 const DESIGNED = { selectedFighterId: 'designed', fighters: [{ id: 'designed', name: 'Designed', gender: 'girl', hairStyle: 'braided top', skinTone: '#a86b4d', hairColor: '#3b251b', emblem: 'lion', giTop: '#1d7d68', giPants: WHITE }] };
-// Places on the still, as fractions of its width and height: the middle of each
-// gi half and belt, and the lead athlete's cheek, which no color touches.
-const POINTS = { leadJacket: [0.3105, 0.3657], leadPants: [0.3019, 0.5583], leadBelt: [0.3117, 0.475], otherJacket: [0.7068, 0.2083], otherPants: [0.7198, 0.5333], otherBelt: [0.7241, 0.4685], leadFace: [0.3463, 0.1537] };
+// Places on the crouched standing still, as fractions of its width and height.
+// Each gi-half and belt point is the place deepest inside the lit part of that
+// layer, so it is far from the hem, the belt edges and the other athlete: the
+// lead's upper back and near thigh, the other's shoulder and near thigh, and
+// the flat of each belt. The last is the lead athlete's cheek, which no color
+// touches. They belong to this pose and crop: work them out again from the
+// layers when the still is rebuilt.
+const POINTS = { leadJacket: [0.321, 0.3259], leadPants: [0.3086, 0.6491], leadBelt: [0.1969, 0.4352], otherJacket: [0.6611, 0.2954], otherPants: [0.7556, 0.5944], otherBelt: [0.7833, 0.4111], leadFace: [0.392, 0.2269] };
 let browser, server, page, blockedLayer = null;
 
 async function staticSite() {
@@ -201,10 +206,20 @@ async function stillShown(base) {
   assert.ok(colors.leadJacket.painted[1] > 170 && colors.leadPants.painted[1] < 70, 'the player wears a white jacket over black pants');
   assert.ok(near(colors.leadFace.painted, colors.leadFace.base.map(Math.round), 8), 'skin is untouched by the gi colors');
   assert.notDeepEqual([opponentKit[0], opponentKit[1]], [WHITE, BLACK], `${opponentName} wears a different kit from the player`);
+  // The arithmetic check above passes whatever the layers hold, as long as the
+  // browser adds them. So check the layers themselves: each sample point lies in
+  // its own layer and in no other, and no layer touches the cheek. A layer that
+  // is swapped, emptied or misplaced fails here.
+  for (const name of Object.keys(POINTS).filter((point) => point !== 'leadFace')) {
+    const lit = colors[name].layers;
+    assert.ok(lit[name][1] > 100, `${name}: its own layer is lit at its sample point (${Math.round(lit[name][1])})`);
+    for (const layer of Object.keys(lit).filter((other) => other !== name)) assert.ok(lit[layer][1] < 20, `${name}: the ${layer} layer is dark at its sample point (${Math.round(lit[layer][1])})`);
+  }
+  assert.ok(Object.values(colors.leadFace.layers).every((value) => value[1] < 8), 'no gi or belt layer touches the cheek');
   layouts.push({ viewport: page.viewportSize(), where: 'training', still: await box(stage.locator('.unreal-position-still')) });
   await stage.scrollIntoViewIfNeeded();
   await capture('desktop-training-standing');
-  checks.push('Training shows the Unreal standing picture for a standing technique, with the player and the partner each in their own jacket, pants and belt colors, matching the layer arithmetic.');
+  checks.push('Training shows the Unreal standing picture for a standing technique, with the player and the partner each in their own jacket, pants and belt colors, matching the layer arithmetic; each sample point lies in its own layer and no other.');
 
   // Neither picture shows a rear clinch, so the still stands in as a general reference.
   await technique('Rear Takedown');
