@@ -4,8 +4,10 @@
 // camera, people who ask for reduced motion start paused, a clip that cannot
 // load gives way to the usual picture, and the page fits phones.
 // Techniques switch themselves on: every curriculum technique that has a
-// published clip for both performers is checked in Training and in a player's
-// Arena win against the real files, with its poster compared to frame 0. Each
+// published clip for every performer it needs (techniqueClipReady: both, or the
+// fighter alone for a technique the rival never performs from its clip start)
+// is checked in Training and in a player's Arena win against the real files,
+// with its poster compared to frame 0. Each
 // one that has not shows what it showed before on the release default: the
 // Unity stage where Unity animates it, the position picture otherwise, in
 // Training, or in the Arena for the white-belt starters Training does not list.
@@ -276,7 +278,7 @@ try {
   }
   checks.push('At 390 and 320 pixels the clip plays at full width with its controls stacked below, and nothing scrolls sideways.');
 
-  // ---- Techniques: each one switches itself on once both performers have clips ----
+  // ---- Techniques: each one switches itself on once every performer it needs has clips ----
   // Every curriculum technique has a clip id, so any of them can be ready.
   const ready = TECHNIQUE_IDS.filter((moveId) => techniqueClipReady(moveId, unrealClipViews));
   const waiting = TECHNIQUE_IDS.filter((moveId) => !ready.includes(moveId));
@@ -335,9 +337,9 @@ try {
     checks.push(`${title}: the player's Arena win plays the real clip, labelled as theirs, with no Unity request.`);
   }
 
-  // A technique without clips for both performers shows what it showed before
-  // on the release default: the Unity stage where Unity animates it, and the
-  // position picture, under "Position reference", everywhere else.
+  // A technique still without clips of every performer it needs shows what it
+  // showed before on the release default: the Unity stage where Unity animates
+  // it, and the position picture, under "Position reference", everywhere else.
   const shown = { unity: [], picture: [], arenaOnly: [] };
   const unityStage = (scope) => page.locator(`${scope} .unity-stage[data-engine="unity"]`);
   const positionPicture = (scope) => page.locator(`${scope} .unity-unavailable .grappling-snapshot-stage`);
@@ -352,14 +354,14 @@ try {
       const unity = resolveUnityMove(move.id) !== null;
       await openTrainingTechnique(page, move);
       await (unity ? unityStage(CARD) : positionPicture(CARD)).waitFor({ timeout: 15000 });
-      assert.equal(await techniqueStage(page, CARD).count(), 0, `${moveId} has no Unreal clip for both performers, so it shows none`);
+      assert.equal(await techniqueStage(page, CARD).count(), 0, `${moveId} has no Unreal clips of every performer it needs, so it shows none`);
       if (!unity) assert.equal(await page.locator(`${CARD} .unity-stage`).count(), 0, `Unity has no animation of ${moveId}, so it shows the position picture`);
       assert.equal(await page.locator(`${CARD} .training-animation-head h3`).textContent(), unity ? 'Movement preview' : 'Position reference', moveId);
       shown[unity ? 'unity' : 'picture'].push(moveId);
     }
     assert.equal(new URL(page.url()).searchParams.has('engine'), false, 'the release default sets no engine in the address');
     await training.close();
-    checks.push(`On the release default, Training shows the Unity stage for ${shown.unity.join(', ') || 'no technique'} and the position picture for the other ${shown.picture.length} techniques that have no clips for both performers.`);
+    checks.push(`On the release default, Training shows the Unity stage for ${shown.unity.join(', ') || 'no technique'} and the position picture for the other ${shown.picture.length} techniques that do not have clips of every performer they need.`);
   }
   // Training does not list the white-belt starters; the Arena offers them to
   // every player. The player chooses one until both the player and the rival
@@ -375,7 +377,7 @@ try {
       want: (counts) => counts.fighter >= 1 && counts.opponent >= 1,
       onWin: async (win) => {
         await (unity ? unityStage(MAT) : positionPicture(MAT)).waitFor({ timeout: 15000 });
-        assert.equal(await techniqueStage(page, MAT).count(), 0, `${moveId} has no Unreal clip for both performers, so the Arena shows none (${win.headline})`);
+        assert.equal(await techniqueStage(page, MAT).count(), 0, `${moveId} has no Unreal clips of every performer it needs, so the Arena shows none (${win.headline})`);
         if (!unity) assert.equal(await page.locator(`${MAT} .unity-stage`).count(), 0, `Unity has no animation of ${moveId}, so the Arena shows the position picture (${win.headline})`);
       },
     });

@@ -56,7 +56,7 @@ export default function UnrealCharacterPreview() {
         <div>
           <span className="unreal-preview-eyebrow">UNREAL CHARACTER PREVIEW</span>
           <h1>A first look at the new fighter.</h1>
-          <p>Unedited stills captured from the first character build in Unreal Engine, with the belt still at the waist. The same athlete is now in the Fighter Creator and in the Arena's opening stance. Technique animations in Arena and Training move to Unreal clips one technique at a time; a technique keeps the current characters until both of its clips are ready.</p>
+          <p>Unedited stills captured from the first character build in Unreal Engine, with the belt still at the waist. The same athlete is now in the Fighter Creator and in the Arena's opening stance. Technique animations in Arena and Training move to Unreal clips one technique at a time; a technique keeps the current characters until the clips it needs are ready.</p>
         </div>
         <span className="unreal-preview-mode">CAPTURED STILLS<span>Not live gameplay</span></span>
       </header>

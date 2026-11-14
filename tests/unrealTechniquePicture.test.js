@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { allMoves } from '../src/data/curriculum.js';
 import { resolveArenaUnityPlayback, resolveUnityMove } from '../src/unity/bridge.js';
 import { UNREAL_STANCES } from '../src/unreal/stances.js';
-import { TECHNIQUE_OPENING_CAMERA, TECHNIQUE_PERFORMERS, chooseTechniquePicture, techniqueClipReady, techniqueMoves } from '../src/unreal/techniquePicture.js';
+import { FIGHTER_ONLY_CLIP_IDS, TECHNIQUE_OPENING_CAMERA, TECHNIQUE_PERFORMERS, chooseTechniquePicture, techniqueClipPerformers, techniqueClipReady, techniqueMoves } from '../src/unreal/techniquePicture.js';
 import { UNREAL_CLIPS, unrealClipViews } from '../src/unreal/techniqueClips.js';
 import { resolveArenaClipPlayback, unrealClipMoveId } from '../src/unreal/techniqueIds.js';
 
@@ -35,6 +35,19 @@ const noEngineMove = [null, undefined];
 
 // Side and front views, for both performers, of each clip id given.
 const fullViews = (...clipMoveIds) => fakeViews(...clipMoveIds.flatMap((id) => [`${id}/fighter-side`, `${id}/fighter-front`, `${id}/opponent-side`, `${id}/opponent-front`]));
+// The player's side and front views of each clip id given, and none of the rival's.
+const fighterViews = (...clipMoveIds) => fakeViews(...clipMoveIds.flatMap((id) => [`${id}/fighter-side`, `${id}/fighter-front`]));
+
+// The techniques the rival never performs from their clip start, so the game
+// never shows their opponent clip, written out in curriculum order: six whose
+// clip start the rival is never in, then the nine previews, which the rival
+// never uses. tests/unrealRivalReach.test.js works the same list out from the
+// game's own rules.
+const FIGHTER_ONLY = Object.freeze([
+  'headlock_scissors_choke', 'double_ankle_sweep', 'headlock_escape_2', 'standing_headlock_defense', 'blocking_standing_punch_from_ground', 'hook_sweep',
+  'purple_omoplata', 'purple_darce', 'purple_x_guard_sweep', 'brown_pressure_pass', 'brown_knee_cut', 'brown_crucifix',
+  'black_berimbolo', 'black_leg_drag', 'black_bow_arrow',
+]);
 
 // The next three say in plain functions what the components do. A test further
 // down pins the source lines they repeat, so they cannot drift apart unnoticed.
@@ -185,7 +198,7 @@ test('a technique the engine cannot animate plays its clips once both performers
   }
 });
 
-test('such a technique stays on the engine picture until both performers have views of its own clip id', () => {
+test('such a technique stays on the engine picture until every performer it needs has views of its own clip id: both, for the Kimura', () => {
   const lists = {
     'no clip at all': fakeViews(),
     'the player only': fakeViews('kimura_guard/fighter-side', 'kimura_guard/fighter-front'),
@@ -227,6 +240,122 @@ test('?engine=snapshot, ?engine=unity and the local live preview keep its clips 
       // The local live preview draws the picture itself, whatever the address says.
       for (const search of [undefined, '', '?engine=unreal']) {
         assert.deepEqual(chooseTechniquePicture({ moveId, clipMoveId: 'kimura_guard', performerSide, engine: 'unreal', search, views: kimura }), { kind: 'engine' }, `unreal ${search}`);
+      }
+    }
+  }
+});
+
+test('fifteen techniques need the fighter\'s clips alone, and every other technique needs both performers\'', () => {
+  assert.deepEqual([...FIGHTER_ONLY_CLIP_IDS], [...FIGHTER_ONLY]);
+  assert.ok(Object.isFrozen(FIGHTER_ONLY_CLIP_IDS));
+  assert.throws(() => FIGHTER_ONLY_CLIP_IDS.push('double_leg'), TypeError);
+  // Clip ids of curriculum techniques, each once, in curriculum order.
+  const clipIds = allMoves.map((move) => unrealClipMoveId(move.id));
+  assert.deepEqual([...FIGHTER_ONLY_CLIP_IDS], clipIds.filter((id) => FIGHTER_ONLY_CLIP_IDS.includes(id)));
+  assert.equal(new Set(FIGHTER_ONLY_CLIP_IDS).size, 15);
+  // The fighter alone for those, as one frozen list; TECHNIQUE_PERFORMERS itself for every other technique.
+  for (const id of clipIds) {
+    const performers = techniqueClipPerformers(id);
+    if (FIGHTER_ONLY.includes(id)) {
+      assert.deepEqual([...performers], ['fighter'], id);
+      assert.ok(Object.isFrozen(performers), id);
+      assert.equal(performers, techniqueClipPerformers(FIGHTER_ONLY[0]), id);
+    } else {
+      assert.equal(performers, TECHNIQUE_PERFORMERS, id);
+    }
+  }
+  assert.throws(() => techniqueClipPerformers('hook_sweep').push('opponent'), TypeError);
+  assert.deepEqual([...techniqueClipPerformers('hook_sweep')], ['fighter']);
+  // Only those clip ids: not the curriculum id, not a near name, not a stance clip, not something that is no id.
+  for (const value of ['hook-sweep', 'Hook_Sweep', ' hook_sweep', 'hook_sweep ', 'hook', 'purple_omoplata_2', 'standing_stance', '', null, undefined, 0, ['hook_sweep'], { id: 'hook_sweep' }]) {
+    assert.equal(techniqueClipPerformers(value), TECHNIQUE_PERFORMERS, JSON.stringify(value));
+  }
+  assert.equal(techniqueClipPerformers(), TECHNIQUE_PERFORMERS);
+  // None of them is a technique Unity animates.
+  for (const move of allMoves.filter((item) => FIGHTER_ONLY.includes(unrealClipMoveId(item.id)))) assert.equal(resolveUnityMove(move.id), null, move.id);
+});
+
+test('a fighter-only technique switches over with the fighter\'s views alone: Training and the player\'s Arena win play the clip, and a rival\'s win shows the engine picture', () => {
+  for (const clipMoveId of FIGHTER_ONLY) {
+    const move = allMoves.find((item) => unrealClipMoveId(item.id) === clipMoveId);
+    const views = fighterViews(clipMoveId);
+    const clip = (performerSide, camera = 'side') => ({ kind: 'clip', moveId: clipMoveId, performerSide, camera });
+    // Won from the technique's clip start, or from another of its starts.
+    const won = (actorIsPlayer, startedFrom = move.starts[0]) => ({ move, actorIsPlayer, animationSucceeded: true, startedFrom });
+    assert.equal(techniqueClipReady(clipMoveId, views), true, clipMoveId);
+    // The release default, and builds with no engine configured (pnpm dev, pnpm build, Vercel).
+    for (const [engine, search] of [['unity', ''], ['snapshot', ''], ['snapshot', '?seed=4']]) {
+      const where = `${clipMoveId}, ${engine} ${search}`;
+      // Training: the player performs, and the heading says the technique moves.
+      assert.deepEqual(stagePicture(trainingProps(move), engine, search, views), clip('fighter'), where);
+      assert.equal(techniqueMoves({ engine, ...trainingProps(move), search, views }), true, where);
+      // The Arena: the player's win from the clip start plays the player's clip.
+      assert.deepEqual(stagePicture(arenaProps(won(true)), engine, search, views), clip('fighter'), where);
+      // A rival's win, which the game never produces, has no clip of its own, so it shows what it shows today.
+      assert.deepEqual(stagePicture(arenaProps(won(false)), engine, search, views), { kind: 'engine' }, where);
+      // A win from another of its starts shows what it shows today, as for every technique.
+      for (const start of move.starts.slice(1)) {
+        for (const actorIsPlayer of [true, false]) assert.deepEqual(stagePicture(arenaProps(won(actorIsPlayer, start)), engine, search, views), { kind: 'engine' }, `${where} from ${start}`);
+      }
+    }
+    // The rule asked directly: a clip only for a performer with a view of their own.
+    assert.deepEqual(chooseTechniquePicture({ moveId: null, clipMoveId, ...releaseDefault, views }), clip('fighter'));
+    assert.deepEqual(chooseTechniquePicture({ moveId: undefined, clipMoveId, performerSide: 'fighter', ...releaseDefault, views }), clip('fighter'));
+    assert.ok(Object.isFrozen(chooseTechniquePicture({ moveId: null, clipMoveId, ...releaseDefault, views })));
+    for (const performerSide of ['opponent', 'referee']) {
+      assert.deepEqual(chooseTechniquePicture({ moveId: null, clipMoveId, performerSide, ...releaseDefault, views }), { kind: 'engine' }, `${clipMoveId} ${performerSide}`);
+    }
+    // ?engine=snapshot, ?engine=unity and the local live preview keep its clips off, and nothing animates it there.
+    for (const [engine, search] of [['snapshot', '?engine=snapshot'], ['unity', '?engine=snapshot'], ['unity', '?engine=unity'], ['unreal', '?engine=unreal'], ['unreal', '']]) {
+      const where = `${clipMoveId}, ${engine} ${search}`;
+      assert.deepEqual(stagePicture(trainingProps(move), engine, search, views), { kind: 'engine' }, where);
+      assert.equal(techniqueMoves({ engine, ...trainingProps(move), search, views }), false, where);
+      for (const actorIsPlayer of [true, false]) assert.deepEqual(stagePicture(arenaProps(won(actorIsPlayer)), engine, search, views), { kind: 'engine' }, where);
+    }
+    // A front view alone is enough, and opens on the front.
+    const frontOnly = fakeViews(`${clipMoveId}/fighter-front`);
+    assert.equal(techniqueClipReady(clipMoveId, frontOnly), true, clipMoveId);
+    assert.deepEqual(stagePicture(trainingProps(move), 'unity', '', frontOnly), clip('fighter', 'front'), clipMoveId);
+    assert.deepEqual(stagePicture(arenaProps(won(true)), 'unity', '', frontOnly), clip('fighter', 'front'), clipMoveId);
+    // No view, the rival's views alone, or every other technique's views switch nothing.
+    const others = [...FIGHTER_ONLY, 'double_leg', 'kimura_guard'].filter((id) => id !== clipMoveId);
+    for (const [name, nothing] of [['no clip', fakeViews()], ['the rival only', fakeViews(`${clipMoveId}/opponent-side`, `${clipMoveId}/opponent-front`)], ['other techniques', fullViews(...others)]]) {
+      assert.equal(techniqueClipReady(clipMoveId, nothing), false, `${clipMoveId}, ${name}`);
+      assert.deepEqual(stagePicture(trainingProps(move), 'unity', '', nothing), { kind: 'engine' }, `${clipMoveId}, ${name}`);
+      assert.equal(techniqueMoves({ engine: 'unity', ...trainingProps(move), search: '', views: nothing }), false, `${clipMoveId}, ${name}`);
+      for (const actorIsPlayer of [true, false]) assert.deepEqual(stagePicture(arenaProps(won(actorIsPlayer)), 'unity', '', nothing), { kind: 'engine' }, `${clipMoveId}, ${name}`);
+    }
+    // With the rival's views as well, each performer plays their own clip, as for every technique.
+    const both = fullViews(clipMoveId);
+    assert.deepEqual(stagePicture(trainingProps(move), 'unity', '', both), clip('fighter'), clipMoveId);
+    assert.deepEqual(stagePicture(arenaProps(won(true)), 'unity', '', both), clip('fighter'), clipMoveId);
+    assert.deepEqual(stagePicture(arenaProps(won(false)), 'unity', '', both), clip('opponent'), clipMoveId);
+  }
+});
+
+test('a technique that needs both performers shows today\'s picture with the fighter\'s views alone, exactly as with no clip at all', () => {
+  const none = fakeViews();
+  const needsBoth = allMoves.filter((move) => !FIGHTER_ONLY.includes(unrealClipMoveId(move.id)));
+  assert.equal(needsBoth.length, allMoves.length - FIGHTER_ONLY.length);
+  for (const move of needsBoth) {
+    const clipMoveId = unrealClipMoveId(move.id);
+    assert.equal(techniqueClipPerformers(clipMoveId), TECHNIQUE_PERFORMERS, clipMoveId);
+    for (const views of [fighterViews(clipMoveId), fakeViews(`${clipMoveId}/fighter-front`)]) {
+      assert.equal(techniqueClipReady(clipMoveId, views), false, clipMoveId);
+      for (const [engine, search] of [['unity', ''], ['snapshot', ''], ['snapshot', '?engine=snapshot'], ['unity', '?engine=snapshot'], ['unity', '?engine=unity'], ['unreal', '?engine=unreal']]) {
+        const where = `${clipMoveId}, ${engine} ${search}`;
+        // Training, and its heading.
+        assert.deepEqual(stagePicture(trainingProps(move), engine, search, views), stagePicture(trainingProps(move), engine, search, none), where);
+        assert.deepEqual(stagePicture(trainingProps(move), engine, search, views), { kind: 'engine' }, where);
+        assert.equal(techniqueMoves({ engine, ...trainingProps(move), search, views }), techniqueMoves({ engine, ...trainingProps(move), search, views: none }), where);
+        // The Arena, after a win by either side from each of its starts.
+        for (const startedFrom of move.starts) {
+          for (const actorIsPlayer of [true, false]) {
+            const props = arenaProps({ move, actorIsPlayer, animationSucceeded: true, startedFrom });
+            assert.deepEqual(stagePicture(props, engine, search, views), stagePicture(props, engine, search, none), `${where} from ${startedFrom}`);
+            assert.deepEqual(stagePicture(props, engine, search, views), { kind: 'engine' }, `${where} from ${startedFrom}`);
+          }
+        }
       }
     }
   }
@@ -399,12 +528,19 @@ test('every curriculum technique plays its own clips in Training and in the Aren
         assert.deepEqual(stagePicture(arenaProps(won(actorIsPlayer)), engine, search, views), { kind: 'engine' }, `${move.id} ${engine} ${search}`);
       }
     }
-    // One performer's clips alone switch nothing, for either winner.
-    for (const onePerformer of [fakeViews(`${clipMoveId}/fighter-side`, `${clipMoveId}/fighter-front`), fakeViews(`${clipMoveId}/opponent-side`, `${clipMoveId}/opponent-front`)]) {
-      assert.deepEqual(stagePicture(trainingProps(move), 'unity', '', onePerformer), { kind: 'engine' }, move.id);
-      for (const actorIsPlayer of [true, false]) {
-        assert.deepEqual(stagePicture(arenaProps(won(actorIsPlayer)), 'unity', '', onePerformer), { kind: 'engine' }, move.id);
-      }
+    // One performer's clips alone switch nothing, for either winner, except the
+    // fighter's for a technique the rival never performs from its clip start:
+    // those play in Training and after the player's win, and never for the rival.
+    const fighterOnly = FIGHTER_ONLY.includes(clipMoveId);
+    const playerClip = { kind: 'clip', moveId: clipMoveId, performerSide: 'fighter', camera };
+    const playerOnly = fakeViews(`${clipMoveId}/fighter-side`, `${clipMoveId}/fighter-front`);
+    assert.deepEqual(stagePicture(trainingProps(move), 'unity', '', playerOnly), fighterOnly ? playerClip : { kind: 'engine' }, move.id);
+    assert.deepEqual(stagePicture(arenaProps(won(true)), 'unity', '', playerOnly), fighterOnly ? playerClip : { kind: 'engine' }, move.id);
+    assert.deepEqual(stagePicture(arenaProps(won(false)), 'unity', '', playerOnly), { kind: 'engine' }, move.id);
+    const rivalOnly = fakeViews(`${clipMoveId}/opponent-side`, `${clipMoveId}/opponent-front`);
+    assert.deepEqual(stagePicture(trainingProps(move), 'unity', '', rivalOnly), { kind: 'engine' }, move.id);
+    for (const actorIsPlayer of [true, false]) {
+      assert.deepEqual(stagePicture(arenaProps(won(actorIsPlayer)), 'unity', '', rivalOnly), { kind: 'engine' }, move.id);
     }
     // Every other technique's clips together are not this technique's.
     const others = fullViews(...clipIds.filter((id) => id !== clipMoveId));
@@ -418,24 +554,29 @@ test('every curriculum technique plays its own clips in Training and in the Aren
 // Coverage report: every `pnpm test` shows which techniques play Unreal clips.
 // Every curriculum technique is checked by its clip id, as Training and the
 // Arena ask for it. The report stays short: one line for each technique that
-// has any clip, then one line of totals. A technique switches over only with
-// both performers; one performer alone is allowed in the files (an import in
-// progress) but changes nothing on screen.
+// has any clip, then one line of totals. A technique switches over once every
+// performer it needs has clips (techniqueClipPerformers): both, or the fighter
+// alone for a technique the rival never performs from its clip start. Clips of
+// fewer performers are allowed in the files (an import in progress) but change
+// nothing on screen.
 test('coverage: which curriculum techniques have Unreal clips for each performer', (t) => {
-  const counts = { playing: 0, onePerformer: 0, none: 0 };
+  const counts = { playing: 0, waiting: 0, none: 0 };
   for (const move of allMoves) {
     const { moveId, clipMoveId } = trainingProps(move);
     const cameras = Object.fromEntries(TECHNIQUE_PERFORMERS.map((side) => [side, unrealClipViews(clipMoveId, side).map((clip) => clip.camera)]));
     const sidesWithClips = TECHNIQUE_PERFORMERS.filter((side) => cameras[side].length > 0);
+    const needed = techniqueClipPerformers(clipMoveId);
     const ready = techniqueClipReady(clipMoveId, unrealClipViews);
-    // A fighter-only import is allowed (spec 2.2), so a technique with one
-    // performer is reported, not failed; it must simply not switch over.
-    assert.equal(ready, sidesWithClips.length === TECHNIQUE_PERFORMERS.length, `${clipMoveId} switches over only with both performers`);
-    counts[ready ? 'playing' : sidesWithClips.length ? 'onePerformer' : 'none'] += 1;
+    // A fighter-only import is allowed (spec 2.2), so a technique still missing
+    // a performer it needs is reported, not failed; it must simply not switch over.
+    assert.equal(ready, needed.every((side) => cameras[side].length > 0), `${clipMoveId} switches over only once every performer it needs has clips`);
+    counts[ready ? 'playing' : sidesWithClips.length ? 'waiting' : 'none'] += 1;
     const asBefore = moveId ? 'Unity on the release build' : 'the position picture';
     if (sidesWithClips.length) {
       const sides = TECHNIQUE_PERFORMERS.map((side) => `${side}: ${cameras[side].join('+') || 'none'}`).join(', ');
-      t.diagnostic(`${clipMoveId}: ${sides} -> ${ready ? 'plays Unreal clips' : `only ${sidesWithClips[0]} has clips, so it keeps playing as before (${asBefore})`}`);
+      const missing = needed.filter((side) => cameras[side].length === 0);
+      const fighterAlone = needed.length < TECHNIQUE_PERFORMERS.length ? ' (the fighter\'s alone: the rival never performs it from its clip start)' : '';
+      t.diagnostic(`${clipMoveId}: ${sides} -> ${ready ? `plays Unreal clips${fighterAlone}` : `${missing.join(' and ')} has no clips yet, so it keeps playing as before (${asBefore})`}`);
     }
 
     // On the release default, in Training (the player) and in the Arena (either winner).
@@ -445,9 +586,13 @@ test('coverage: which curriculum techniques have Unreal clips for each performer
     if (moveId !== null) assert.equal(chooseTechniquePicture({ moveId, engine: 'unity', search: '', views: unrealClipViews }).kind, ready ? 'clip' : 'engine', `${moveId} on the release default`);
     assert.equal(techniqueMoves({ engine: 'unity', moveId, clipMoveId, search: '', views: unrealClipViews }), ready || moveId !== null, `${clipMoveId} heading on the release default`);
     for (const actorIsPlayer of [true, false]) {
+      const performerSide = actorIsPlayer ? 'fighter' : 'opponent';
       const settled = stagePicture(arenaProps({ move, actorIsPlayer, animationSucceeded: true, startedFrom: move.starts[0] }), 'unity', '', unrealClipViews);
-      assert.equal(settled.kind, ready ? 'clip' : 'engine', `${clipMoveId} in the Arena on the release default`);
-      if (ready) assert.deepEqual([settled.moveId, settled.performerSide], [clipMoveId, actorIsPlayer ? 'fighter' : 'opponent']);
+      // The winner's own clip once the technique is ready. A rival with no clip
+      // of its own (a fighter-only technique) gets what it got before.
+      const plays = ready && cameras[performerSide].length > 0;
+      assert.equal(settled.kind, plays ? 'clip' : 'engine', `${clipMoveId} in the Arena on the release default`);
+      if (plays) assert.deepEqual([settled.moveId, settled.performerSide], [clipMoveId, performerSide]);
     }
     // Clip ids change the picture of one kind of technique only: one the engine
     // cannot animate, once it is ready. Every other technique gets what a call
@@ -461,8 +606,8 @@ test('coverage: which curriculum techniques have Unreal clips for each performer
       }
     }
   }
-  assert.equal(counts.playing + counts.onePerformer + counts.none, allMoves.length);
-  t.diagnostic(`${counts.playing} of ${allMoves.length} curriculum techniques play Unreal clips. Clips for one performer only: ${counts.onePerformer}. No clip: ${counts.none}. Both of those play as before.`);
+  assert.equal(counts.playing + counts.waiting + counts.none, allMoves.length);
+  t.diagnostic(`${counts.playing} of ${allMoves.length} curriculum techniques play Unreal clips. With clips, but not yet of every performer they need: ${counts.waiting}. No clip: ${counts.none}. Both of those play as before.`);
 
   // The report leaves no clip out: every published clip is a stance clip or
   // belongs to one of these techniques.
@@ -883,4 +1028,72 @@ test('GrapplingStage plays no clip when the clip id is null, and takes the engin
     assert.deepEqual([clip?.props.kind, clip?.props.moveId, clip?.props.performerSide], ['technique', 'double_leg', 'opponent'], JSON.stringify(props.clipMoveId));
     assert.deepEqual(findElement(clip.props.fallback, named('UnityGrapplingStage')).props, unityProps);
   }
+});
+
+test('GrapplingStage plays a fighter-only technique with the fighter\'s views alone, in Training and after the player\'s Arena win, and never for the rival', async (t) => {
+  useGlobals(t, { window: undefined, __hookRunner: undefined, __clipViews: undefined, __componentEnv: undefined });
+  const { default: GrapplingStage } = await loadComponent('src/components/GrapplingStage.jsx', {
+    react: STAND_IN_REACT,
+    './UnityGrapplingStage.jsx': standInComponent('UnityGrapplingStage'),
+    './UnrealClipStage.jsx': standInComponent('UnrealClipStage'),
+    './UnrealGrapplingStage.jsx': standInComponent('UnrealGrapplingStage'),
+    '../unreal/renderer.js': repoModule('src/unreal/renderer.js'),
+    '../unreal/techniqueClips.js': asModule(`export { findUnrealClip } from ${JSON.stringify(repoModule('src/unreal/techniqueClips.js'))};\nexport const unrealClipViews = (...args) => globalThis.__clipViews(...args);`),
+    '../unreal/techniquePicture.js': repoModule('src/unreal/techniquePicture.js'),
+    '../unreal/stances.js': repoModule('src/unreal/stances.js'),
+  });
+  const visits = {
+    'release default': { env: { DEV: false, VITE_COMBAT_ENGINE: 'unity' }, href: 'https://jiuquest.com/', clips: true, stage: 'UnityGrapplingStage' },
+    'no engine configured': { env: { DEV: false }, href: 'https://jiuquest.com/', clips: true, stage: 'the position picture' },
+    'release ?engine=snapshot': { env: { DEV: false, VITE_COMBAT_ENGINE: 'unity' }, href: 'https://jiuquest.com/?engine=snapshot', clips: false, stage: 'the position picture' },
+    'release ?engine=unity': { env: { DEV: false, VITE_COMBAT_ENGINE: 'unity' }, href: 'https://jiuquest.com/?engine=unity', clips: false, stage: 'UnityGrapplingStage' },
+    'local live preview': { env: { DEV: true }, href: 'http://127.0.0.1:5178/?engine=unreal', clips: false, stage: 'UnrealGrapplingStage' },
+  };
+  // The player's views only, of a fighter-only technique and of one that needs both performers.
+  globalThis.__clipViews = viewsOf({ hook_sweep: { fighter: ['side', 'front'] }, kimura_guard: { fighter: ['side', 'front'] } });
+  assert.deepEqual([FIGHTER_ONLY.includes('hook_sweep'), FIGHTER_ONLY.includes('kimura_guard')], [true, false]);
+  const picture = Object.freeze({ type: 'the position picture', props: {} });
+  const onClipUnavailable = () => {};
+  const named = (name) => (node) => node.type === picture ? false : (node.type?.name ?? node.type) === name;
+  const athletes = { fighter: { name: 'Clipper' }, fighterBelt: { belt: 'blue' }, opponent: { name: 'Ryu Tanaka' } };
+  // What Training passes, and what the Arena passes for a win by either side (src/components/CombatArenaView.jsx).
+  const callers = (clipMoveId, moveLabel) => ({
+    Training: { onRendererChange() {}, moveId: null, clipMoveId, onClipUnavailable, moveLabel, ...athletes, compact: true, fallback: picture },
+    'the player\'s Arena win': { idleStanding: false, moveId: undefined, performerSide: undefined, clipMoveId, clipPerformerSide: 'fighter', moveLabel, signal: `${clipMoveId}-2-1`, ...athletes, unavailableReason: 'This exchange has no matching successful Unity animation yet.', fallback: picture },
+    'the rival\'s Arena win': { idleStanding: false, moveId: undefined, performerSide: undefined, clipMoveId, clipPerformerSide: 'opponent', moveLabel, signal: `${clipMoveId}-3-1`, ...athletes, unavailableReason: 'This exchange has no matching successful Unity animation yet.', fallback: picture },
+  });
+  const engineProps = (props) => {
+    const { idleStanding, onRendererChange, clipMoveId, clipPerformerSide, onClipUnavailable: callback, ...rest } = props;
+    return rest;
+  };
+  let clips = 0;
+  for (const curriculumId of ['hook-sweep', 'kimura-guard']) {
+    const move = allMoves.find((item) => item.id === curriculumId);
+    const clipMoveId = unrealClipMoveId(move.id);
+    for (const [visitName, visit] of Object.entries(visits)) {
+      const url = new URL(visit.href);
+      globalThis.window = { location: { href: url.href, search: url.search }, history: { state: null, replaceState() {} } };
+      globalThis.__componentEnv = visit.env;
+      for (const [caller, props] of Object.entries(callers(clipMoveId, move.name))) {
+        globalThis.__hookRunner = createHookRunner();
+        const tree = globalThis.__hookRunner.render(GrapplingStage, props);
+        const label = `${clipMoveId}, ${visitName}, ${caller}`;
+        const clip = findElement(tree, named('UnrealClipStage'));
+        // The engine stage, inside the clip stage or in its place, gets the props it always got.
+        const stage = visit.stage === 'the position picture' ? picture : findElement(clip ? clip.props.fallback : tree, named(visit.stage));
+        assert.ok(stage, `${label}: the engine stage`);
+        if (stage !== picture) assert.deepEqual(stage.props, visit.stage === 'UnrealGrapplingStage' ? { ...engineProps(props), moveId: props.moveId, moveLabel: props.moveLabel } : engineProps(props), `${label}: the engine stage's props`);
+        if (FIGHTER_ONLY.includes(clipMoveId) && visit.clips && caller !== 'the rival\'s Arena win') {
+          assert.deepEqual([clip?.props.kind, clip?.props.moveId, clip?.props.performerSide, clip?.props.camera], ['technique', clipMoveId, 'fighter', 'side'], label);
+          assert.equal(clip.props.fallback, stage, `${label}: and hands over to the engine stage`);
+          assert.equal(clip.props.onUnavailable, caller === 'Training' ? onClipUnavailable : undefined, label);
+          clips += 1;
+        } else {
+          assert.equal(clip, null, `${label}: no clip stage`);
+        }
+      }
+    }
+  }
+  // Training and the player's win, on the release default and with no engine configured.
+  assert.equal(clips, 4);
 });

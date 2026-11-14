@@ -7,11 +7,14 @@
 // `establish_clinch` (Establish the Clinch Control), which also starts standing
 // and shows the position picture until it has clips, or `basic_tackle` (Mat
 // Tackle), a white-belt starter that starts standing (its clip start) or
-// kneeling.
+// kneeling. Those three need both performers' clips.
 //
 //   both     clips for the fighter and the opponent: the techniques switch over
 //   fighter  clips for the fighter only: the double leg must stay on Unity and
-//            Establish the Clinch Control on the position picture
+//            Establish the Clinch Control on the position picture. This bundle
+//            also has the fighter clips of `hook_sweep` (Hook sweep takedown),
+//            which the rival never performs from its clip start
+//            (FIGHTER_ONLY_CLIP_IDS), so they alone switch it over
 //
 // For the double leg it checks Training (plays once, Replay, speeds, scrubber,
 // camera, labels, reduced motion, phones), the fallbacks (another view, then the
@@ -25,8 +28,11 @@
 // clip plays again once the technique is opened anew, and the player's and the
 // rival's clip in the Arena. For the Mat Tackle it checks that the Arena plays
 // the winner's clip after a standing start and the position picture after a
-// kneeling start. It also measures every legend at 1440x900, 390x844 and
-// 320x700: each colour dot sits beside its own text.
+// kneeling start. For the Hook sweep takedown, in the fighter bundle, it checks
+// the whole Training stage under "Movement preview", and that the player's
+// Arena wins from a Position Start in Open Guard From Bottom, its clip start,
+// play the player's clip. It also measures every legend at 1440x900, 390x844
+// and 320x700: each colour dot sits beside its own text.
 // Unity's build manifest answers 404 here, so a Unity stage shows without
 // starting WebGL; this suite checks which stage shows, not Unity itself.
 // Run after `node tools/build_release.mjs`: the files the bundles do not build
@@ -37,8 +43,10 @@ import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 import { build } from 'vite';
+import { resolveUnityMove } from '../src/unity/bridge.js';
 import { UNREAL_CLIPS, findUnrealClip } from '../src/unreal/techniqueClips.js';
-import { CARD, MAT, checkArenaWin, checkLegend, checkTraining, checkTrainingPhone, checkTrainingReducedMotion, clipState, curriculumMove, legendLines, openTrainingTechnique, playArena, techniqueStage, watchUnity } from './unreal_technique_checks.mjs';
+import { FIGHTER_ONLY_CLIP_IDS, TECHNIQUE_PERFORMERS, techniqueClipPerformers } from '../src/unreal/techniquePicture.js';
+import { CARD, MAT, arenaStart, checkArenaWin, checkLegend, checkTraining, checkTrainingPhone, checkTrainingReducedMotion, clipState, curriculumMove, inTraining, legendLines, openTrainingTechnique, playArena, techniqueStage, watchUnity } from './unreal_technique_checks.mjs';
 
 const MOVE = 'double_leg';
 // A technique Unity does not animate, which starts standing like the double leg.
@@ -48,6 +56,16 @@ const NO_UNITY = 'establish_clinch';
 // clips play only after a standing start.
 const TWO_STARTS = 'basic_tackle';
 const FIXTURE_MOVES = [MOVE, NO_UNITY, TWO_STARTS];
+// A technique the rival never performs from its clip start, so the fighter's
+// clips alone switch it over (FIGHTER_ONLY_CLIP_IDS): the Hook sweep takedown,
+// which Unity does not animate. Training lists it under the blue belt, and its
+// clip start, Open Guard From Bottom, is a Position Start option, where the
+// rival standing over the guard is offered only Protect Your Position. Only the
+// fighter bundle has its clips, for the fighter only.
+const FIGHTER_ONLY_MOVE = 'hook_sweep';
+// Every technique a bundle has fixture clips of; the server answers their
+// files with the stance's.
+const SERVED_FIXTURES = [...FIXTURE_MOVES, FIGHTER_ONLY_MOVE];
 const dist = resolve('dist');
 const work = resolve('tmp/unreal-technique-clips');
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'unreal-technique-clips');
@@ -63,11 +81,14 @@ const PLAYER = { selectedFighterId: 'clipper', fighters: [{ id: 'clipper', name:
 // The same player, who has also learned the Mat Tackle, with the matches behind
 // them that it takes to win with a white-belt starter now and then.
 const TACKLER = { selectedFighterId: 'clipper', fighters: [{ ...PLAYER.fighters[0], matches: 1000, progress: { ...PLAYER.fighters[0].progress, 'basic-tackle': 50 } }] };
+// The same player, who has also learned the Hook sweep takedown.
+const SWEEPER = { selectedFighterId: 'clipper', fighters: [{ ...PLAYER.fighters[0], progress: { ...PLAYER.fighters[0].progress, 'hook-sweep': 50 } }] };
 // Math.random is replaced by this seeded generator in the Arena, so the run is repeatable.
 const SEED = 20261113;
 const TITLE = curriculumMove(MOVE).name;
 const NO_UNITY_TITLE = curriculumMove(NO_UNITY).name;
 const TWO_STARTS_TITLE = curriculumMove(TWO_STARTS).name;
+const FIGHTER_ONLY_TITLE = curriculumMove(FIGHTER_ONLY_MOVE).name;
 // The Arena's note over the position picture of an exchange no animation shows.
 const NO_ANIMATION = 'This exchange has no matching successful Unity animation yet.';
 // The sizes every legend is measured at.
@@ -87,7 +108,7 @@ function fixtureClips(moveId, performers) {
 
 async function buildBundle(variant, fixtures) {
   const outDir = resolve(work, `dist-${variant}`);
-  const data = `// Test bundle only: the real clip list, less any real ${FIXTURE_MOVES.join(' or ')} entries, plus fixture technique entries.\nexport default Object.freeze([\n${[...UNREAL_CLIPS.filter((clip) => !FIXTURE_MOVES.includes(clip.moveId)), ...fixtures].map((clip) => `  Object.freeze(${JSON.stringify(clip)}),`).join('\n')}\n]);\n`;
+  const data = `// Test bundle only: the real clip list, less any real ${SERVED_FIXTURES.join(' or ')} entries, plus fixture technique entries.\nexport default Object.freeze([\n${[...UNREAL_CLIPS.filter((clip) => !SERVED_FIXTURES.includes(clip.moveId)), ...fixtures].map((clip) => `  Object.freeze(${JSON.stringify(clip)}),`).join('\n')}\n]);\n`;
   const target = resolve('src/unreal/techniqueClips.data.js').replace(/\\/g, '/').toLowerCase();
   let swapped = false;
   process.env.VITE_COMBAT_ENGINE = 'unity';
@@ -115,7 +136,7 @@ async function staticSite() {
   server = createServer(async (request, response) => {
     try {
       let pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
-      pathname = pathname.replace(new RegExp(`^/assets/unreal-clips/(${FIXTURE_MOVES.join('|')})/`), '/assets/unreal-clips/standing_stance/');
+      pathname = pathname.replace(new RegExp(`^/assets/unreal-clips/(${SERVED_FIXTURES.join('|')})/`), '/assets/unreal-clips/standing_stance/');
       const relative = `.${pathname.endsWith('/') ? `${pathname}index.html` : pathname}`;
       for (const root of [bundle, dist]) {
         const file = resolve(root, relative);
@@ -207,11 +228,22 @@ const trainingCard = () => page.locator(CARD).evaluate((card) => ({
 }));
 
 try {
+  // The rule the bundles are built for (src/unreal/techniquePicture.js): the
+  // three fixtures need both performers' clips, the hook sweep the fighter's
+  // alone. Unity does not animate the hook sweep, Training lists it, and the
+  // Arena starts a match in its clip start from the Position Start menu.
+  for (const moveId of FIXTURE_MOVES) assert.equal(techniqueClipPerformers(moveId), TECHNIQUE_PERFORMERS, `${moveId} needs both performers' clips`);
+  assert.ok(FIGHTER_ONLY_CLIP_IDS.includes(FIGHTER_ONLY_MOVE), `${FIGHTER_ONLY_MOVE} is fighter only`);
+  assert.deepEqual([...techniqueClipPerformers(FIGHTER_ONLY_MOVE)], ['fighter'], `${FIGHTER_ONLY_MOVE} needs the fighter's clips alone`);
+  const fighterOnlyMove = curriculumMove(FIGHTER_ONLY_MOVE);
+  assert.equal(resolveUnityMove(fighterOnlyMove.id), null, `Unity does not animate ${FIGHTER_ONLY_MOVE}`);
+  assert.ok(inTraining(fighterOnlyMove), `Training lists ${FIGHTER_ONLY_TITLE}`);
+  assert.deepEqual(arenaStart(fighterOnlyMove), { button: 'Position Start', position: 'open-guard-bottom' }, `the Arena starts a match in ${FIGHTER_ONLY_TITLE}'s clip start`);
   const both = FIXTURE_MOVES.flatMap((moveId) => fixtureClips(moveId, ['fighter', 'opponent']));
-  const fighterOnly = FIXTURE_MOVES.flatMap((moveId) => fixtureClips(moveId, ['fighter']));
+  const fighterOnly = SERVED_FIXTURES.flatMap((moveId) => fixtureClips(moveId, ['fighter']));
   const views = (clips, side, moveId = MOVE) => clips.filter((clip) => clip.performerSide === side && clip.moveId === moveId);
   const bundles = { both: await buildBundle('both', both), fighter: await buildBundle('fighter', fighterOnly) };
-  checks.push(`Two test bundles were built with VITE_COMBAT_ENGINE=unity: ${FIXTURE_MOVES.join(' and ')} for both performers, and for the fighter only, relabelling published stance files.`);
+  checks.push(`Two test bundles were built with VITE_COMBAT_ENGINE=unity, relabelling published stance files: ${FIXTURE_MOVES.join(', ')} for both performers, and ${SERVED_FIXTURES.join(', ')} for the fighter only.`);
   bundle = bundles.both;
   const base = await staticSite();
   browser = await chromium.launch(browserOptions);
@@ -479,6 +511,33 @@ try {
   });
   await context.close();
   checks.push(`With clips for the fighter only, ${NO_UNITY_TITLE} shows the position picture: in Training under "Position reference", and for both the player's and the rival's wins in the Arena.`);
+
+  // ---- The fighter only has clips, and that is all the hook sweep needs ----
+  // The rival never performs it from its clip start, so its fighter clips
+  // switch it over. Training plays its clip under "Movement preview": the whole
+  // study stage, as for the double leg, with no Unity file requested.
+  context = await open({}, { saved: SWEEPER });
+  unity = watchUnity(page);
+  await checkTraining(page, { base, moveId: FIGHTER_ONLY_MOVE, views: views(fighterOnly, 'fighter', FIGHTER_ONLY_MOVE), unity, capture, checks });
+  await context.close();
+  // In the Arena the player starts in Open Guard From Bottom, its clip start,
+  // from the Position Start menu, and each win with it plays the player's clip
+  // from frame 0. The rival, standing over the guard, is offered only Protect
+  // Your Position there, so every win with the hook sweep is the player's.
+  context = await open({}, { saved: SWEEPER, seeded: true });
+  unity = watchUnity(page);
+  arena.fighterOnlyTechnique = await playArena(page, {
+    base, moveId: FIGHTER_ONLY_MOVE, unity,
+    want: (seen) => seen.fighter >= 2,
+    onWin: async (win) => {
+      assert.equal(win.performer, 'fighter', `${win.headline}: only the player wins with ${FIGHTER_ONLY_TITLE}`);
+      await checkArenaWin(page, { win, moveId: FIGHTER_ONLY_MOVE, views: { fighter: views(fighterOnly, 'fighter', FIGHTER_ONLY_MOVE) }, unity, title: FIGHTER_ONLY_TITLE });
+      if (win.count === 1) await capture(`arena-${FIGHTER_ONLY_MOVE}-fighter-wins`);
+      checks.push(`Arena, Position Start in Open Guard From Bottom, fighter clips only: ${win.headline} shows the player's ${FIGHTER_ONLY_MOVE} clip from frame 0, labelled as theirs, with no Unity request.`);
+    },
+  });
+  await context.close();
+  checks.push(`With clips for the fighter only, ${FIGHTER_ONLY_TITLE}, which the rival never performs from its clip start, plays its clip in Training under "Movement preview" and after the player's Arena wins from its clip start.`);
 
   assert.deepEqual(errors, []);
   assert.deepEqual(consoleErrors, [], 'Unexpected browser console errors');

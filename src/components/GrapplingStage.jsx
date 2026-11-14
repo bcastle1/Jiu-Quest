@@ -37,8 +37,8 @@ export default function GrapplingStage({ idleStanding = false, onRendererChange,
   // shows the clip, and falls back to its own picture if the clip cannot play.
   const idle = stanceLoop(props.fighter?.stance, props.opponent?.stance);
   const idleClip = idleStanding && engine !== 'unreal' && findUnrealClip(idle.moveId, idle.performerSide);
-  // A technique plays its Unreal clips once both performers have one; until
-  // then, and if every view fails, `stage` plays as it does today.
+  // A technique plays its Unreal clips once every performer it needs has one;
+  // until then, and if every view fails, `stage` plays as it does today.
   const picture = !idleStanding && chooseTechniquePicture({ moveId: props.moveId, clipMoveId: clipMoveId === undefined ? props.moveId : clipMoveId, performerSide: clipPerformerSide ?? props.performerSide, engine, search: window.location.search, views: unrealClipViews });
   return <>
     {local && <label className="unreal-renderer-choice">Character graphics<select aria-label="Character graphics" value={engine} onChange={choose}><option value="unity">Unity</option><option value="unreal">Unreal · local preview</option><option value="snapshot">Position snapshots</option></select></label>}

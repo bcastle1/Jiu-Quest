@@ -1431,7 +1431,7 @@ function Training({
   const techniqueGroups = groupTechniques(beltMoves, blueBeltPositionGroups);
   const [renderer, setRenderer] = useState(() => resolveCombatRenderer(window.location.href, { development: import.meta.env.DEV }));
   // Every technique has an Unreal clip id, also one Unity cannot animate. Its
-  // clip plays once both performers' clips are published.
+  // clip plays once every performer it needs has published clips.
   const clipMoveId = unrealClipMoveId(selectedMove.id);
   // The clip id whose clip gave way to the stage's own picture because none of
   // its views could play. The heading then follows that picture. Opening

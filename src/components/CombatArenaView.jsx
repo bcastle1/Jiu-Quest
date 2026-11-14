@@ -74,10 +74,10 @@ export default function CombatArenaView({
   const selectedOrder = combat.order ?? [];
   const unityPlayback = resolveArenaUnityPlayback(combat.result);
   // The Unreal clip the settled exchange asks for. Every technique has a clip
-  // id, also one Unity cannot animate. Nothing plays until both performers'
-  // clips of that technique are published, and only after an exchange that
-  // started from the technique's clip start. Without one the stage is told
-  // null, so it plays no clip at all.
+  // id, also one Unity cannot animate. Nothing plays until every performer the
+  // technique needs has published clips (techniqueClipPerformers), and only
+  // after an exchange that started from the technique's clip start. Without one
+  // the stage is told null, so it plays no clip at all.
   const clipPlayback = resolveArenaClipPlayback(combat.result);
   // Both athletes on their feet and no exchange result on screen (choosing a
   // technique clears it, in any round): the stance is what shows.
