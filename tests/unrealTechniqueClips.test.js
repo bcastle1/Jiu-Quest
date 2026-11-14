@@ -4,9 +4,14 @@ import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { UNREAL_CLIPS, UNREAL_CLIP_CAMERAS, UNREAL_CLIP_LOOK, findUnrealClip, unrealClipViews } from '../src/unreal/techniqueClips.js';
+import { allMoves } from '../src/data/curriculum.js';
 import { UNITY_PREVIEWS } from '../src/unity/bridge.js';
 import { resolveCombatRenderer } from '../src/unreal/renderer.js';
 import { UNREAL_STANCES } from '../src/unreal/stances.js';
+import { unrealClipMoveId } from '../src/unreal/techniqueIds.js';
+
+// The clip id of every curriculum technique: any of them can take clips.
+const TECHNIQUE_CLIP_IDS = allMoves.map((move) => unrealClipMoveId(move.id));
 
 const repoPath = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 const repoFile = (path) => readFileSync(repoPath(path));
@@ -44,13 +49,14 @@ test('every published clip is the pinned file and something a browser can start 
 });
 
 test('clips name real moves, performers and cameras, with no repeats and no stray files', () => {
-  // A clip shows a move, or a fighting stance held or left on the feet.
+  // A clip shows a curriculum technique, named by its clip id, or a fighting
+  // stance held or left on the feet. These are the names the importer takes.
   const stanceClips = UNREAL_STANCES.flatMap((stance) => [stance.loopMoveId, stance.entryMoveId]).filter(Boolean);
-  const moves = new Set([...UNITY_PREVIEWS.map((move) => move.id), ...stanceClips]);
+  const moves = new Set([...TECHNIQUE_CLIP_IDS, ...stanceClips]);
   const keys = UNREAL_CLIPS.map((clip) => `${clip.moveId}/${clip.performerSide}-${clip.camera}`);
   assert.equal(new Set(keys).size, keys.length);
   for (const clip of UNREAL_CLIPS) {
-    assert.ok(moves.has(clip.moveId), `${clip.moveId} is a move or stance the game knows`);
+    assert.ok(moves.has(clip.moveId), `${clip.moveId} is a curriculum technique's clip id or a stance clip`);
     assert.ok(['fighter', 'opponent'].includes(clip.performerSide));
     assert.ok(UNREAL_CLIP_CAMERAS.includes(clip.camera));
   }
@@ -64,8 +70,10 @@ test('clips name real moves, performers and cameras, with no repeats and no stra
 
 test('a looping clip is a stance held on the feet, and a clip that plays once is a technique that opens on frame 0', () => {
   const stanceLoops = new Set(UNREAL_STANCES.map((stance) => stance.loopMoveId));
-  // The four techniques Unity animates today (src/unity/bridge.js curriculumMoves).
-  const techniques = new Set(['rear_naked_choke', 'double_leg', 'trap_roll_escape', 'triangle_choke']);
+  // Any curriculum technique, by its clip id (src/unreal/techniqueIds.js). The
+  // four Unity animates keep Unity's ids.
+  const techniques = new Set(TECHNIQUE_CLIP_IDS);
+  for (const id of ['rear_naked_choke', 'double_leg', 'trap_roll_escape', 'triangle_choke', 'basic_tackle', 'headlock_escape_2']) assert.ok(techniques.has(id), id);
   assert.ok(UNREAL_CLIPS.some((clip) => clip.moveId === 'standing_stance'), 'the standard stance is published');
   for (const clip of UNREAL_CLIPS) {
     const name = `${clip.moveId}/${clip.performerSide}-${clip.camera}`;
@@ -79,9 +87,12 @@ test('a looping clip is a stance held on the feet, and a clip that plays once is
   }
   assert.ok(UNREAL_CLIPS.every((clip) => clip.choreographyReviewed === false), 'no clip has had a qualified choreography review');
   // A move with no files of its own finds nothing: it never borrows another move's clip.
+  // That holds for every curriculum technique and for every move Unity previews.
   const published = new Set(UNREAL_CLIPS.map((clip) => clip.moveId));
-  for (const move of UNITY_PREVIEWS) {
-    if (!published.has(move.id)) assert.equal(findUnrealClip(move.id), null, `${move.id} must not borrow another move's clip`);
+  for (const moveId of new Set([...TECHNIQUE_CLIP_IDS, ...UNITY_PREVIEWS.map((move) => move.id)])) {
+    if (published.has(moveId)) continue;
+    assert.equal(findUnrealClip(moveId), null, `${moveId} must not borrow another move's clip`);
+    assert.deepEqual([unrealClipViews(moveId), unrealClipViews(moveId, 'opponent')], [[], []], `${moveId} has no view of its own`);
   }
 });
 

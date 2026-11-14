@@ -70,6 +70,7 @@ import { isUnityEnabled, resolveUnityMove } from "./unity/bridge.js";
 import { resolveCombatRenderer } from './unreal/renderer.js';
 import { unrealClipViews } from './unreal/techniqueClips.js';
 import { techniqueMoves } from './unreal/techniquePicture.js';
+import { unrealClipMoveId } from './unreal/techniqueIds.js';
 import { resolvePreviewPage } from './unreal/characterPreview.js';
 import { usesUnrealAthlete } from './unreal/athlete.js';
 import showcaseFighters from './showcaseCards.data.js';
@@ -721,6 +722,10 @@ function App() {
         headline,
         animationHeadline,
         move: winnerMove,
+        // Where the exchange started, seen from the winner's side: the position
+        // id the winning technique was offered by (move.starts). Its Unreal clip
+        // plays only from its clip start (src/unreal/techniqueIds.js).
+        startedFrom: getPositionForSide(current, exchangePlayerWins ? "fighter" : "opponent"),
         animationKey,
         animationSignal: `${winnerMove.id}-${current.round}-${resolutionTimestamp}`,
         animationSucceeded: true,
@@ -1425,7 +1430,15 @@ function Training({
   const trainingPosition = createArenaState(selectedMove.starts[0]);
   const techniqueGroups = groupTechniques(beltMoves, blueBeltPositionGroups);
   const [renderer, setRenderer] = useState(() => resolveCombatRenderer(window.location.href, { development: import.meta.env.DEV }));
-  const movementPreview = techniqueMoves({ engine: renderer, moveId: resolveUnityMove(selectedMove.id), search: window.location.search, views: unrealClipViews });
+  // Every technique has an Unreal clip id, also one Unity cannot animate. Its
+  // clip plays once both performers' clips are published.
+  const clipMoveId = unrealClipMoveId(selectedMove.id);
+  // The clip id whose clip gave way to the stage's own picture because none of
+  // its views could play. The heading then follows that picture. Opening
+  // another technique forgets it, so coming back tries the clip again.
+  const [clipGaveWay, setClipGaveWay] = useState(null);
+  useEffect(() => { setClipGaveWay(null); }, [clipMoveId]);
+  const movementPreview = techniqueMoves({ engine: renderer, moveId: resolveUnityMove(selectedMove.id), clipMoveId: clipGaveWay === clipMoveId ? null : clipMoveId, search: window.location.search, views: unrealClipViews });
 
   return (
     <section className="training-grid">
@@ -1489,7 +1502,7 @@ function Training({
         </div>
         <div className="training-animation-card">
           <div className="training-animation-head"><span><h3>{movementPreview ? 'Movement preview' : 'Position reference'}</h3><p>{movementPreview ? 'Review the draft movement where a matching animation is available. Follow the technique steps for the required setup.' : 'A reference for the starting position. Follow the steps below for the exact setup and full sequence.'}</p></span></div>
-          <GrapplingStage onRendererChange={setRenderer} moveId={resolveUnityMove(selectedMove.id)} moveLabel={selectedMove.name} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact fallback={<GrapplingSnapshotStage state={trainingPosition} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact />} />
+          <GrapplingStage onRendererChange={setRenderer} moveId={resolveUnityMove(selectedMove.id)} clipMoveId={clipMoveId} onClipUnavailable={setClipGaveWay} moveLabel={selectedMove.name} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact fallback={<GrapplingSnapshotStage state={trainingPosition} fighter={fighter} opponent={defaultNpcs[0]} fighterBelt={beltStatus} compact />} />
         </div>
         {selectedMove.scenario && <div className="scenario-box">
           <h3>Starting scenario</h3>

@@ -38,7 +38,7 @@ Every published stance clip is listed in the pack manifest. The first sambo and 
 
 After an import that adds a stance:
 
-- `tests/unrealTechniqueClips.test.js` already accepts `stance_<id>` and `enter_<id>` as clip names in its "clips name real moves" test. Its "a looping clip is a stance held on the feet" test already allows a clip that plays once if it is one of the four techniques or an `enter_<id>` clip, with `"posterFrame": 0`.
+- `tests/unrealTechniqueClips.test.js` already accepts `stance_<id>` and `enter_<id>` as clip names in its "clips name real moves" test. Its "a looping clip is a stance held on the feet" test already allows a clip that plays once if it is a curriculum technique, by its clip id, or an `enter_<id>` clip, with `"posterFrame": 0`.
 - `tests/unrealStances.test.js` asserts that no stance has an entry clip published yet. That line has to go when the first `enter_<id>` clip is imported.
 - `tools/test_unreal_clip_stage.mjs` expects the Arena to open on `standing_stance`. The first rival's stance is the karate stance, so once `stance_karate/opponent-side` is published the Arena opens on that clip and the test's expected clip has to follow `stanceLoop`.
 - `tools/test_stance_picker.mjs` works out what each stance should play from `stanceLoop`, so it needs no change.

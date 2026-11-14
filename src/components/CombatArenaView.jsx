@@ -8,6 +8,7 @@ import GrapplingStage from "./GrapplingStage.jsx";
 import StancePicker from "./StancePicker.jsx";
 import { resolveArenaUnityPlayback } from "../unity/bridge.js";
 import { findStance, stanceLoop } from "../unreal/stances.js";
+import { resolveArenaClipPlayback } from "../unreal/techniqueIds.js";
 
 function startsFrom(move, position) {
   return move.id === "protect-position" || move.starts?.includes(position);
@@ -72,6 +73,12 @@ export default function CombatArenaView({
   const canStart = !combat.active || isFinished;
   const selectedOrder = combat.order ?? [];
   const unityPlayback = resolveArenaUnityPlayback(combat.result);
+  // The Unreal clip the settled exchange asks for. Every technique has a clip
+  // id, also one Unity cannot animate. Nothing plays until both performers'
+  // clips of that technique are published, and only after an exchange that
+  // started from the technique's clip start. Without one the stage is told
+  // null, so it plays no clip at all.
+  const clipPlayback = resolveArenaClipPlayback(combat.result);
   // Both athletes on their feet and no exchange result on screen (choosing a
   // technique clears it, in any round): the stance is what shows.
   const idleStanding = !combat.result && combat.position === 'standing';
@@ -222,6 +229,8 @@ export default function CombatArenaView({
               idleStanding={idleStanding}
               moveId={unityPlayback?.moveId}
               performerSide={unityPlayback?.performerSide}
+              clipMoveId={clipPlayback ? clipPlayback.clipMoveId : null}
+              clipPerformerSide={clipPlayback?.performerSide}
               moveLabel={combat.result?.techniqueName}
               signal={combat.result?.animationSignal}
               fighter={fighter}

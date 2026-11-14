@@ -190,6 +190,13 @@
     text-align: right;
   }
 
+  /* Each line still sits against the right edge, but a label that wraps
+     starts right after its dot and keeps its lines under its first word, so
+     the dot stays beside its own text. */
+  .unreal-clip-legend span {
+    text-align: left;
+  }
+
   .unreal-clip-legend small {
     flex-basis: auto;
   }

@@ -15,7 +15,8 @@ test('every stance a player can pick has an id, a picture, a line of copy and cl
   assert.deepEqual(UNREAL_STANCES.map((stance) => stance.stance), customizationOptions.stances);
   assert.equal(new Set(UNREAL_STANCES.map((stance) => stance.id)).size, UNREAL_STANCES.length);
   for (const stance of UNREAL_STANCES) {
-    // The importer accepts only lower-case letters and underscores in a clip's move name.
+    // A stance id is part of a clip's move name (stance_<id>, enter_<id>): lower-case
+    // letters and underscores. The importer would take digits as well.
     assert.match(stance.id, /^[a-z][a-z_]*$/, stance.stance);
     assert.match(stance.label, /^[A-Z][A-Za-z]*( [A-Z][A-Za-z]*)+$/, stance.stance);
     assert.equal(stance.label.toLowerCase(), stance.stance);

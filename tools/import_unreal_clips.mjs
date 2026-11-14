@@ -9,9 +9,11 @@
 //   - writes src/unreal/techniqueClips.data.js, which pins every published file
 //
 // An entry marked "draft": true is left out and listed under draftsLeftOut.
-// A technique clip (one of TECHNIQUE_IDS) is imported only when its file and
-// SHA-256 are listed in tools/unreal_clip_acceptance.json; otherwise it is left
-// out and listed under notAccepted. Stance clips need no acceptance line.
+// A technique clip is a clip of any curriculum technique: its move is one of
+// TECHNIQUE_IDS, the clip id every technique has (src/unreal/techniqueIds.js).
+// It is imported only when its file and SHA-256 are listed in
+// tools/unreal_clip_acceptance.json; otherwise it is left out and listed under
+// notAccepted. Stance clips need no acceptance line.
 //
 // Usage:
 //   node tools/import_unreal_clips.mjs <Unreal-render-pack/clips> <ffmpeg bin dir> [--out <dir>] [--acceptance <file>]
@@ -25,12 +27,18 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { allMoves } from '../src/data/curriculum.js';
+import { unrealClipMoveId } from '../src/unreal/techniqueIds.js';
 
-export const TECHNIQUE_IDS = Object.freeze(['double_leg', 'rear_naked_choke', 'trap_roll_escape', 'triangle_choke']);
+// The clip id of every curriculum technique, in curriculum order, each once:
+// any technique can take clips. None is a stance clip name
+// (tests/unrealTechniqueIds.test.js), so the two kinds never overlap.
+export const TECHNIQUE_IDS = Object.freeze([...new Set(allMoves.map((move) => unrealClipMoveId(move.id)))]);
 export const PERFORMERS = Object.freeze(['fighter', 'opponent']);
 export const CAMERAS = Object.freeze(['side', 'front']);
 export const POSTER_QUALITY = 82;
-const NAME = /^[a-z][a-z_]*$/;
+// A move name: a lower-case letter, then lower-case letters, digits and underscores.
+const NAME = /^[a-z][a-z0-9_]*$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const PUBLIC = 'public/assets/unreal-clips';
@@ -40,7 +48,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const fail = (message) => { throw new Error(message); };
 const isTechnique = (move) => TECHNIQUE_IDS.includes(move);
-const isStance = (move) => move === 'standing_stance' || /^(stance|enter)_[a-z][a-z_]*$/.test(move);
+const isStance = (move) => move === 'standing_stance' || /^(stance|enter)_[a-z][a-z0-9_]*$/.test(move);
 
 // The owner's acceptance list: [{ file, sha256, acceptedOn }]. Checked for shape.
 export function readAcceptance(list) {
@@ -95,7 +103,7 @@ export function selectEntries(entries, acceptance = []) {
       const loops = !move.startsWith('enter_');
       if (entry.loops !== loops) fail(`${entry.file}: a ${loops ? 'stance' : 'stance entry'} clip must have "loops": ${loops}`);
     } else {
-      fail(`${entry.file}: ${move} is neither a technique (${TECHNIQUE_IDS.join(', ')}) nor a stance clip`);
+      fail(`${entry.file}: ${move} is neither a technique (the clip id of a curriculum technique, see src/unreal/techniqueIds.js) nor a stance clip`);
     }
     selected.push(entry);
   }

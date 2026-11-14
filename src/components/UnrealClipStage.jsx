@@ -13,7 +13,9 @@ const reducedMotionQuery = () => (typeof window === 'undefined' ? null : window.
 // kind 'stance' is a loop held on the feet. kind 'technique' plays once, rests
 // on its last frame and offers Replay; with `study` (Training) it also offers
 // speeds and a scrubber. `camera` and `rate` may be held by the parent so a
-// remount keeps the person's choice.
+// remount keeps the person's choice. A technique clip calls `onUnavailable`
+// with its move id once, after it has handed over to `fallback` because none
+// of its views can play.
 export default function UnrealClipStage({ kind = 'stance', ...props }) {
   return kind === 'technique' ? <TechniqueClip {...props} /> : <StanceClip {...props} />;
 }
@@ -102,7 +104,7 @@ function StanceClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opp
   );
 }
 
-function TechniqueClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opponent, study = false, fallback = null, camera: chosenCamera, onCameraChange, rate: chosenRate, onRateChange }) {
+function TechniqueClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opponent, study = false, fallback = null, camera: chosenCamera, onCameraChange, rate: chosenRate, onRateChange, onUnavailable }) {
   const id = useId();
   const viewportRef = useRef(null);
   const videoRef = useRef(null);
@@ -183,6 +185,15 @@ function TechniqueClip({ moveId, performerSide = 'fighter', moveLabel, fighter, 
     video.addEventListener('timeupdate', report);
     return () => video.removeEventListener('timeupdate', report);
   }, [playing, clip?.video]);
+
+  // No view is left, so the fallback shows. Say so once, after that render,
+  // so the parent can follow what is on screen.
+  const toldUnavailable = useRef(false);
+  useEffect(() => {
+    if (hasClip || toldUnavailable.current) return;
+    toldUnavailable.current = true;
+    onUnavailable?.(moveId);
+  }, [hasClip]);
 
   if (!clip) return fallback;
 

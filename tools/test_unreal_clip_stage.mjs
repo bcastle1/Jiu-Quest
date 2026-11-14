@@ -3,19 +3,23 @@
 // on their feet and nothing has settled, it plays, loops, pauses and changes
 // camera, people who ask for reduced motion start paused, a clip that cannot
 // load gives way to the usual picture, and the page fits phones.
-// Techniques switch themselves on: each of the four techniques that has a
+// Techniques switch themselves on: every curriculum technique that has a
 // published clip for both performers is checked in Training and in a player's
 // Arena win against the real files, with its poster compared to frame 0. Each
-// one that has not keeps the Unity stage on the release default. It checks
-// video files played by the browser. It does not run Unreal or any stream.
+// one that has not shows what it showed before on the release default: the
+// Unity stage where Unity animates it, the position picture otherwise, in
+// Training, or in the Arena for the white-belt starters Training does not list.
+// It checks video files played by the browser. It does not run Unreal or any
+// stream.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
+import { resolveUnityMove } from '../src/unity/bridge.js';
 import { findUnrealClip, unrealClipViews } from '../src/unreal/techniqueClips.js';
 import { techniqueClipReady } from '../src/unreal/techniquePicture.js';
-import { CARD, TECHNIQUE_IDS, checkArenaWin, checkTraining, curriculumMove, escapeName, playArena, techniqueStage, watchUnity } from './unreal_technique_checks.mjs';
+import { CARD, MAT, TECHNIQUE_IDS, arenaStart, checkArenaWin, checkTraining, curriculumMove, inTraining, openTrainingTechnique, playArena, techniqueStage, watchUnity } from './unreal_technique_checks.mjs';
 
 const root = resolve('dist');
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'unreal-clip-stage');
@@ -76,6 +80,25 @@ async function open(options) {
     failedResponses.push({ url: response.url(), status: response.status() });
   });
   return context;
+}
+
+// A context for the Arena: a returning player who has learned `move` and the
+// four techniques Unity animates, with the matches behind them that it takes
+// to win with a white-belt starter now and then. Math.random is seeded so the
+// run repeats.
+async function seededFight(move) {
+  const fight = await open({ viewport: { width: 1440, height: 900 } });
+  await fight.addInitScript(({ key, value }) => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem(key, value); } }, { key: 'jiuquest:v1', value: JSON.stringify({ selectedFighterId: 'clipper', fighters: [{ id: 'clipper', name: 'Clipper', matches: 1000, progress: { 'double-leg-takedown': 50, 'rear-naked-choke': 50, 'triangle-choke': 50, 'trap-roll-escape': 50, [move.id]: 50 } }] }) });
+  await fight.addInitScript(() => {
+    let state = 20261113;
+    Math.random = () => {
+      state = (state + 0x6d2b79f5) >>> 0;
+      let value = Math.imul(state ^ (state >>> 15), state | 1);
+      value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+      return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+    };
+  });
+  return fight;
 }
 
 const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
@@ -254,13 +277,16 @@ try {
   checks.push('At 390 and 320 pixels the clip plays at full width with its controls stacked below, and nothing scrolls sideways.');
 
   // ---- Techniques: each one switches itself on once both performers have clips ----
+  // Every curriculum technique has a clip id, so any of them can be ready.
   const ready = TECHNIQUE_IDS.filter((moveId) => techniqueClipReady(moveId, unrealClipViews));
-  report.techniqueClips = { ready, waiting: TECHNIQUE_IDS.filter((moveId) => !ready.includes(moveId)) };
+  const waiting = TECHNIQUE_IDS.filter((moveId) => !ready.includes(moveId));
+  report.techniqueClips = { ready, waiting };
   quietUnity = true;
   if (!ready.length) checks.push('No technique clip is published; technique steps did not run.');
   for (const moveId of ready) {
     const views = { fighter: unrealClipViews(moveId, 'fighter'), opponent: unrealClipViews(moveId, 'opponent') };
-    const title = curriculumMove(moveId).name;
+    const move = curriculumMove(moveId);
+    const title = move.name;
     // The poster of a clip that plays once is its first frame.
     const posters = await open({ viewport: { width: 1440, height: 900 } });
     await page.goto(`${base}/`);
@@ -284,22 +310,21 @@ try {
     await posters.close();
     checks.push(`${title}: every poster matches frame 0 of its video.`);
 
-    const training = await open({ viewport: { width: 1440, height: 900 } });
-    await checkTraining(page, { base, moveId, views: views.fighter, unity: watchUnity(page), capture, checks });
-    await training.close();
+    // Training lists every technique but the white-belt starters.
+    if (inTraining(move)) {
+      const training = await open({ viewport: { width: 1440, height: 900 } });
+      await checkTraining(page, { base, moveId, views: views.fighter, unity: watchUnity(page), capture, checks });
+      await training.close();
+    } else checks.push(`${title}: Training does not list this white-belt starter, so its clip is checked in the Arena only.`);
 
-    // The player wins with it in the Arena. Math.random is seeded so the run repeats.
-    const fight = await open({ viewport: { width: 1440, height: 900 } });
-    await fight.addInitScript(({ key, value }) => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem(key, value); } }, { key: 'jiuquest:v1', value: JSON.stringify({ selectedFighterId: 'clipper', fighters: [{ id: 'clipper', name: 'Clipper', progress: { 'double-leg-takedown': 50, 'rear-naked-choke': 50, 'triangle-choke': 50, 'trap-roll-escape': 50 } }] }) });
-    await fight.addInitScript(() => {
-      let state = 20261113;
-      Math.random = () => {
-        state = (state + 0x6d2b79f5) >>> 0;
-        let value = Math.imul(state ^ (state >>> 15), state | 1);
-        value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-        return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-      };
-    });
+    // A technique that starts only from the top of the guard has no start of
+    // its own in the Arena. Its clips play by the same rule as every other's.
+    if (!arenaStart(move)) {
+      checks.push(`${title}: the Arena offers no start in a position it starts from, so its Arena win was not checked here.`);
+      continue;
+    }
+    // The player, who has learned it, wins with it in the Arena.
+    const fight = await seededFight(move);
     const unity = watchUnity(page);
     await playArena(page, {
       base, moveId, unity,
@@ -310,19 +335,55 @@ try {
     checks.push(`${title}: the player's Arena win plays the real clip, labelled as theirs, with no Unity request.`);
   }
 
-  // A technique without clips for both performers keeps Unity on the release default.
-  for (const moveId of report.techniqueClips.waiting) {
-    const move = curriculumMove(moveId);
-    const waiting = await open({ viewport: { width: 1440, height: 900 } });
+  // A technique without clips for both performers shows what it showed before
+  // on the release default: the Unity stage where Unity animates it, and the
+  // position picture, under "Position reference", everywhere else.
+  const shown = { unity: [], picture: [], arenaOnly: [] };
+  const unityStage = (scope) => page.locator(`${scope} .unity-stage[data-engine="unity"]`);
+  const positionPicture = (scope) => page.locator(`${scope} .unity-unavailable .grappling-snapshot-stage`);
+  if (waiting.length) {
+    const training = await open({ viewport: { width: 1440, height: 900 } });
     await page.goto(`${base}/`);
     await page.getByRole('button', { name: 'Training', exact: true }).click();
-    await page.locator('.training-sidebar').getByRole('button', { name: new RegExp(escapeName(move.name)) }).first().click();
-    await page.locator(`${CARD} .unity-stage[data-engine="unity"]`).waitFor({ timeout: 15000 });
-    assert.equal(await techniqueStage(page, CARD).count(), 0, `${moveId} has no Unreal clip for both performers, so it stays on Unity`);
+    for (const moveId of waiting) {
+      const move = curriculumMove(moveId);
+      // Training does not list the white-belt starters. They follow below.
+      if (!inTraining(move)) { shown.arenaOnly.push(moveId); continue; }
+      const unity = resolveUnityMove(move.id) !== null;
+      await openTrainingTechnique(page, move);
+      await (unity ? unityStage(CARD) : positionPicture(CARD)).waitFor({ timeout: 15000 });
+      assert.equal(await techniqueStage(page, CARD).count(), 0, `${moveId} has no Unreal clip for both performers, so it shows none`);
+      if (!unity) assert.equal(await page.locator(`${CARD} .unity-stage`).count(), 0, `Unity has no animation of ${moveId}, so it shows the position picture`);
+      assert.equal(await page.locator(`${CARD} .training-animation-head h3`).textContent(), unity ? 'Movement preview' : 'Position reference', moveId);
+      shown[unity ? 'unity' : 'picture'].push(moveId);
+    }
     assert.equal(new URL(page.url()).searchParams.has('engine'), false, 'the release default sets no engine in the address');
-    await waiting.close();
+    await training.close();
+    checks.push(`On the release default, Training shows the Unity stage for ${shown.unity.join(', ') || 'no technique'} and the position picture for the other ${shown.picture.length} techniques that have no clips for both performers.`);
   }
-  if (report.techniqueClips.waiting.length) checks.push(`On the release default, ${report.techniqueClips.waiting.join(', ')} still show the Unity stage in Training.`);
+  // Training does not list the white-belt starters; the Arena offers them to
+  // every player. The player chooses one until both the player and the rival
+  // have won an exchange with it, and each of those wins shows the Unity stage
+  // only if Unity animates the technique (it animates no starter), otherwise the
+  // position picture.
+  for (const moveId of shown.arenaOnly) {
+    const move = curriculumMove(moveId);
+    const unity = resolveUnityMove(move.id) !== null;
+    const fight = await seededFight(move);
+    const seen = await playArena(page, {
+      base, moveId,
+      want: (counts) => counts.fighter >= 1 && counts.opponent >= 1,
+      onWin: async (win) => {
+        await (unity ? unityStage(MAT) : positionPicture(MAT)).waitFor({ timeout: 15000 });
+        assert.equal(await techniqueStage(page, MAT).count(), 0, `${moveId} has no Unreal clip for both performers, so the Arena shows none (${win.headline})`);
+        if (!unity) assert.equal(await page.locator(`${MAT} .unity-stage`).count(), 0, `Unity has no animation of ${moveId}, so the Arena shows the position picture (${win.headline})`);
+      },
+    });
+    assert.equal(new URL(page.url()).searchParams.has('engine'), false, 'the release default sets no engine in the address');
+    await fight.close();
+    checks.push(`Training does not list ${move.name}. In the Arena, the wins with it by the player and by the rival (${seen.headlines.join('; ')}) show the ${unity ? 'Unity stage' : 'position picture'} and no clip.`);
+  }
+  report.techniqueClips.shown = shown;
   quietUnity = false;
 
   assert.deepEqual(errors, []);

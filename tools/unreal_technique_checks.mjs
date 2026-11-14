@@ -3,22 +3,57 @@
 // self-switching block in tools/test_unreal_clip_stage.mjs (the real release).
 // Each check drives one Playwright page and throws on the first difference.
 import assert from 'node:assert/strict';
-import { allMoves } from '../src/data/curriculum.js';
-import { resolveUnityMove } from '../src/unity/bridge.js';
+import { allMoves, moves, trainingStartPositions } from '../src/data/curriculum.js';
 import { TECHNIQUE_OPENING_CAMERA } from '../src/unreal/techniquePicture.js';
+import { unrealClipMoveId, unrealClipStart } from '../src/unreal/techniqueIds.js';
 import { techniqueNote } from '../src/unreal/clipPlayback.js';
 
 export const CARD = '.training-animation-card';
 export const MAT = '.mat-window';
-export const TECHNIQUE_IDS = Object.freeze(['double_leg', 'rear_naked_choke', 'triangle_choke', 'trap_roll_escape']);
-export const escapeName = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// The clip id of every curriculum technique, in curriculum order: any of them
+// can take clips. This is the importer's list.
+export { TECHNIQUE_IDS } from './import_unreal_clips.mjs';
+// Text as the page shows it: runs of white space read as one space.
+const flat = (text) => text.replace(/\s+/g, ' ').trim();
 
 // The curriculum move a technique clip belongs to: its name and where it starts.
 export function curriculumMove(moveId) {
-  const move = allMoves.find((item) => resolveUnityMove(item.id) === moveId);
+  const move = allMoves.find((item) => unrealClipMoveId(item.id) === moveId);
   assert.ok(move, `${moveId} has a curriculum move`);
   return move;
 }
+
+// Training lists the techniques of the blue, purple, brown and black belts. The
+// white-belt starters (allMoves less moves) are offered in the Arena only.
+export const inTraining = (move) => moves.includes(move);
+
+// Opens one technique in Training, which is already on screen: its belt tab,
+// then the row that carries exactly its name (some names begin with another's).
+export async function openTrainingTechnique(page, move) {
+  assert.ok(inTraining(move), `Training lists ${move.name}`);
+  const sidebar = page.locator('.training-sidebar');
+  await sidebar.locator(`.belt-tabs button[data-belt="${move.belt}"]`).click();
+  const rows = sidebar.locator('.move-row');
+  const names = await rows.evaluateAll((list) => list.map((row) => row.querySelector('strong')?.textContent ?? ''));
+  assert.equal(names.filter((name) => name === move.name).length, 1, `Training lists ${move.name} once under the ${move.belt} belt`);
+  await rows.nth(names.indexOf(move.name)).click();
+  await page.waitForFunction((name) => document.querySelector('.technique-head h1')?.textContent === name, move.name);
+}
+
+// The Arena's button that starts a match in `position`: on the feet, kneeling,
+// or from its position menu. Null when it offers none of them there.
+export function arenaStartAt(position) {
+  if (position === 'standing') return { button: 'Standing Start', position };
+  if (position === 'kneeling') return { button: 'Kneeling Start', position };
+  if (trainingStartPositions.includes(position)) return { button: 'Position Start', position };
+  return null;
+}
+
+// How the Arena starts a match in this technique's clip start, the position its
+// clips are rendered from and the only start after which they play. Null when
+// the Arena cannot start a match there: a technique that starts only from the
+// top of the guard is reached during a match.
+export const arenaStart = (move) => arenaStartAt(unrealClipStart(move));
 
 // The view a technique opens on, given the views that exist for one performer.
 export function openingView(moveId, views) {
@@ -58,6 +93,54 @@ export const clipState = (page, scope) => techniqueStage(page, scope).evaluate((
   };
 });
 
+// The legend of the clip stage in `scope`, a stance clip's or a technique
+// clip's, measured in the page. For each line: its colour dot, its box and the
+// boxes of its text, one per line of text (a label that wraps has more than
+// one). `overlay` is the wide layout, where the legend sits on the picture.
+export const legendLines = (page, scope) => page.locator(`${scope} .unreal-clip-stage .unreal-clip-legend`).evaluate((legend) => {
+  const rect = (box) => ({ left: box.left, right: box.right, top: box.top, bottom: box.bottom });
+  const style = getComputedStyle(legend);
+  const outer = legend.getBoundingClientRect();
+  return {
+    overlay: style.position === 'absolute',
+    contentRight: outer.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
+    lines: [...legend.querySelectorAll(':scope > span')].map((span) => {
+      const dot = span.querySelector(':scope > i');
+      // Everything after the dot is the label.
+      const range = document.createRange();
+      range.setStartAfter(dot);
+      range.setEnd(span, span.childNodes.length);
+      const rows = [];
+      for (const box of [...range.getClientRects()].filter((item) => item.width > 0 && item.height > 0).sort((a, b) => a.top - b.top || a.left - b.left)) {
+        const row = rows.find((line) => Math.abs(line.top - box.top) < box.height / 2);
+        if (row) Object.assign(row, { left: Math.min(row.left, box.left), right: Math.max(row.right, box.right), bottom: Math.max(row.bottom, box.bottom) });
+        else rows.push(rect(box));
+      }
+      return { text: span.textContent.replace(/\s+/g, ' ').trim(), dot: rect(dot.getBoundingClientRect()), span: rect(span.getBoundingClientRect()), rows };
+    }),
+  };
+});
+
+// Each dot sits beside its own text: the label's first line starts just after
+// the dot (the legend's 0.45rem gap) and level with it, and every further line
+// of a label that wraps starts under the first. On the picture each line still
+// sits against the legend's right edge. Returns what was measured.
+export function checkLegend(measured, where) {
+  assert.ok(measured.lines.length >= 2, `${where}: the legend names both athletes`);
+  return measured.lines.map((line) => {
+    const label = `${where}, "${line.text}"`;
+    const [first, ...more] = line.rows;
+    assert.ok(first, `${label}: the label has text`);
+    const gap = first.left - line.dot.right;
+    assert.ok(gap >= 0 && gap <= 10, `${label}: its text starts ${gap.toFixed(1)}px after its dot`);
+    const middle = (line.dot.top + line.dot.bottom) / 2;
+    assert.ok(middle >= first.top && middle <= first.bottom, `${label}: the dot is level with the first line of its text`);
+    for (const row of more) assert.ok(Math.abs(row.left - first.left) <= 1, `${label}: a wrapped line starts under the first, beside the dot (${row.left.toFixed(1)}px against ${first.left.toFixed(1)}px)`);
+    if (measured.overlay) assert.ok(Math.abs(line.span.right - measured.contentRight) <= 1, `${label}: on the picture the line sits against the legend's right edge`);
+    return { text: line.text, lines: line.rows.length, gap: Number(gap.toFixed(1)), farthestLine: Number((Math.max(...line.rows.map((row) => row.left)) - line.dot.right).toFixed(1)) };
+  });
+}
+
 const untilPlaying = (page, scope, path) => page.waitForFunction(({ selector, wanted }) => {
   const video = document.querySelector(`${selector} .unreal-clip-stage[data-kind="technique"] video`);
   return video && (!wanted || new URL(video.currentSrc || video.src).pathname === wanted) && video.readyState >= 2 && !video.paused && video.currentTime > 0.03;
@@ -91,7 +174,7 @@ export async function checkTraining(page, { base, moveId, views, unity, capture,
   await page.goto(`${base}/`);
   await page.getByRole('button', { name: 'Training', exact: true }).click();
   const mark = unity.count();
-  await page.locator('.training-sidebar').getByRole('button', { name: new RegExp(escapeName(move.name)) }).first().click();
+  await openTrainingTechnique(page, move);
   await page.locator(`${CARD} .unreal-clip-stage[data-kind="technique"][data-move="${moveId}"]`).waitFor();
   assert.equal(await page.locator(`${CARD} .training-animation-head h3`).textContent(), 'Movement preview');
   assert.equal(await page.locator(`${CARD} .unity-stage, ${CARD} .grappling-snapshot-stage`).count(), 0, 'the clip is the only picture');
@@ -171,7 +254,7 @@ export async function checkTrainingReducedMotion(page, { base, moveId, views, ch
   const clip = openingView(moveId, views);
   await page.goto(`${base}/`);
   await page.getByRole('button', { name: 'Training', exact: true }).click();
-  await page.locator('.training-sidebar').getByRole('button', { name: new RegExp(escapeName(move.name)) }).first().click();
+  await openTrainingTechnique(page, move);
   await page.waitForFunction((selector) => document.querySelector(`${selector} .unreal-clip-stage[data-kind="technique"] video`)?.readyState >= 1, CARD, { timeout: 15000 });
   await page.waitForTimeout(700);
   const state = await clipState(page, CARD);
@@ -188,7 +271,7 @@ export async function checkTrainingPhone(page, { base, moveId, viewport, capture
   const move = curriculumMove(moveId);
   await page.goto(`${base}/`);
   await page.getByRole('button', { name: 'Training', exact: true }).click();
-  await page.locator('.training-sidebar').getByRole('button', { name: new RegExp(escapeName(move.name)) }).first().click();
+  await openTrainingTechnique(page, move);
   const stage = techniqueStage(page, CARD);
   await stage.waitFor();
   await stage.scrollIntoViewIfNeeded();
@@ -203,22 +286,27 @@ export async function checkTrainingPhone(page, { base, moveId, viewport, capture
   return { viewport, stage: stageBox, smallestButton: Math.min(...heights) };
 }
 
-// Start (or restart) a match where the technique starts, choose it (or, when
-// `own` is false, another technique, so the rival can win with it) and submit.
-// Returns what settled and the stance picture's box just before, if one showed.
-async function exchange(page, move, unity, own = true) {
-  const standing = move.starts[0] === 'standing';
-  const startButton = page.getByRole('button', { name: standing ? 'Standing Start' : 'Position Start', exact: true });
+// Start (or restart) a match in `start` (by default the technique's clip start),
+// choose the technique (or, when `own` is false, another one, so the rival can
+// win with it) and submit. Returns what settled and the stance picture's box
+// just before, if one showed.
+async function exchange(page, move, unity, own = true, start = arenaStart(move)) {
+  assert.ok(start, `the Arena can start a match where ${move.name} starts`);
+  const startButton = page.getByRole('button', { name: start.button, exact: true });
   if (await startButton.isVisible()) {
-    if (!standing) await page.getByLabel('Your starting position', { exact: true }).selectOption(move.starts[0]);
+    if (start.button === 'Position Start') await page.getByLabel('Your starting position', { exact: true }).selectOption(start.position);
     await startButton.click();
   } else {
     await page.locator('.arena-page-heading').getByRole('button', { name: 'Restart match' }).click();
   }
-  const choices = page.locator('.combat-moves .combat-group').first();
-  const mine = new RegExp(`^${escapeName(move.name)}`);
-  if (own) await choices.getByRole('button', { name: mine }).first().click();
-  else await choices.locator('button:not([disabled])').filter({ hasNotText: mine }).first().click();
+  // The techniques on offer from this position, by exactly their names.
+  const group = page.locator('.combat-moves .combat-group').first();
+  await group.locator('button:not([disabled])').first().waitFor();
+  const choices = group.locator('button');
+  const offered = await choices.evaluateAll((list) => list.map((button) => ({ name: button.querySelector('span')?.textContent ?? '', disabled: button.disabled })));
+  const pick = offered.findIndex((choice) => !choice.disabled && (choice.name === move.name) === own);
+  assert.ok(pick >= 0, `${own ? move.name : `a technique other than ${move.name}`} is on offer (${offered.map((choice) => choice.name).join(', ')})`);
+  await choices.nth(pick).click();
   await page.locator('.sequence-panel .order-stack').waitFor();
   const stance = page.locator(`${MAT} .unreal-clip-stage[data-kind="stance"] .unreal-clip-viewport`);
   const stanceBox = await stance.count() ? await pageBox(stance) : null;
@@ -226,23 +314,28 @@ async function exchange(page, move, unity, own = true) {
   await page.getByRole('button', { name: 'Submit sequence', exact: true }).click();
   const outcome = page.locator('.arena-outcome');
   await outcome.waitFor();
-  const headline = (await outcome.locator('span').first().innerText()).trim();
+  const headline = flat(await outcome.locator('span').first().innerText());
   const performer = (await outcome.getAttribute('class')).includes('success') ? 'fighter' : 'opponent';
-  return { headline, performer, won: headline.includes(`executes ${move.name}`) || headline.includes(`with ${move.name}`), stanceBox, unityMark };
+  // The technique that won: the one whose exact name ends the headline.
+  const technique = allMoves.find((item) => headline.endsWith(` executes ${flat(item.name)}`) || headline.endsWith(` with ${flat(item.name)}`));
+  return { headline, performer, technique, won: technique === move, stanceBox, unityMark };
 }
 
 // Plays exchanges until `want` says to stop, calling `onWin` for each exchange
-// the technique wins (by either athlete). The player chooses the technique while
-// `playerTries(seen)` is true, and another one after. The page's Math.random
-// must be seeded.
-export async function playArena(page, { base, moveId, cap = 150, want, onWin, unity, playerTries = () => true }) {
+// the technique wins (by either athlete). Every match starts in `startAt` (a
+// position id; by default the technique's clip start). The player chooses the
+// technique while `playerTries(seen)` is true, and another one after. The
+// page's Math.random must be seeded.
+export async function playArena(page, { base, moveId, cap = 150, want, onWin, unity, playerTries = () => true, startAt }) {
   const move = curriculumMove(moveId);
+  const start = startAt === undefined ? arenaStart(move) : arenaStartAt(startAt);
+  if (startAt !== undefined) assert.ok(move.starts.includes(startAt), `${move.name} starts in ${startAt}`);
   page.on('dialog', (dialog) => dialog.accept());
   await page.goto(`${base}/`);
   await page.getByRole('button', { name: 'Arena', exact: true }).click();
   const seen = { fighter: 0, opponent: 0, exchanges: 0, headlines: [] };
   while (seen.exchanges < cap && !want(seen)) {
-    const result = await exchange(page, move, unity, playerTries(seen));
+    const result = await exchange(page, move, unity, playerTries(seen), start);
     seen.exchanges += 1;
     if (!result.won) continue;
     seen[result.performer] += 1;
