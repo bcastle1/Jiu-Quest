@@ -1,4 +1,4 @@
-"""Build the tintable two-athlete position stills from the Pack D color passes.
+"""Build the tintable two-athlete position stills from five color passes of one frame.
 
 Unreal rendered one frozen frame five times: everything black, then each
 athlete's gi in white, then each athlete's belt in white. The page adds the
@@ -32,6 +32,17 @@ a pixel that is part gi and part belt shows when both are white: no bright rim
 along the belt, and no dark line either, which a cap at the brighter of the two
 renders left on a light belt over a light gi.
 
+A white gi also throws light on what lies beside it: the wearer's neck and
+wrists, the floor under the cuffs. Where that light is strong the white pass
+is brighter than the base render in every channel, just as it is on the gi,
+and the gi layer would take that skin or floor with it and paint it in the gi
+color. A position can keep each gi and belt layer to its own cloth (`cloth`
+below): a pixel then counts as gi or belt only where the pass turned cloth
+white, which in linear light makes it either several times as bright as the
+base render or brighter by a large share of full light. Skin and floor that
+only catch a white gi's light pass neither test, so they stay as the base
+render shows them, the same in every gi color.
+
 tools/build_unreal_position_layers.mjs is this script's Node twin: the same
 arithmetic, the same POSITIONS and the same output files. It is the tool of
 record on a machine without Python, and it built the layers published now.
@@ -64,6 +75,18 @@ PASSES = ("base", "lead-gi-white", "other-gi-white", "lead-belt-white", "other-b
 #   crop     left, top, width, height in render pixels, 3:2 like the stage
 #   size     published layer size, same proportions as the crop
 #   families Arena position families this exact pose pictures
+#   cloth    optional, {"times": t, "rise": r}: keep each gi and belt layer to
+#            its own cloth. Without it a gi or belt is every pixel its white
+#            pass brightens by more than 14 in every channel, which takes in
+#            skin and floor that the white cloth lights up strongly. With it
+#            the pixel must also be, in every channel and in linear light
+#            (0..1), more than t times as bright as in the base render or
+#            brighter by more than r.
+#   quality  optional: the WebP quality of the six tinted layers, 88 if not
+#            given. The base layer is always 90. Jacket and pants are separate
+#            lossy files that meet in a four-pixel ramp, and in a gi of one
+#            color their two errors show as a faint dotted line wherever the
+#            ramp crosses cloth that is evenly lit. A higher quality fades it.
 #   hem      per athlete: the render columns and rows that bracket a level hem
 #   jacket   per athlete: a closed outline around the jacket, as (x, y) pixel
 #            centers. Where it runs through background or through the belt it
@@ -77,11 +100,25 @@ PASSES = ("base", "lead-gi-white", "other-gi-white", "lead-belt-white", "other-b
 # showing between the corner and the belt, so both athletes use an outline.
 # (The upright pose this replaced used hem windows: lead columns 830-1100 rows
 # 735-800, other columns 1475-1750 rows 715-790, with crop 370, 110, 1845, 1230.)
+# The passes built now are the dojo set (a straw tatami floor under a pool of
+# light), with the cloth rule: without it each jacket layer held patches of its
+# wearer's neck and wrist, lit by the white collar and sleeve. 4 and 0.15 lie
+# between the two groups in these passes. Skin lit by the white gi stays under
+# about 3 times and 0.08, the floor far lower. Cloth in shade is 10 times as
+# bright or more, and lit cloth gains 0.3 or more, also under the black gi's
+# sheen. The few pixels in between are edge pixels that are part cloth.
+# Quality 96: in the dojo light the front edge of the other athlete's skirt is
+# no longer a shaded crease, so the outline crosses evenly lit cloth there and
+# at 88 a white gi showed the dotted line. At 96 the error along the outline
+# falls from about 4.2 to about 3.0 of 255 (2.1 on the rest of the gi), for
+# 28 kB more.
 POSITIONS = {
     "standing": {
         "crop": (510, 255, 1620, 1080),
         "size": (1620, 1080),
         "families": ["standing"],
+        "cloth": {"times": 4, "rise": 0.15},
+        "quality": 96,
         "jacket": {
             "lead": [
                 # background above and in front of the athlete, then the gap between the sleeve and the thigh
@@ -141,9 +178,29 @@ def soft(mask, median, blur, grow=0):
     return np.asarray(image.filter(ImageFilter.GaussianBlur(blur))).astype(np.float32) / 255
 
 
-def region(delta, median, blur):
-    """Where a pass clearly brightens every channel: that gi or that belt."""
-    return soft(((delta.min(axis=2) > 14) * 255).astype(np.uint8), median=median, blur=blur, grow=5)
+def cloth_mask(white, base, cloth):
+    """Where a white pass turned cloth white, not where it only lit what lies beside the cloth.
+
+    In linear light a black gi turned white is many times as bright, or, where
+    the black cloth already shone, brighter by a large share of full light.
+    Skin and floor that catch the white cloth's light gain far less of either.
+    The renders hold whole numbers, so the comparison is made in double
+    precision on the 256 values the transfer function can take.
+    """
+    light, dark = to_linear(white.astype(np.float64)), to_linear(base.astype(np.float64))
+    return ((light > cloth["times"] * dark) | (light - dark > cloth["rise"])).all(axis=2)
+
+
+def region(delta, median, blur, cloth=None):
+    """Where a pass clearly brightens every channel: that gi or that belt.
+
+    `cloth` is the cloth_mask of the same pass, for a position that keeps its
+    layers to their own cloth.
+    """
+    mask = delta.min(axis=2) > 14
+    if cloth is not None:
+        mask &= cloth
+    return soft((mask * 255).astype(np.uint8), median=median, blur=blur, grow=5)
 
 
 def hem_line(white, gi, belt, window, width):
@@ -230,15 +287,21 @@ def main():
         left, top, crop_width, crop_height = settings["crop"]
         if abs(crop_width / crop_height - settings["size"][0] / settings["size"][1]) > 0.002:
             fail(f"{position}: crop and size have different proportions")
+        cloth = settings.get("cloth")
+        if cloth and not (cloth["times"] > 1 and 0 < cloth["rise"] < 1):
+            fail(f"{position}: cloth needs times above 1 and rise between 0 and 1")
+        quality = settings.get("quality", 88)
+        if not (isinstance(quality, int) and 1 <= quality <= 100):
+            fail(f"{position}: quality must be a whole number from 1 to 100")
 
         layers = {"base": base}
         details = {}
         for athlete in ("lead", "other"):
             white = renders[f"{athlete}-gi-white"]
             belt_delta = np.clip(renders[f"{athlete}-belt-white"] - base, 0, 255)
-            belt_region = region(belt_delta, median=5, blur=1.4)
+            belt_region = region(belt_delta, median=5, blur=1.4, cloth=cloth_mask(renders[f"{athlete}-belt-white"], base, cloth) if cloth else None)
             gi_delta = np.clip(white - base, 0, 255)
-            gi_region = region(gi_delta, median=7, blur=1.8)
+            gi_region = region(gi_delta, median=7, blur=1.8, cloth=cloth_mask(white, base, cloth) if cloth else None)
             gi_delta *= gi_region[..., None]
             belt = belt_delta * belt_region[..., None]
             # Where the belt's edge lies over the gi both layers add light, and a white belt
@@ -295,7 +358,7 @@ def main():
             image = Image.fromarray(np.clip(np.rint(pixels), 0, 255).astype(np.uint8))
             image = image.crop((left, top, left + crop_width, top + crop_height)).resize(settings["size"], Image.LANCZOS)
             path = folder / file_name
-            image.save(path, "WEBP", quality=90 if name == "base" else 88, method=6)
+            image.save(path, "WEBP", quality=90 if name == "base" else quality, method=6)
             data = path.read_bytes()
             files[name] = {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
             urls[name] = f"/assets/unreal-positions/{position}/{file_name}"
@@ -313,7 +376,7 @@ def main():
             "files": files,
             "sources": sources,
         })
-        report[position] = {"crop": list(settings["crop"]), "size": list(settings["size"]), **details,
+        report[position] = {"crop": list(settings["crop"]), "size": list(settings["size"]), **({"cloth": cloth} if cloth else {}), **({} if quality == 88 else {"quality": quality}), **details,
                             "bytes": sum(item["bytes"] for item in files.values())}
 
     body = json.dumps(stills, indent=2)

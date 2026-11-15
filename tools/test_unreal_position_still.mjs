@@ -32,13 +32,16 @@ const HELD = HELD_UNREAL_POSITION_STILLS.includes(STILL.position);
 const PLAYER = { selectedFighterId: 'tinted', fighters: [{ id: 'tinted', name: 'Tinted', look: 'unreal', giTop: WHITE, giPants: BLACK }] };
 const DESIGNED = { selectedFighterId: 'designed', fighters: [{ id: 'designed', name: 'Designed', gender: 'girl', hairStyle: 'braided top', skinTone: '#a86b4d', hairColor: '#3b251b', emblem: 'lion', giTop: '#1d7d68', giPants: WHITE }] };
 // Places on the crouched standing still, as fractions of its width and height.
-// Each gi-half and belt point is the place deepest inside the lit part of that
-// layer, so it is far from the hem, the belt edges and the other athlete: the
-// lead's upper back and near thigh, the other's shoulder and near thigh, and
-// the flat of each belt. The last is the lead athlete's cheek, which no color
-// touches. They belong to this pose and crop: work them out again from the
-// layers when the still is rebuilt.
-const POINTS = { leadJacket: [0.321, 0.3259], leadPants: [0.3086, 0.6491], leadBelt: [0.1969, 0.4352], otherJacket: [0.6611, 0.2954], otherPants: [0.7556, 0.5944], otherBelt: [0.7833, 0.4111], leadFace: [0.392, 0.2269] };
+// Each gi-half and belt point lies deep inside the lit part of that layer, so
+// it is far from the hem, the belt edges and the other athlete: the lead's
+// upper back and near thigh, the other's shoulder and near thigh, and the flat
+// of each belt. The last is the lead athlete's cheek, which no color touches.
+// They belong to this pose and crop: work them out again from the layers when
+// the still is rebuilt. For the dojo-set layers of November 15, 2026 the four
+// gi points and the cheek stayed where they were. The two belt points moved
+// along each belt into its evenly lit flat: in that light the black belts
+// shine at their far ends, so the belt layers are dimmer and streaked there.
+const POINTS = { leadJacket: [0.321, 0.3259], leadPants: [0.3086, 0.6491], leadBelt: [0.2068, 0.4491], otherJacket: [0.6611, 0.2954], otherPants: [0.7556, 0.5944], otherBelt: [0.7704, 0.4269], leadFace: [0.392, 0.2269] };
 let browser, server, page, blockedLayer = null;
 
 async function staticSite() {

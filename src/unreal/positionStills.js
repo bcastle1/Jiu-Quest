@@ -25,9 +25,11 @@ export function findUnrealPositionStill(key) {
 // downloaded. Nothing is held now. The crouched standing still was held while
 // the lead athlete's belt tail poked through the back of his thigh, and is
 // shown since Unreal's repair renders of November 13, 2026 (15:34) were built
-// into its layers. To hold a still again, put its position key in this list,
-// for example Object.freeze(['standing']), and update the hold-back test in
-// tests/unrealPositionStills.test.js with it.
+// into its layers. The layers published now come from passes rendered again on
+// November 15, 2026 in the dojo set (a straw tatami floor under a pool of
+// light), with the repaired tail. To hold a still again, put its position key
+// in this list, for example Object.freeze(['standing']), and update the
+// hold-back test in tests/unrealPositionStills.test.js with it.
 export const HELD_UNREAL_POSITION_STILLS = Object.freeze([]);
 
 // The still for one settled position, or null when the classic picture is the

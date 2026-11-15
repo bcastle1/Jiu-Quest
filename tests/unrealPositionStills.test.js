@@ -83,9 +83,12 @@ test('a still replaces the classic picture only where it is at least as exact', 
   assert.equal(choose(null), null);
 });
 
-test('the crouched standing still is shown: nothing is held back since the belt-tail repair renders', () => {
-  // Unreal rendered the still's five passes again on November 13, 2026 (15:34) with the lead athlete's
-  // belt tail off the back of his thigh: same camera, frame and pose, only the tail mesh changed.
+test('the crouched standing still is shown: nothing is held back, and its layers come from the dojo-set passes', () => {
+  // The still was held while the lead athlete's belt tail showed on the back of his thigh. Unreal's
+  // repair renders of November 13, 2026 (15:34) took it off: same camera, frame and pose, only the
+  // tail mesh changed. The five passes built now were rendered again on November 15, 2026 in the dojo
+  // set, a straw tatami floor under a pool of light: the same camera, frame and pose, with the repaired
+  // tail, and only the floor and the lights changed.
   // To hold a still back again, list it in HELD_UNREAL_POSITION_STILLS and change this test with it.
   assert.deepEqual(HELD_UNREAL_POSITION_STILLS, []);
   assert.throws(() => { HELD_UNREAL_POSITION_STILLS.push('standing'); }, TypeError);
@@ -97,15 +100,40 @@ test('the crouched standing still is shown: nothing is held back since the belt-
   assert.equal(chooseUnrealPositionStill(null), null);
   // Holding a still back still works.
   assert.equal(chooseUnrealPositionStill(snapshotOf('standing'), ['standing']), null);
-  // The still is frame 0 of the crouched standing_stance clip, built from the repair renders.
+  // The still is frame 0 of the crouched standing_stance clip, built from the five dojo-set passes
+  // (engine run dojo-v1-001-standing_still), as their render record lists them.
   assert.deepEqual([standing.sourceClip, standing.sourceFrame], ['standing_stance/fighter-side.mp4', 0]);
   assert.deepEqual({ ...standing.sources }, {
-    'base.png': '4ac1480b46662f79c906a016fbdc7c973d91ab56a74a04daf98e9114ea623b6f',
-    'lead-gi-white.png': '8493e9783e87d1fc1b27ac6fec9d5e6f3226e3529e3a5a09ec0d51b6314fad30',
-    'other-gi-white.png': '35ff493757d913861dc2c6b69168b8b897a5743e4855b4191093296e6f94ee17',
-    'lead-belt-white.png': 'ea05f13a0672e9df46431c48ede4bbd1402942f2d52650a72da013927eb8d2be',
-    'other-belt-white.png': 'eba6ef8c8676d925ec76a975cccffe3172b4524f4336153a4c9e9941fdc9fc62',
+    'base.png': 'a70e911bf2dd4e40bc3b3bf4ecb842de669c20fd68efd89d1979abc804843f70',
+    'lead-gi-white.png': '325cfa6cf968fd7f4d73700b1ee93f76d475a9bda6c290fea160316e518f59bb',
+    'other-gi-white.png': '8cab4706e0a73aebc5b14da70fdb6b2f6ec9246890cc78f2911800e21d1458eb',
+    'lead-belt-white.png': '6737ad306b87f2ccb532470dcf1651badf968eb9850cc53984efe150f78c5acd',
+    'other-belt-white.png': '478fca65bbb7dd97013d4a70e33b3c1864c08671ef572878b00abf13eba80bb3',
   });
+});
+
+test('both builders keep the standing layers to their own cloth, with the same settings', () => {
+  // The Node tool built the published layers and the Python twin must be given the same rule. `cloth`
+  // keeps the light a white gi throws on its wearer's skin and on the floor out of the gi and belt
+  // layers, so skin and floor are the same in every gi color. `quality` fades the faint dotted line
+  // that the separately encoded jacket and pants leave where they meet in a gi of one color.
+  const node = repoFile('tools/build_unreal_position_layers.mjs').toString('utf8');
+  const python = repoFile('tools/build_unreal_position_layers.py').toString('utf8');
+  assert.match(node, /^    families: \['standing'\],\r?\n    cloth: \{ times: 4, rise: 0\.15 \},\r?\n    quality: 96,\r?\n    jacket: \{\r?$/m);
+  assert.match(python, /^        "families": \["standing"\],\r?\n        "cloth": \{"times": 4, "rise": 0\.15\},\r?\n        "quality": 96,\r?\n        "jacket": \{\r?$/m);
+  // The rule itself: cloth turned white is many times as bright in linear light, or brighter by a large share of it.
+  assert.match(node, /^      if \(!\(lit > times \* dark \|\| lit - dark > rise\)\) cloth = 0;\r?$/m);
+  assert.match(python, /^    return \(\(light > cloth\["times"\] \* dark\) \| \(light - dark > cloth\["rise"\]\)\)\.all\(axis=2\)\r?$/m);
+  // A region is what the pass brightens by more than 14 in every channel, and cloth where the position asks for it.
+  assert.match(node, /mask\[index\] = Math\.min\(delta\[index \* 3\], delta\[index \* 3 \+ 1\], delta\[index \* 3 \+ 2\]\) > 14 && \(!cloth \|\| cloth\[index\]\) \? 255 : 0;/);
+  assert.match(python, /^    mask = delta\.min\(axis=2\) > 14\r?\n    if cloth is not None:\r?\n        mask &= cloth\r?$/m);
+  // Without the settings both tools do what they did: no cloth rule, and quality 88 for the tinted layers.
+  assert.match(node, /^    const cloth = settings\.cloth \?\? null;\r?$/m);
+  assert.match(python, /^        cloth = settings\.get\("cloth"\)\r?$/m);
+  assert.match(node, /^    const quality = settings\.quality \?\? 88;\r?$/m);
+  assert.match(python, /^        quality = settings\.get\("quality", 88\)\r?$/m);
+  assert.match(node, /\.webp\(\{ quality: name === 'base' \? 90 : quality, effort: 6 \}\)/);
+  assert.match(python, /image\.save\(path, "WEBP", quality=90 if name == "base" else quality, method=6\)/);
 });
 
 test('each layer takes its own athlete\'s color, and only a safe color', () => {
