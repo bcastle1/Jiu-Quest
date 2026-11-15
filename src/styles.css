@@ -4466,6 +4466,10 @@ main {
   align-items: end;
 }
 
+.licensed-track-list {
+  margin: 1rem 0;
+}
+
 .track-editor-list {
   display: grid;
   gap: 0.85rem;

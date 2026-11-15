@@ -53,6 +53,10 @@ async function staticSite() {
 // Every check starts in a new browser context: nothing saved, nothing cached.
 async function open(options) {
   const context = await browser.newContext({ deviceScaleFactor: 1, reducedMotion: 'no-preference', ...options });
+  // These checks are about how the track menu behaves, with the tracks every build has.
+  // A build that also carries licensed music is told it has none (tools/test_music_engine.mjs
+  // covers licensed music).
+  await context.addInitScript(() => { window.__jqLicensedMusicForTests = { version: 1, tracks: [] }; });
   page = await context.newPage();
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push({ text: message.text(), location: message.location() }); });

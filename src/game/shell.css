@@ -368,6 +368,29 @@
   background: transparent;
 }
 .app-shell.jq-game .player-track-menu button:last-child { border-bottom: 0; }
+
+/* With the soundtrack the list is longer: it scrolls inside the menu on a short screen. */
+.app-shell.jq-game .player-track-menu { max-height: min(40rem, calc(100vh - 6rem)); overflow-y: auto; }
+
+/* The "keep my song" option under the track list. It stays in view at the bottom of the
+   menu while the list scrolls above it, so it is never below the fold. */
+.app-shell.jq-game .player-track-keep {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  background: #141c26;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.15rem 0.6rem;
+  align-items: center;
+  min-height: 44px;
+  border-top: 1px solid #2a3643;
+  padding: 0.65rem 0.7rem;
+  color: #f2f5f8;
+  cursor: pointer;
+}
+.app-shell.jq-game .player-track-keep input { grid-row: span 2; width: 1.15rem; height: 1.15rem; accent-color: #e8c27a; }
+.app-shell.jq-game .player-track-keep em { color: #8797a5; font-size: 0.78rem; font-style: normal; }
 .app-shell.jq-game .player-track-menu button.active {
   background: linear-gradient(90deg, rgba(232, 194, 122, 0.14), rgba(232, 194, 122, 0) 72%);
 }

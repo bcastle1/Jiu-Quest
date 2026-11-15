@@ -88,6 +88,22 @@ import {
   getBjjAnimationForMove,
   getBjjAnimationKeyForMove,
 } from "./animation/bjjAnimationMap";
+import { createMusicEngine, musicTrackKind } from "./audio/musicEngine.js";
+import {
+  licensedDefaultPatch,
+  licensedTracksFrom,
+  musicTrackKey,
+  playerTrackList,
+  readLicensedMusicIndex,
+  repairedSelection,
+  resolveMusic,
+  SOUNDTRACK_ID,
+  SOUNDTRACK_TITLE,
+  soundtrackMusic,
+} from "./audio/musicLibrary.js";
+
+// The licensed music this build carries, if any (docs/music.md). Fixed for the life of the page.
+const licensedMusicTracks = licensedTracksFrom(readLicensedMusicIndex());
 
 const navItems = [
   { id: "dashboard", label: "Overview", icon: Home },
@@ -362,7 +378,12 @@ function App() {
   const [adminCode, setAdminCode] = useState("");
   const [musicOn, setMusicOn] = useState(false);
   const [combat, setCombat] = useState(() => createCombatState(store.npcs[0]));
-  const audioRef = useRef(null);
+  const musicEngineRef = useRef(null);
+  const musicSettingsRef = useRef(null);
+  const musicEngine = () => {
+    if (!musicEngineRef.current) musicEngineRef.current = createMusicEngine();
+    return musicEngineRef.current;
+  };
   const recordedCombatSignalRef = useRef(null);
   const activeFighterRef = useRef(store.selectedFighterId);
 
@@ -396,19 +417,23 @@ function App() {
     return Array.isArray(tracks) && tracks.length ? tracks : defaultMusicTracks;
   }, [store.adminSettings.music?.tracks]);
   const playerMusicTracks = useMemo(
-    () => musicTracks.filter((track) => track.playerEnabled !== false),
+    () => playerTrackList(licensedMusicTracks, musicTracks),
     [musicTracks],
   );
-  const activeMusicTrack = useMemo(() => {
-    const activeId = store.adminSettings.music?.activeTrackId;
-    return (
-      playerMusicTracks.find((track) => track.id === activeId) ??
-      playerMusicTracks[0] ??
-      musicTracks.find((track) => track.id === activeId) ??
-      musicTracks[0] ??
-      defaultMusicTracks[0]
-    );
-  }, [musicTracks, playerMusicTracks, store.adminSettings.music?.activeTrackId]);
+  // What plays where. With licensed songs the game has a soundtrack: a song and an intensity
+  // for each screen. A player can pick a song instead, and choose whether it stays on every
+  // screen or only until the screen changes (`pageSong`: a pick made for one screen).
+  const [pageSong, setPageSong] = useState(null);
+  const hasSoundtrack = licensedMusicTracks.length > 0;
+  const selectedMusicId = store.adminSettings.music?.activeTrackId;
+  const keepChosenSong = store.adminSettings.music?.keepSongAcrossPages !== false;
+  const pageSongId = pageSong?.view === view ? pageSong.id : null;
+  const music = useMemo(
+    () => resolveMusic({ view, licensedTracks: licensedMusicTracks, playerTracks: playerMusicTracks, selectedId: selectedMusicId, pagePickId: pageSongId }),
+    [view, playerMusicTracks, selectedMusicId, pageSongId],
+  );
+  // With every track hidden from players, the saved selection still plays, as it always did.
+  const activeMusicTrack = music.track ?? musicTracks.find((track) => track.id === selectedMusicId) ?? musicTracks[0] ?? defaultMusicTracks[0];
 
   useEffect(() => {
     const status = saveState(store);
@@ -459,33 +484,88 @@ function App() {
     });
   }, [store.npcs, combat.npc?.id, notify]);
 
+  // Music keeps playing while the player moves around the app. A change of screen, song or
+  // intensity is handed to the engine, which crossfades to it; only the music switch stops it.
+  const musicLevel = music.level;
+  const musicVolume = store.adminSettings.music.volume;
+  const activeMusicTrackKey = musicTrackKey(activeMusicTrack);
+
+  useEffect(() => {
+    musicSettingsRef.current = { track: activeMusicTrack, volume: musicVolume, intensity: musicLevel };
+  });
+
   useEffect(() => {
     if (!musicOn) {
-      stopAudio(audioRef);
+      musicEngineRef.current?.stop();
       return;
     }
-    startAudio(audioRef, view, store.adminSettings.music.volume, activeMusicTrack, (message) => {
+    const engine = musicEngine();
+    engine.setErrorHandler((message) => {
       setMusicOn(false);
       notify(message, "error");
     });
-    return () => stopAudio(audioRef);
-  }, [activeMusicTrack, musicOn, view, store.adminSettings.music.volume]);
+    engine.play(musicSettingsRef.current.track, musicSettingsRef.current);
+  }, [musicOn, activeMusicTrackKey, musicLevel, notify]);
+
+  // While the soundtrack is playing, fetch the other screens' songs ahead, so that a change
+  // of screen only has to decode its song.
+  useEffect(() => {
+    if (musicOn && music.mode === "soundtrack") musicEngine().preload(soundtrackMusic(licensedMusicTracks));
+  }, [musicOn, music.mode]);
 
   useEffect(() => {
+    musicEngineRef.current?.setVolume(musicVolume);
+  }, [musicVolume]);
+
+  // A song picked for one screen is forgotten when the screen changes.
+  useEffect(() => {
+    setPageSong((current) => (current && current.view !== view ? null : current));
+  }, [view]);
+
+  // A phone call or a locked screen can pause the sound. Coming back to the page picks it up.
+  useEffect(() => {
+    if (!musicOn) return undefined;
+    const resume = () => {
+      if (document.visibilityState === "visible") musicEngineRef.current?.resumeIfPaused();
+    };
+    document.addEventListener("visibilitychange", resume);
+    return () => document.removeEventListener("visibilitychange", resume);
+  }, [musicOn]);
+
+  useEffect(() => () => musicEngineRef.current?.dispose(), []);
+
+  // The first time this device sees licensed music, the soundtrack becomes the selection.
+  // Once only: after that the player's own choice stands.
+  useEffect(() => {
+    const patch = licensedDefaultPatch(store.adminSettings.music, licensedMusicTracks);
+    if (!patch) return;
+    setStore((current) => ({
+      ...current,
+      adminSettings: {
+        ...current.adminSettings,
+        music: { ...current.adminSettings.music, ...patch },
+      },
+    }));
+  }, [store.adminSettings.music]);
+
+  // A saved selection this build cannot honour (a track that was removed) is replaced by one
+  // it can. A build without licensed songs leaves a saved soundtrack or licensed song alone,
+  // so the choice is still there when the music is back.
+  useEffect(() => {
     if (!playerMusicTracks.length) return;
-    const activeId = store.adminSettings.music?.activeTrackId;
-    if (playerMusicTracks.some((track) => track.id === activeId)) return;
+    const repaired = repairedSelection(selectedMusicId, licensedMusicTracks, playerMusicTracks);
+    if (!repaired) return;
     setStore((current) => ({
       ...current,
       adminSettings: {
         ...current.adminSettings,
         music: {
           ...current.adminSettings.music,
-          activeTrackId: playerMusicTracks[0].id,
+          activeTrackId: repaired,
         },
       },
     }));
-  }, [playerMusicTracks, store.adminSettings.music?.activeTrackId]);
+  }, [playerMusicTracks, selectedMusicId]);
 
   useEffect(() => {
     if (!combat.active || combat.phase !== "ordering") return;
@@ -808,17 +888,41 @@ function App() {
     notify(`Progress cleared for ${fighter.name}. Your appearance is saved.`);
   };
 
-  const selectMusicTrack = (activeTrackId) => {
+  const saveMusicSettings = (patch) => {
     setStore((current) => ({
       ...current,
       adminSettings: {
         ...current.adminSettings,
         music: {
           ...current.adminSettings.music,
-          activeTrackId,
+          ...patch,
         },
       },
     }));
+  };
+
+  // The soundtrack, or a song. A song is kept on every screen, or only until the screen
+  // changes, as the player set it. Without a soundtrack a song is simply the selection.
+  const selectMusicTrack = (trackId) => {
+    if (trackId === SOUNDTRACK_ID || keepChosenSong || !hasSoundtrack) {
+      setPageSong(null);
+      saveMusicSettings({ activeTrackId: trackId });
+      return;
+    }
+    setPageSong({ id: trackId, view });
+    if (selectedMusicId !== SOUNDTRACK_ID) saveMusicSettings({ activeTrackId: SOUNDTRACK_ID });
+  };
+
+  // Switching the option carries the song that is playing over to the new rule: it becomes
+  // the song for every screen, or a pick for this screen only.
+  const setKeepChosenSong = (keep) => {
+    if (keep) {
+      saveMusicSettings(pageSongId ? { keepSongAcrossPages: true, activeTrackId: pageSongId } : { keepSongAcrossPages: true });
+      setPageSong(null);
+      return;
+    }
+    if (hasSoundtrack && selectedMusicId !== SOUNDTRACK_ID) setPageSong({ id: selectedMusicId, view });
+    saveMusicSettings(hasSoundtrack ? { keepSongAcrossPages: false, activeTrackId: SOUNDTRACK_ID } : { keepSongAcrossPages: false });
   };
 
   return (
@@ -835,9 +939,17 @@ function App() {
         beltStatus={beltStatus}
         musicOn={musicOn}
         setMusicOn={setMusicOn}
+        primeMusic={() => {
+          // A hosted file plays through an <audio> element and needs no audio context.
+          if (musicTrackKind(activeMusicTrack) !== "hosted") musicEngine().prime();
+        }}
         musicTracks={playerMusicTracks}
-        activeTrackId={activeMusicTrack.id}
+        hasSoundtrack={hasSoundtrack}
+        selectedTrackId={music.mode === "soundtrack" ? SOUNDTRACK_ID : activeMusicTrack.id}
+        playingTitle={activeMusicTrack.title}
         selectMusicTrack={selectMusicTrack}
+        keepChosenSong={keepChosenSong}
+        setKeepChosenSong={setKeepChosenSong}
         openAdmin={openAdmin}
       />
 
@@ -978,15 +1090,19 @@ function Header({
   beltStatus,
   musicOn,
   setMusicOn,
+  primeMusic,
   musicTracks,
-  activeTrackId,
+  hasSoundtrack,
+  selectedTrackId,
+  playingTitle,
   selectMusicTrack,
+  keepChosenSong,
+  setKeepChosenSong,
   openAdmin,
 }) {
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
   const trackSelectRef = useRef(null);
   const trackTriggerRef = useRef(null);
-  const activeTrack = musicTracks.find((track) => track.id === activeTrackId) ?? musicTracks[0];
 
   // Closing the menu takes its buttons off the page. If keyboard focus is on one of them
   // (or on the trigger), put it on the trigger first, so it is not dropped onto the page.
@@ -1049,7 +1165,7 @@ function Header({
         </select>
         <ChevronDown size={18} />
       </label>
-      <button className={`music-toggle ${musicOn ? "active" : ""}`} aria-label={musicOn ? "Turn music off" : "Turn music on"} aria-pressed={musicOn} onClick={() => setMusicOn((value) => !value)}>
+      <button className={`music-toggle ${musicOn ? "active" : ""}`} aria-label={musicOn ? "Turn music off" : "Turn music on"} aria-pressed={musicOn} onClick={() => { if (!musicOn) primeMusic(); setMusicOn((value) => !value); }}>
         <Music size={19} />
         <span>Music</span>
         <span className="toggle-dot" />
@@ -1059,18 +1175,32 @@ function Header({
         <div ref={trackSelectRef} className={`player-track-select ${trackMenuOpen ? "open" : ""}`}>
           <button ref={trackTriggerRef} type="button" className="player-track-trigger" aria-expanded={trackMenuOpen} aria-haspopup="true" onClick={() => setTrackMenuOpen((open) => !open)}>
             <Headphones size={16} />
-            <span>{activeTrack?.title ?? "Select Track"}</span>
+            <span>{playingTitle ?? "Select Track"}</span>
             <ChevronDown size={16} />
           </button>
           {trackMenuOpen ? (
             <div className="player-track-menu">
               <small>Player Music Library</small>
+              {hasSoundtrack ? (
+                <button
+                  type="button"
+                  className={selectedTrackId === SOUNDTRACK_ID ? "active" : ""}
+                  aria-pressed={selectedTrackId === SOUNDTRACK_ID}
+                  onClick={() => {
+                    selectMusicTrack(SOUNDTRACK_ID);
+                    closeTrackMenu();
+                  }}
+                >
+                  <span>{SOUNDTRACK_TITLE}</span>
+                  <em>A song for each page</em>
+                </button>
+              ) : null}
               {musicTracks.map((track) => (
                 <button
                   key={track.id}
                   type="button"
-                  className={track.id === activeTrack?.id ? "active" : ""}
-                  aria-pressed={track.id === activeTrack?.id}
+                  className={track.id === selectedTrackId ? "active" : ""}
+                  aria-pressed={track.id === selectedTrackId}
                   onClick={() => {
                     selectMusicTrack(track.id);
                     closeTrackMenu();
@@ -1080,6 +1210,13 @@ function Header({
                   <em>{track.mood}</em>
                 </button>
               ))}
+              {hasSoundtrack ? (
+                <label className="player-track-keep">
+                  <input type="checkbox" checked={keepChosenSong} onChange={(event) => setKeepChosenSong(event.target.checked)} />
+                  <span>Keep my song on every page</span>
+                  <em>{keepChosenSong ? "A song you pick plays everywhere." : "A song you pick plays until you change pages."}</em>
+                </label>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -1749,6 +1886,7 @@ function AdminPanel({ store, setStore, setView }) {
       <MusicGeneratorPage
         music={music}
         tracks={tracks}
+        licensedTracks={licensedMusicTracks}
         updateMusic={updateMusic}
         updateTrack={updateTrack}
         addTrack={addTrack}
@@ -1991,8 +2129,9 @@ function AdminPanel({ store, setStore, setView }) {
   );
 }
 
-function MusicGeneratorPage({ music, tracks, updateMusic, updateTrack, addTrack, removeTrack, setAdminMode, setView }) {
-  const activeTrackId = music.activeTrackId ?? tracks[0]?.id;
+function MusicGeneratorPage({ music, tracks, licensedTracks = [], updateMusic, updateTrack, addTrack, removeTrack, setAdminMode, setView }) {
+  const selectableTracks = [...licensedTracks, ...tracks];
+  const activeTrackId = music.activeTrackId ?? selectableTracks[0]?.id;
 
   return (
     <section className="admin-grid music-generator-page">
@@ -2055,8 +2194,10 @@ Create an original instrumental JiuQuest background track for a Brazilian jiu-ji
 
         <div className="music-controls">
           <Field label="Default Track">
-            <select value={activeTrackId} onChange={(event) => updateMusic({ activeTrackId: event.target.value })}>
-              {tracks.map((track) => (
+            {/* A song set here is the song for every page, so the "keep my song" option goes on with it. */}
+            <select value={activeTrackId} onChange={(event) => updateMusic(event.target.value === SOUNDTRACK_ID ? { activeTrackId: SOUNDTRACK_ID } : { activeTrackId: event.target.value, keepSongAcrossPages: true })}>
+              {licensedTracks.length ? <option value={SOUNDTRACK_ID}>{SOUNDTRACK_TITLE}: a song for each page</option> : null}
+              {selectableTracks.map((track) => (
                 <option key={track.id} value={track.id}>
                   {track.title}
                 </option>
@@ -2076,6 +2217,18 @@ Create an original instrumental JiuQuest background track for a Brazilian jiu-ji
             <small>{Math.round((music.volume ?? 0) * 100)}%</small>
           </label>
         </div>
+
+        {licensedTracks.length ? (
+          <div className="source-reference-list licensed-track-list">
+            {licensedTracks.map((track) => (
+              <div key={track.id}>
+                <strong>{track.title}</strong>
+                <small>{[track.credit, track.collection].filter(Boolean).join(", ")}</small>
+                <p>Licensed song with three intensity levels. It cannot be edited here.</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         <div className="track-editor-list">
           {tracks.map((track) => (
@@ -2206,70 +2359,6 @@ function scoreNpc({ npc, move, position, settings }) {
     scenario,
     ratio: Math.random(),
   };
-}
-
-function startAudio(audioRef, view, volume, track, onError) {
-  if (audioRef.current) return;
-  const hostedUrl = track?.url?.trim();
-  if (hostedUrl) {
-    const audio = new Audio(hostedUrl);
-    audio.loop = true;
-    audio.volume = volume;
-    const reportError = () => {
-      if (audioRef.current?.audio !== audio) return;
-      audio.pause();
-      audioRef.current = null;
-      onError?.("Music could not play. Check your connection and try again.");
-    };
-    audioRef.current = { audio };
-    audio.onerror = reportError;
-    audio.play().catch(reportError);
-    return;
-  }
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) { onError?.("Audio is unavailable in this browser."); return; }
-  const context = new AudioContext();
-  const gain = context.createGain();
-  gain.gain.value = volume;
-  gain.connect(context.destination);
-  const bpm = Math.max(90, Math.min(180, Number(track?.bpm) || 132));
-  const beatSeconds = 60 / bpm;
-  const tempo = view === "combat" ? beatSeconds / 2 : view === "training" ? beatSeconds : beatSeconds * 1.5;
-  const root = track?.id === "paradise-circuit" ? 123.47 : track?.id === "power-clash" ? 98 : 110;
-  const oscillators = [root, root * 1.334, root * 2].map((frequency, index) => {
-    const osc = context.createOscillator();
-    const oscGain = context.createGain();
-    osc.type = index === 0 ? "sine" : "triangle";
-    osc.frequency.value = frequency;
-    oscGain.gain.value = index === 0 ? 0.08 : 0.025;
-    osc.connect(oscGain).connect(gain);
-    osc.start();
-    return { osc, oscGain };
-  });
-  const pulse = window.setInterval(() => {
-    const now = context.currentTime;
-    gain.gain.cancelScheduledValues(now);
-    gain.gain.setValueAtTime(volume * 0.55, now);
-    gain.gain.linearRampToValueAtTime(volume, now + 0.03);
-    gain.gain.linearRampToValueAtTime(volume * 0.48, now + 0.22);
-  }, tempo * 1000);
-  audioRef.current = { context, oscillators, pulse };
-  context.resume().catch(() => { if (audioRef.current?.context === context) onError?.("Audio playback was blocked. Try enabling music again."); });
-}
-
-function stopAudio(audioRef) {
-  if (!audioRef.current) return;
-  const { audio, context, oscillators = [], pulse } = audioRef.current;
-  if (audio) {
-    audio.pause();
-    audio.currentTime = 0;
-    audioRef.current = null;
-    return;
-  }
-  window.clearInterval(pulse);
-  oscillators.forEach(({ osc }) => osc.stop());
-  context?.close();
-  audioRef.current = null;
 }
 
 function EmblemMark({ emblem, className = "" }) {

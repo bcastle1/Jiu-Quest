@@ -45,6 +45,44 @@ jobs:
       - name: Verify combat, persistence and release safety
         run: pnpm test
 
+      # Licensed music is never in this repository (docs/music.md). When the key to the
+      # private music repository is configured, the build fetches the packs and carries
+      # them. Without the key, as on a fork, the site is built with its own tracks only.
+      # A release of the site itself must not go out without its music, so there a
+      # missing key stops the run.
+      - name: Check for the licensed music key
+        id: music
+        shell: bash
+        env:
+          MUSIC_DEPLOY_KEY: ${{ secrets.MUSIC_DEPLOY_KEY }}
+        run: |
+          if [ -n "$MUSIC_DEPLOY_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_REPOSITORY" = "bcastle1/Jiu-Quest" ] && [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
+            echo "::error::The secret MUSIC_DEPLOY_KEY is missing, so this release would ship without its licensed music. See docs/music.md."
+            exit 1
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch licensed music
+        if: steps.music.outputs.available == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: bcastle1/jiuquest-music
+          ssh-key: ${{ secrets.MUSIC_DEPLOY_KEY }}
+          path: licensed-music
+          persist-credentials: false
+
+      - name: Place licensed music
+        if: steps.music.outputs.available == 'true'
+        shell: bash
+        run: |
+          mkdir -p public/assets/audio/licensed
+          cp licensed-music/packs/* public/assets/audio/licensed/
+          rm -rf licensed-music
+          node tools/check_licensed_music.mjs
+
       - name: Build release candidate
         run: pnpm release:build
 

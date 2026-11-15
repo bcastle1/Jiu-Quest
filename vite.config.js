@@ -1,11 +1,13 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import fontPreload from "./tools/vite_font_preload.mjs";
+import licensedMusic from "./tools/vite_licensed_music.mjs";
 
 export default defineConfig({
   // fontPreload adds the heading typeface to the built index.html, so a first
   // visit starts downloading it with the page. It does nothing in the dev server.
-  plugins: [react(), fontPreload()],
+  // licensedMusic tells the app which licensed tracks this build carries (docs/music.md).
+  plugins: [react(), fontPreload(), licensedMusic()],
   base: "/",
   // The app has one HTML entry. Do not scan ignored vendor/demo HTML trees.
   optimizeDeps: { entries: ["index.html"] },
