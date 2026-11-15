@@ -423,6 +423,12 @@ function App() {
     window.scrollTo(0, 0);
   }, [view]);
 
+  // The greeting belongs to the moment a match starts. Leaving the Arena ends
+  // it, so coming back to a running match never plays it again.
+  useEffect(() => {
+    if (view !== "combat") setCombat((current) => (current.greeting ? { ...current, greeting: false } : current));
+  }, [view]);
+
   useEffect(() => {
     const sources = [
       resolveFighterArtSource("profile", fighter.hairStyle),
@@ -607,6 +613,10 @@ function App() {
       phase: "selecting",
       ...createArenaState(startPosition),
       startPosition,
+      // A match that starts on the feet asks for the greeting, which plays
+      // once in the Arena if Unreal has rendered one. The flag is never saved,
+      // and it is cleared when the greeting ends or anything takes its place.
+      greeting: createArenaState(startPosition).position === "standing",
       log: [`Match started from ${getArenaPositionLabel(createArenaState(startPosition))}. Choose your first action.`],
     });
   };
@@ -625,6 +635,7 @@ function App() {
       secondsLeft: sequenceSeconds(move),
       phase: "ordering",
       result: null,
+      greeting: false,
       log: [
         `${move.name} selected. Put the steps in order before the timer ends.`,
         ...(current.active ? [] : [`Gate opened from ${positionLabels[current.position]}.`]),
@@ -750,6 +761,7 @@ function App() {
         selectedMoveId: null,
         secondsLeft: 10,
         result,
+        greeting: false,
         log: [
           outcomeLine,
           result.line,
@@ -2134,6 +2146,12 @@ function createCombatState(npc) {
     bestPlayer: null,
     bestNpc: null,
     result: null,
+    greeting: false,
+    // The picture chosen for a finished match that has a match moment clip:
+    // the Arena's "Match result" or "Final exchange", for one result. It is
+    // kept with the match, so it is still the player's choice after a visit to
+    // another screen, and like the rest of the match it is never saved.
+    resultView: null,
     log: ["Choose a standing, kneeling, or position start to begin your match."],
   };
 }

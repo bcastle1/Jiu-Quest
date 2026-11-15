@@ -115,6 +115,40 @@
 }
 .app-shell.jq-game .unreal-clip-legend small { color: #8797a5; }
 
+/* A finished match that has a match moment clip: a strip over the picture
+   with the choice between that clip and the final exchange. It is there from
+   the first frame of the result and stays where it is when the picture under
+   it changes. The padding leaves room for the focus ring, which the mat
+   window would otherwise clip. The Arena centers the mat window's children on
+   phones, so the strip asks for the full width, as the clip stage does. */
+.app-shell.jq-game .mat-window-header {
+  display: flex;
+  justify-content: center;
+  justify-self: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.4rem 1rem;
+  border-bottom: 1px solid #1a232d;
+  background: #06090d;
+}
+.app-shell.jq-game .mat-view-toggle {
+  flex: 0 1 24rem;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.app-shell.jq-game .mat-view-toggle button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.5rem 0.65rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .app-shell.jq-game .mat-window-header { padding: 0.4rem 0.6rem; }
+  .app-shell.jq-game .mat-view-toggle { flex-basis: 100%; }
+}
+
 /* Stance strip as character select. Same height as today. */
 .app-shell.jq-game .stance-picker {
   border-top: 1px solid #222e3a;

@@ -107,6 +107,13 @@ export function nextViewAfterFailure(views, failed) {
   return left[0] ?? null;
 }
 
+// How long a passing match moment (the greeting) may keep its picture box
+// waiting, in milliseconds: `start` for its picture to begin moving once it is
+// asked for, `stall` for it to move again after it has run out of data. When a
+// wait is up the moment is over and what follows takes its place, so a slow or
+// stalled file never holds the box on a still.
+export const PASSING_MOMENT_PATIENCE = Object.freeze({ start: 2000, stall: 1000 });
+
 // The words under a technique clip. A reviewed clip does not say it is a prototype.
 export function techniqueNote({ choreographyReviewed = false, reducedMotion = false } = {}) {
   return [

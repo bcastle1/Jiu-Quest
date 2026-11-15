@@ -203,10 +203,10 @@
 }
 
 /* A technique clip: plays once and rests on its last frame. Every rule below is
-   under .is-technique or a class only the technique stage draws, so a stance
-   loop looks exactly as before. The heading, picture, controls and legend sit
-   in .unreal-clip-frame, which the overlay layout is measured against; the note
-   sits under it. */
+   under .is-technique, .is-moment or a class only the technique and match
+   moment stages draw, so a stance loop looks exactly as before. The heading,
+   picture, controls and legend sit in .unreal-clip-frame, which the overlay
+   layout is measured against; the note sits under it. */
 .unreal-clip-frame {
   position: relative;
 }
@@ -261,6 +261,16 @@
 .unreal-clip-scrubber:focus-visible {
   outline: 2px solid var(--gold, #e8c27a);
   outline-offset: 3px;
+}
+
+/* A match moment looks like a stance loop. The greeting is given the still of
+   the stance loop whose place it takes (an inline background image): it fills
+   the picture box, trimmed as the video is, until the greeting's own first
+   frame is there. */
+.unreal-clip-stage.is-moment .unreal-clip-viewport {
+  background-position: 50% 70%;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 /* Training: the study bar sits under the picture, never on it, so nothing

@@ -6,9 +6,11 @@ import { fileURLToPath } from 'node:url';
 import { UNREAL_CLIPS, UNREAL_CLIP_CAMERAS, UNREAL_CLIP_LOOK, findUnrealClip, unrealClipViews } from '../src/unreal/techniqueClips.js';
 import { allMoves } from '../src/data/curriculum.js';
 import { UNITY_PREVIEWS } from '../src/unity/bridge.js';
+import { MATCH_MOMENT_IDS, MATCH_MOMENT_PERFORMER, isMatchMoment } from '../src/unreal/matchMoments.js';
 import { resolveCombatRenderer } from '../src/unreal/renderer.js';
 import { UNREAL_STANCES } from '../src/unreal/stances.js';
 import { unrealClipMoveId } from '../src/unreal/techniqueIds.js';
+import { MATCH_MOMENT_CLIP } from '../tools/import_unreal_clips.mjs';
 
 // The clip id of every curriculum technique: any of them can take clips.
 const TECHNIQUE_CLIP_IDS = allMoves.map((move) => unrealClipMoveId(move.id));
@@ -49,14 +51,16 @@ test('every published clip is the pinned file and something a browser can start 
 });
 
 test('clips name real moves, performers and cameras, with no repeats and no stray files', () => {
-  // A clip shows a curriculum technique, named by its clip id, or a fighting
-  // stance held or left on the feet. These are the names the importer takes.
+  // A clip shows a curriculum technique, named by its clip id, a fighting
+  // stance held or left on the feet, or a match moment (the greeting before a
+  // match, or the end of one). These are the names the importer takes.
   const stanceClips = UNREAL_STANCES.flatMap((stance) => [stance.loopMoveId, stance.entryMoveId]).filter(Boolean);
-  const moves = new Set([...TECHNIQUE_CLIP_IDS, ...stanceClips]);
+  const moves = new Set([...TECHNIQUE_CLIP_IDS, ...stanceClips, ...MATCH_MOMENT_IDS]);
+  assert.equal(moves.size, TECHNIQUE_CLIP_IDS.length + stanceClips.length + MATCH_MOMENT_IDS.length, 'the three kinds of clip never share a name');
   const keys = UNREAL_CLIPS.map((clip) => `${clip.moveId}/${clip.performerSide}-${clip.camera}`);
   assert.equal(new Set(keys).size, keys.length);
   for (const clip of UNREAL_CLIPS) {
-    assert.ok(moves.has(clip.moveId), `${clip.moveId} is a curriculum technique's clip id or a stance clip`);
+    assert.ok(moves.has(clip.moveId), `${clip.moveId} is a curriculum technique's clip id, a stance clip or a match moment`);
     assert.ok(['fighter', 'opponent'].includes(clip.performerSide));
     assert.ok(UNREAL_CLIP_CAMERAS.includes(clip.camera));
   }
@@ -68,7 +72,7 @@ test('clips name real moves, performers and cameras, with no repeats and no stra
   assert.deepEqual(published.sort(), UNREAL_CLIPS.flatMap((clip) => [clip.video, clip.poster]).sort());
 });
 
-test('a looping clip is a stance held on the feet, and a clip that plays once is a technique that opens on frame 0', () => {
+test('a looping clip is a stance held on the feet, and a clip that plays once is a technique, a stance entry or a match moment that opens on frame 0', () => {
   const stanceLoops = new Set(UNREAL_STANCES.map((stance) => stance.loopMoveId));
   // Any curriculum technique, by its clip id (src/unreal/techniqueIds.js). The
   // four Unity animates keep Unity's ids.
@@ -81,8 +85,14 @@ test('a looping clip is a stance held on the feet, and a clip that plays once is
       assert.ok(stanceLoops.has(clip.moveId), `${name} loops, so it is a stance held on the feet`);
       assert.equal(clip.posterFrame, null, `${name} loops, so its poster is the pack's`);
     } else {
-      assert.ok(techniques.has(clip.moveId) || clip.moveId.startsWith('enter_'), `${name} plays once, so it is a technique or a stance entry`);
+      assert.ok(techniques.has(clip.moveId) || clip.moveId.startsWith('enter_') || isMatchMoment(clip.moveId), `${name} plays once, so it is a technique, a stance entry or a match moment`);
       assert.equal(clip.posterFrame, 0, `${name} plays once, so its poster is its first frame`);
+    }
+    // A match moment never loops, shows the player's athlete only, and is as
+    // long as the importer allows (tools/import_unreal_clips.mjs).
+    if (isMatchMoment(clip.moveId)) {
+      assert.deepEqual([clip.loops, clip.performerSide], [false, MATCH_MOMENT_PERFORMER], `${name} is a match moment`);
+      assert.ok(clip.frames >= MATCH_MOMENT_CLIP.minFrames && clip.frames <= MATCH_MOMENT_CLIP.maxFrames, `${name} has ${clip.frames} frames`);
     }
   }
   assert.ok(UNREAL_CLIPS.every((clip) => clip.choreographyReviewed === false), 'no clip has had a qualified choreography review');
@@ -126,10 +136,16 @@ test('the Arena shows the clip only for an unsettled standing position, and neve
   // The stance the clip shows is the player's when Unreal has rendered it, else the standard one.
   assert.match(stage, /const idle = stanceLoop\(props\.fighter\?\.stance, props\.opponent\?\.stance\);/);
   assert.match(stage, /const idleClip = idleStanding && engine !== 'unreal' && findUnrealClip\(idle\.moveId, idle\.performerSide\);/);
-  assert.match(stage, /\{idleClip\s+\? <UnrealClipStage key="stance" moveId=\{idle\.moveId\} performerSide=\{idle\.performerSide\} moveLabel=\{IDLE_CLIP\.label\} [^>]*fallback=\{stage\} \/>/);
+  // `usual` is the picture without a match moment: the stance loop for an
+  // unsettled standing position, else the technique's clip or the engine stage.
+  assert.match(stage, /const usual = idleClip\s+\? <UnrealClipStage key="stance" moveId=\{idle\.moveId\} performerSide=\{idle\.performerSide\} moveLabel=\{IDLE_CLIP\.label\} [^>]*fallback=\{stage\} \/>/);
   // A technique shows its clip only when the picture rule says so (its behaviour is in
   // tests/unrealTechniquePicture.test.js), starts again for each new exchange, and hands
   // over to the same stage when it cannot play.
   assert.match(stage, /const picture = !idleStanding && chooseTechniquePicture\(\{[^}]*views: unrealClipViews \}\);/);
-  assert.match(stage, /picture && picture\.kind === 'clip'\s+\? <UnrealClipStage key=\{`technique:\$\{picture\.moveId\}:\$\{picture\.performerSide\}:\$\{props\.signal \?\? ''\}`\} kind="technique" [^>]*fallback=\{stage\} \/>\s+: stage\}/);
+  assert.match(stage, /picture && picture\.kind === 'clip'\s+\? <UnrealClipStage key=\{`technique:\$\{picture\.moveId\}:\$\{picture\.performerSide\}:\$\{props\.signal \?\? ''\}`\} kind="technique" [^>]*fallback=\{stage\} \/>\s+: stage;/);
+  // That picture is what is drawn, unless a match moment takes its place and
+  // hands back to it (tests/unrealMatchMoments.test.js). Nothing else is drawn.
+  assert.match(stage, /\{moment\s+\? <UnrealClipStage key=\{`moment:\$\{moment\.moveId\}:\$\{props\.signal \?\? ''\}`\} kind="moment" [^>]*fallback=\{usual\} \/>\s+: usual\}\s+<\/>;/);
+  assert.equal(stage.match(/<UnrealClipStage\b/g).length, 3, 'the stance loop, the technique clip and the match moment');
 });

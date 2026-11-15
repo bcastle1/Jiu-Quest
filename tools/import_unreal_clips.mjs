@@ -14,6 +14,14 @@
 // It is imported only when its file and SHA-256 are listed in
 // tools/unreal_clip_acceptance.json; otherwise it is left out and listed under
 // notAccepted. Stance clips need no acceptance line.
+// A match moment clip is a clip of the greeting before a match or of the end
+// of one: its move is one of MATCH_MOMENT_IDS (src/unreal/matchMomentIds.js). It
+// plays once, shows the player's athlete (the `fighter`), is 1280 by 720 at 30
+// frames a second and 45 to 240 frames long, and needs an acceptance line
+// exactly as a technique clip does.
+// Nothing this tool imports reads the clip list it writes
+// (src/unreal/techniqueClips.data.js), so it runs when that file is missing or
+// broken and writes it again.
 //
 // Usage:
 //   node tools/import_unreal_clips.mjs <Unreal-render-pack/clips> <ffmpeg bin dir> [--out <dir>] [--acceptance <file>]
@@ -28,6 +36,7 @@ import { copyFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from '
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { allMoves } from '../src/data/curriculum.js';
+import { MATCH_MOMENT_IDS, MATCH_MOMENT_PERFORMER, isMatchMoment } from '../src/unreal/matchMomentIds.js';
 import { unrealClipMoveId } from '../src/unreal/techniqueIds.js';
 
 // The clip id of every curriculum technique, in curriculum order, each once:
@@ -37,6 +46,9 @@ export const TECHNIQUE_IDS = Object.freeze([...new Set(allMoves.map((move) => un
 export const PERFORMERS = Object.freeze(['fighter', 'opponent']);
 export const CAMERAS = Object.freeze(['side', 'front']);
 export const POSTER_QUALITY = 82;
+// What every match moment clip has to be: the picture size and frame rate of
+// every other clip, and a length between a second and a half and eight seconds.
+export const MATCH_MOMENT_CLIP = Object.freeze({ width: 1280, height: 720, fps: 30, minFrames: 45, maxFrames: 240 });
 // A move name: a lower-case letter, then lower-case letters, digits and underscores.
 const NAME = /^[a-z][a-z0-9_]*$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -49,6 +61,15 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fail = (message) => { throw new Error(message); };
 const isTechnique = (move) => TECHNIQUE_IDS.includes(move);
 const isStance = (move) => move === 'standing_stance' || /^(stance|enter)_[a-z][a-z0-9_]*$/.test(move);
+
+// The rules a match moment clip has beyond a technique clip's. Checked on the
+// entry, before its acceptance line is looked for, so a bad delivery fails loudly.
+function checkMatchMoment(entry) {
+  const { width, height, fps, minFrames, maxFrames } = MATCH_MOMENT_CLIP;
+  if (entry.performerSide !== MATCH_MOMENT_PERFORMER) fail(`${entry.file}: a match moment clip shows the player's athlete ("performerSide": "${MATCH_MOMENT_PERFORMER}")`);
+  if (entry.width !== width || entry.height !== height || entry.fps !== fps) fail(`${entry.file}: a match moment clip is ${width} by ${height} at ${fps} frames a second`);
+  if (entry.frames < minFrames || entry.frames > maxFrames) fail(`${entry.file}: ${entry.frames} frames, but a match moment clip has between ${minFrames} and ${maxFrames}`);
+}
 
 // The owner's acceptance list: [{ file, sha256, acceptedOn }]. Checked for shape.
 export function readAcceptance(list) {
@@ -90,8 +111,12 @@ export function selectEntries(entries, acceptance = []) {
     if (!Number.isInteger(entry.frames) || entry.frames < 1 || !(entry.fps > 0)) fail(`${entry.file}: frames and fps must be positive`);
     if (Math.abs(entry.frames / entry.fps - entry.durationSeconds) > 0.001) fail(`${entry.file}: duration does not match its frame count`);
 
-    if (isTechnique(move)) {
-      if (entry.loops !== false || entry.draft !== false) fail(`${entry.file}: a technique clip plays once ("loops": false) and is not a draft ("draft": false)`);
+    // A match moment is taken in by the technique's path: it plays once, every
+    // view of it has the same length, and it waits for its acceptance line.
+    const moment = isMatchMoment(move);
+    if (isTechnique(move) || moment) {
+      if (entry.loops !== false || entry.draft !== false) fail(`${entry.file}: a ${moment ? 'match moment' : 'technique'} clip plays once ("loops": false) and is not a draft ("draft": false)`);
+      if (moment) checkMatchMoment(entry);
       const group = `${move}/${performer}`;
       const length = lengths.get(group);
       if (length && length.frames !== entry.frames) {
@@ -103,7 +128,7 @@ export function selectEntries(entries, acceptance = []) {
       const loops = !move.startsWith('enter_');
       if (entry.loops !== loops) fail(`${entry.file}: a ${loops ? 'stance' : 'stance entry'} clip must have "loops": ${loops}`);
     } else {
-      fail(`${entry.file}: ${move} is neither a technique (the clip id of a curriculum technique, see src/unreal/techniqueIds.js) nor a stance clip`);
+      fail(`${entry.file}: ${move} is neither a technique (the clip id of a curriculum technique, see src/unreal/techniqueIds.js), a stance clip nor a match moment (${MATCH_MOMENT_IDS.join(', ')})`);
     }
     selected.push(entry);
   }

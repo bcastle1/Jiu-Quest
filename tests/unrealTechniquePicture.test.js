@@ -4,10 +4,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { allMoves } from '../src/data/curriculum.js';
 import { resolveArenaUnityPlayback, resolveUnityMove } from '../src/unity/bridge.js';
+import { isMatchMoment } from '../src/unreal/matchMoments.js';
 import { UNREAL_STANCES } from '../src/unreal/stances.js';
 import { FIGHTER_ONLY_CLIP_IDS, TECHNIQUE_OPENING_CAMERA, TECHNIQUE_PERFORMERS, chooseTechniquePicture, techniqueClipPerformers, techniqueClipReady, techniqueMoves } from '../src/unreal/techniquePicture.js';
 import { UNREAL_CLIPS, unrealClipViews } from '../src/unreal/techniqueClips.js';
 import { resolveArenaClipPlayback, unrealClipMoveId } from '../src/unreal/techniqueIds.js';
+import { STAND_IN_REACT, asModule, createHookRunner, findElement, loadComponent, repoModule, standInComponent, useGlobals, viewsOf } from './helpers/stageHarness.js';
 
 const source = (path) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8');
 
@@ -457,11 +459,12 @@ test('Training heading for a technique the engine cannot animate: moving with it
 
 test('Training and the Arena hand the stage the clip id beside the engine move id, and the stage keeps it from the engine stages', () => {
   const stage = source('src/components/GrapplingStage.jsx');
-  // The two clip props and the clip's give-way callback are taken out before
-  // the rest is spread, so the Unity stage, the local Unreal stage and the
-  // fallback get the props they always got.
-  assert.match(stage, /export default function GrapplingStage\(\{ idleStanding = false, onRendererChange, clipMoveId, clipPerformerSide, onClipUnavailable, \.\.\.props \}\) \{/);
-  assert.doesNotMatch(stage, /props\.(?:clip(?:MoveId|PerformerSide)|onClipUnavailable)/);
+  // The two clip props, the clip's give-way callback and the two match moment
+  // props (tests/unrealMatchMoments.test.js) are taken out before the rest is
+  // spread, so the Unity stage, the local Unreal stage and the fallback get
+  // the props they always got.
+  assert.match(stage, /export default function GrapplingStage\(\{ idleStanding = false, onRendererChange, clipMoveId, clipPerformerSide, onClipUnavailable, momentId, onMomentDone, \.\.\.props \}\) \{/);
+  assert.doesNotMatch(stage, /props\.(?:clip(?:MoveId|PerformerSide)|onClipUnavailable|momentId|onMomentDone)/);
   // The callback goes to the technique clip stage and nowhere else.
   assert.equal(stage.match(/onClipUnavailable/g).length, 3, 'named in the comment, taken out, handed on');
   assert.match(stage, /kind="technique" [^>]* onUnavailable=\{onClipUnavailable\} fallback=\{stage\} \/>/);
@@ -609,12 +612,13 @@ test('coverage: which curriculum techniques have Unreal clips for each performer
   assert.equal(counts.playing + counts.waiting + counts.none, allMoves.length);
   t.diagnostic(`${counts.playing} of ${allMoves.length} curriculum techniques play Unreal clips. With clips, but not yet of every performer they need: ${counts.waiting}. No clip: ${counts.none}. Both of those play as before.`);
 
-  // The report leaves no clip out: every published clip is a stance clip or
-  // belongs to one of these techniques.
+  // The report leaves no technique clip out: every published clip is a stance
+  // clip, a match moment (tests/unrealMatchMoments.test.js) or belongs to one
+  // of these techniques.
   const clipIds = new Set(allMoves.map((move) => unrealClipMoveId(move.id)));
   const stanceClips = new Set(UNREAL_STANCES.flatMap((stance) => [stance.loopMoveId, stance.entryMoveId]).filter(Boolean));
   for (const clip of UNREAL_CLIPS) {
-    assert.ok(clipIds.has(clip.moveId) || stanceClips.has(clip.moveId), `${clip.moveId} is neither a stance clip nor a curriculum technique's clip`);
+    assert.ok(clipIds.has(clip.moveId) || stanceClips.has(clip.moveId) || isMatchMoment(clip.moveId), `${clip.moveId} is neither a stance clip, a match moment nor a curriculum technique's clip`);
   }
 });
 
@@ -726,114 +730,17 @@ test('on the picture, a legend label that wraps keeps its dot beside its own tex
   assert.match(css, /\.unreal-clip-stage\.is-study \.unreal-clip-legend \{\s+position: static;\s+flex-direction: row;\s+align-items: center;\s+max-width: none;\s+padding: 0\.75rem 1rem 0\.95rem;\s+text-align: left;\s+\}/);
 });
 
-// The stage components, run outside React. Vite's esbuild (a dependency of
-// the site) compiles a component file's JSX into plain element objects, and
-// each of its imports is swapped for the real module or a stand-in. 'react'
-// becomes the small hook runner below, so a test can render, call an element's
-// handler as the browser would (a video's error event), and see exactly when
-// effects run.
-const asModule = (code) => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
-const repoModule = (path) => new URL(`../${path}`, import.meta.url).href;
-const STAND_IN_JSX = asModule(`export const __Fragment = 'fragment';
-export const __h = (type, props, ...children) => ({ type, props: children.length ? { ...props, children: children.length > 1 ? children : children[0] } : { ...props } });`);
-const STAND_IN_REACT = asModule(['useEffect', 'useId', 'useReducer', 'useRef', 'useState'].map((name) => `export const ${name} = (...args) => globalThis.__hookRunner.${name}(...args);`).join('\n'));
-const standInComponent = (name) => asModule(`export default function ${name}() { return null; }`);
-
-async function loadComponent(path, imports) {
-  const { transformWithEsbuild } = await import('vite');
-  const code = source(path).replaceAll('import.meta.env', 'globalThis.__componentEnv');
-  const compiled = (await transformWithEsbuild(code, path, { loader: 'jsx', jsx: 'transform', jsxFactory: '__h', jsxFragment: '__Fragment', sourcemap: false })).code;
-  const swapped = [];
-  const body = compiled.replace(/^import (?:(.+) from )?"([^"]+)";$/gm, (line, names, specifier) => {
-    assert.ok(Object.hasOwn(imports, specifier), `${path} imports ${specifier}, which the test has no stand-in for`);
-    swapped.push(specifier);
-    return imports[specifier] === null ? '' : `import ${names ? `${names} from ` : ''}${JSON.stringify(imports[specifier])};`;
-  });
-  assert.deepEqual(swapped.sort(), Object.keys(imports).sort(), `${path}: its imports`);
-  return import(asModule(`import { __h, __Fragment } from ${JSON.stringify(STAND_IN_JSX)};\n${body}`));
-}
-
-// Hooks for one component at a time. render() is one commit: the component
-// runs, then the effects whose inputs changed, again while an effect changes
-// state. A handler called between renders changes state as an event would.
-function createHookRunner() {
-  const slots = [];
-  let cursor = 0;
-  let effects = [];
-  let changed = false;
-  const runner = {
-    rendering: false,
-    useReducer(reducer, initialArg, init) {
-      const slot = slots[cursor] ??= { state: init ? init(initialArg) : initialArg };
-      cursor += 1;
-      slot.reducer = reducer;
-      slot.dispatch ??= (action) => {
-        const next = slot.reducer(slot.state, action);
-        if (!Object.is(next, slot.state)) { slot.state = next; changed = true; }
-      };
-      return [slot.state, slot.dispatch];
-    },
-    useState: (initial) => runner.useReducer((state, action) => (typeof action === 'function' ? action(state) : action), initial, (value) => (typeof value === 'function' ? value() : value)),
-    useRef(current) {
-      const slot = slots[cursor] ??= { current };
-      cursor += 1;
-      return slot;
-    },
-    useEffect(effect, deps) {
-      const slot = slots[cursor] ??= {};
-      cursor += 1;
-      if (slot.deps && deps && deps.length === slot.deps.length && deps.every((dep, index) => Object.is(dep, slot.deps[index]))) return;
-      effects.push(() => { slot.cleanup?.(); slot.cleanup = effect(); slot.deps = deps; });
-    },
-    useId: () => ':clip:',
-    render(component, props) {
-      for (let pass = 0; pass < 10; pass += 1) {
-        cursor = 0;
-        effects = [];
-        changed = false;
-        runner.rendering = true;
-        let tree;
-        try { tree = component(props); } finally { runner.rendering = false; }
-        for (const effect of effects) effect();
-        if (!changed) return tree;
-      }
-      throw new Error('the component keeps changing its own state');
-    },
-  };
-  return runner;
-}
-
-const findElement = (node, test) => {
-  if (Array.isArray(node)) return node.map((child) => findElement(child, test)).find(Boolean) ?? null;
-  if (!node || typeof node !== 'object') return null;
-  return test(node) ? node : findElement(node.props?.children, test);
-};
-
-// Globals for the length of one test.
-const useGlobals = (t, values) => {
-  const before = Object.keys(values).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
-  Object.assign(globalThis, values);
-  t.after(() => {
-    for (const [key, descriptor] of before) {
-      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-      else delete globalThis[key];
-    }
-  });
-};
-
-// One published view of a clip, shaped like an entry of the clip list.
-const clipView = (moveId, performerSide, camera) => Object.freeze({
-  moveId, performerSide, camera, video: `/assets/unreal-clips/${moveId}/${performerSide}-${camera}.mp4`, poster: `/assets/unreal-clips/${moveId}/${performerSide}-${camera}.webp`,
-  width: 1280, height: 720, fps: 30, frames: 54, durationSeconds: 1.8, loops: false, posterFrame: 0, choreographyReviewed: false,
-});
-const viewsOf = (published) => (moveId, performerSide = 'fighter') => (Object.hasOwn(published, moveId) ? published[moveId][performerSide] ?? [] : []).map((camera) => clipView(moveId, performerSide, camera));
+// The stage components are run outside React by the harness in
+// tests/helpers/stageHarness.js: a component file is compiled, each of its
+// imports is swapped for the real module or a stand-in, and a small hook
+// runner stands in for React.
 
 test('a technique clip tells its parent once, after it has handed over to its fallback because every view failed, and never while rendering', async (t) => {
   // No window: no reduced-motion query and no IntersectionObserver, so the clip plays at once.
   useGlobals(t, { document: { hidden: false, addEventListener() {}, removeEventListener() {} }, __hookRunner: undefined, __clipViews: undefined });
   const { default: UnrealClipStage } = await loadComponent('src/components/UnrealClipStage.jsx', {
     react: STAND_IN_REACT,
-    'lucide-react': asModule('export const Pause = () => null, Play = () => null, RotateCcw = () => null;'),
+    'lucide-react': asModule('export const Pause = () => null, Play = () => null, RotateCcw = () => null, SkipForward = () => null;'),
     '../unreal/techniqueClips.js': asModule(`export { UNREAL_CLIP_LOOK } from ${JSON.stringify(repoModule('src/unreal/techniqueClips.js'))};\nexport const unrealClipViews = (...args) => globalThis.__clipViews(...args);`),
     '../unreal/clipPlayback.js': repoModule('src/unreal/clipPlayback.js'),
     './UnrealClipStage.css': null,
@@ -933,6 +840,7 @@ test('GrapplingStage hands onClipUnavailable to the technique clip stage only, a
     '../unreal/techniqueClips.js': asModule(`export { findUnrealClip } from ${JSON.stringify(repoModule('src/unreal/techniqueClips.js'))};\nexport const unrealClipViews = (...args) => globalThis.__clipViews(...args);`),
     '../unreal/techniquePicture.js': repoModule('src/unreal/techniquePicture.js'),
     '../unreal/stances.js': repoModule('src/unreal/stances.js'),
+    '../unreal/matchMoments.js': repoModule('src/unreal/matchMoments.js'),
   });
   const visits = {
     'release default': { env: { DEV: false, VITE_COMBAT_ENGINE: 'unity' }, href: 'https://jiuquest.com/', stage: 'UnityGrapplingStage' },
@@ -1000,6 +908,7 @@ test('GrapplingStage plays no clip when the clip id is null, and takes the engin
     '../unreal/techniqueClips.js': asModule(`export { findUnrealClip } from ${JSON.stringify(repoModule('src/unreal/techniqueClips.js'))};\nexport const unrealClipViews = (...args) => globalThis.__clipViews(...args);`),
     '../unreal/techniquePicture.js': repoModule('src/unreal/techniquePicture.js'),
     '../unreal/stances.js': repoModule('src/unreal/stances.js'),
+    '../unreal/matchMoments.js': repoModule('src/unreal/matchMoments.js'),
   });
   // The release default, with the double leg's clips published for both performers.
   globalThis.window = { location: { href: 'https://jiuquest.com/', search: '' }, history: { state: null, replaceState() {} } };
@@ -1041,6 +950,7 @@ test('GrapplingStage plays a fighter-only technique with the fighter\'s views al
     '../unreal/techniqueClips.js': asModule(`export { findUnrealClip } from ${JSON.stringify(repoModule('src/unreal/techniqueClips.js'))};\nexport const unrealClipViews = (...args) => globalThis.__clipViews(...args);`),
     '../unreal/techniquePicture.js': repoModule('src/unreal/techniquePicture.js'),
     '../unreal/stances.js': repoModule('src/unreal/stances.js'),
+    '../unreal/matchMoments.js': repoModule('src/unreal/matchMoments.js'),
   });
   const visits = {
     'release default': { env: { DEV: false, VITE_COMBAT_ENGINE: 'unity' }, href: 'https://jiuquest.com/', clips: true, stage: 'UnityGrapplingStage' },

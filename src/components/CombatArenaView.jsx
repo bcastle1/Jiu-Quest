@@ -7,6 +7,7 @@ import GrapplingSnapshotStage from "./GrapplingSnapshotStage.jsx";
 import GrapplingStage from "./GrapplingStage.jsx";
 import StancePicker from "./StancePicker.jsx";
 import { resolveArenaUnityPlayback } from "../unity/bridge.js";
+import { MATCH_GREETING, findMatchMoment, matchResultMoment, prefersReducedMotion } from "../unreal/matchMoments.js";
 import { findStance, stanceLoop } from "../unreal/stances.js";
 import { resolveArenaClipPlayback } from "../unreal/techniqueIds.js";
 
@@ -53,6 +54,7 @@ export default function CombatArenaView({
   const nextActionRef = useRef(null);
   const orderRef = useRef(null);
   const chooseRef = useRef(null);
+  const matRef = useRef(null);
   // The phase the focus effect below last saw. It begins empty, so a match
   // that is already waiting for a technique when this screen opens (the
   // Overview's Open Arena button starts one and opens the screen together)
@@ -82,6 +84,27 @@ export default function CombatArenaView({
   // Both athletes on their feet and no exchange result on screen (choosing a
   // technique clears it, in any round): the stance is what shows.
   const idleStanding = !combat.result && combat.position === 'standing';
+  // A match that starts on the feet asks for the greeting (startCombat in
+  // src/App.jsx). It plays in the stance loop's place, once, and only there.
+  const greeting = combat.greeting === true && idleStanding;
+  // A finished match ends on a match moment once Unreal has rendered it: the
+  // win or the loss. The mat window then offers that clip and the final
+  // exchange side by side. Someone who asks for reduced motion starts on the
+  // final exchange, which is the picture a finished match showed before.
+  const resultMoment = isFinished ? matchResultMoment(combat.result) : null;
+  const resultSignal = resultMoment && findMatchMoment(resultMoment) ? combat.result.animationSignal ?? null : null;
+  // The picture the finished match is showing: "result" (its match moment),
+  // "exchange" (the final exchange) or "none" (the moment could not be shown,
+  // so there is nothing to choose). It is kept with the match, for the one
+  // result named by `signal` (combat.resultView, never saved), and not with
+  // this screen: after a visit to Training the picture the player chose is
+  // still the one that shows. Until it is kept, the match shows the picture it
+  // opens on.
+  const openingView = prefersReducedMotion() ? "exchange" : "result";
+  const resultView = combat.resultView?.signal === resultSignal ? combat.resultView.view : openingView;
+  const resultChoice = resultSignal !== null && resultView !== "none";
+  // The match moment the stage is asked for now, if any.
+  const momentId = greeting ? MATCH_GREETING : resultChoice && resultView === "result" ? resultMoment : null;
   // What to say when the clip cannot show a stance yet. Null when it can.
   const stanceNoteFor = (stance) => (stanceLoop(stance, opponent.stance).exact
     ? null
@@ -90,6 +113,45 @@ export default function CombatArenaView({
   const announce = (message, tone = "info") => {
     setAnnouncement(message);
     notify?.(message, tone);
+  };
+
+  const endGreeting = () => setCombat((current) => (current.greeting ? { ...current, greeting: false } : current));
+
+  // Keeps the picture of the finished match with the match, while that result
+  // is still the one on screen. `opening` keeps it only if none is kept yet.
+  const keepResultView = (view, opening = false) => setCombat((current) => (
+    current.result?.animationSignal === resultSignal && !(opening && current.resultView?.signal === resultSignal)
+      ? { ...current, resultView: { signal: resultSignal, view } }
+      : current
+  ));
+
+  // The picture a finished match opens on is settled once, when its result
+  // first shows here, so it does not change under the player afterwards.
+  useEffect(() => {
+    if (resultSignal !== null) keepResultView(openingView, true);
+  }, [resultSignal]);
+
+  // The stage says when a match moment is over or cannot be shown.
+  const momentDone = (id) => {
+    if (id === MATCH_GREETING) {
+      // The greeting's Skip button leaves with it. Focus that was on it goes
+      // to the technique heading, where starting a match puts it. Focus
+      // anywhere else stays where it is, also on the stance loop's own
+      // controls when there was no greeting to show.
+      const greetingStage = matRef.current?.querySelector('.unreal-clip-stage[data-kind="moment"]');
+      if (greetingStage?.contains(document.activeElement)) chooseRef.current?.focus({ preventScroll: true });
+      endGreeting();
+    } else if (id === resultMoment) {
+      // Nothing to choose between: the final exchange shows, as it did before.
+      keepResultView("none");
+    }
+  };
+
+  const showResultView = (view) => {
+    if (resultView === view) return;
+    keepResultView(view);
+    // The pressed button shows the choice. This says it once, spoken only.
+    setAnnouncement(view === "result" ? "Showing the match result." : "Showing the final exchange.");
   };
 
   useEffect(() => {
@@ -137,6 +199,8 @@ export default function CombatArenaView({
       bestPlayer: null,
       bestNpc: null,
       result: null,
+      greeting: false,
+      resultView: null,
       log: [`${nextNpc.name} selected. Choose a starting position.`],
     }));
     announce(`${nextNpc.name} selected. Ready for a new match.`);
@@ -224,7 +288,16 @@ export default function CombatArenaView({
             <AthleteScore athlete={opponent} belt={opponent.belt} stripes={opponent.stripes} reverse />
           </div>
 
-          <div className={`mat-window cinematic-mode ${combat.result ? "result-mode" : ""}`}>
+          <div ref={matRef} className={`mat-window cinematic-mode ${combat.result ? "result-mode" : ""}`}>
+            {resultChoice && (
+              <header className="mat-window-header">
+                <div className="segmented mat-view-toggle" role="group" aria-label="Match picture">
+                  {[["result", "Match result"], ["exchange", "Final exchange"]].map(([view, label]) => (
+                    <button key={view} type="button" className={resultView === view ? "active" : undefined} aria-pressed={resultView === view} onClick={() => showResultView(view)}>{label}</button>
+                  ))}
+                </div>
+              </header>
+            )}
             <GrapplingStage
               idleStanding={idleStanding}
               moveId={unityPlayback?.moveId}
@@ -233,6 +306,8 @@ export default function CombatArenaView({
               clipPerformerSide={clipPlayback?.performerSide}
               moveLabel={combat.result?.techniqueName}
               signal={combat.result?.animationSignal}
+              momentId={momentId}
+              onMomentDone={momentDone}
               fighter={fighter}
               fighterBelt={beltStatus}
               opponent={opponent}
@@ -247,6 +322,9 @@ export default function CombatArenaView({
               note={stanceNoteFor(fighter.stance)}
               onChange={(stance) => {
                 onStanceChange(stance);
+                // The new stance is what the player asked to see: a greeting
+                // that is still playing gives way to it.
+                endGreeting();
                 // The picker itself shows the new choice. A pop-up message
                 // would cover it on a phone, so this is spoken only, once,
                 // with the note when there is one.

@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
-import { readAcceptance, renderDataFile, selectEntries, TECHNIQUE_IDS } from '../tools/import_unreal_clips.mjs';
+import { MATCH_MOMENT_CLIP, readAcceptance, renderDataFile, selectEntries, TECHNIQUE_IDS } from '../tools/import_unreal_clips.mjs';
 import { allMoves } from '../src/data/curriculum.js';
 import { UNITY_PREVIEWS, resolveUnityMove } from '../src/unity/bridge.js';
+import { MATCH_MOMENT_IDS } from '../src/unreal/matchMoments.js';
 import published from '../src/unreal/techniqueClips.data.js';
 import { unrealClipMoveId } from '../src/unreal/techniqueIds.js';
 
@@ -158,10 +159,98 @@ test('a move the curriculum does not have is refused, and the error no longer li
     assert.throws(() => selectEntries([clip], [accept(clip)]), /neither a technique/, move);
   }
   assert.throws(() => selectEntries([clipOf('armbar', 'fighter', 'side')], []), (error) => {
-    assert.match(error.message, /^armbar\/fighter-side\.mp4: armbar is neither a technique \(.+\) nor a stance clip$/);
+    // The message names the three kinds of clip the importer takes, and the three match moments by id.
+    assert.match(error.message, /^armbar\/fighter-side\.mp4: armbar is neither a technique \(.+\), a stance clip nor a match moment \(match_greeting, match_win, match_loss\)$/);
     for (const id of TECHNIQUE_IDS) assert.ok(!error.message.includes(id), `the error lists ${id}`);
     return true;
   });
+});
+
+// A match moment clip, named by its id (src/unreal/matchMoments.js): it plays
+// once and shows the player's athlete.
+const moment = (moveId, camera = 'side', extra = {}) => entry(moveId, 'fighter', camera,
+  { frames: 96, durationSeconds: 3.2, loops: false, sha256: hash(camera === 'side' ? '1' : '2'), ...extra });
+
+test('a match moment clip is held until it is accepted, exactly like a technique clip', () => {
+  assert.deepEqual([...MATCH_MOMENT_IDS], ['match_greeting', 'match_win', 'match_loss']);
+  for (const id of MATCH_MOMENT_IDS) {
+    assert.ok(!TECHNIQUE_IDS.includes(id), `${id} is not a technique's clip id`);
+    const [side, front] = [moment(id), moment(id, 'front')];
+    const names = [`${id}/fighter-side.mp4`, `${id}/fighter-front.mp4`];
+    // No acceptance line: left out and listed, and the import goes on.
+    const waiting = selectEntries([side, front, entry('standing_stance', 'fighter', 'side')], []);
+    assert.deepEqual([files(waiting), waiting.notAccepted, waiting.draftsLeftOut], [['standing_stance/fighter-side.mp4'], names, []], id);
+    // The acceptance line is the technique's: file, sha256 and acceptedOn, for that exact file.
+    assert.deepEqual(files(selectEntries([front, side], [accept(side), accept(front)])), names, id);
+    const half = selectEntries([side, front], [accept(side)]);
+    assert.deepEqual([files(half), half.notAccepted], [[names[0]], [names[1]]], id);
+    assert.deepEqual(selectEntries([{ ...side, sha256: hash('e') }], [accept(side)]).notAccepted, [names[0]], `${id}: a new take needs a new line`);
+    // The same hash under a technique's name, or a technique's line, accepts nothing.
+    assert.deepEqual(selectEntries([side], [accept(technique('fighter', 'side', { sha256: side.sha256 }))]).notAccepted, [names[0]], id);
+    // A draft waits for the owner like any other draft, whatever else is wrong with it.
+    assert.deepEqual(selectEntries([moment(id, 'side', { draft: true, loops: true, frames: 10, durationSeconds: 1 / 3 })], [accept(side)]).draftsLeftOut, [names[0]], id);
+  }
+});
+
+test('a match moment clip plays once, shows the fighter, is 1280 by 720 at 30 frames a second and has 45 to 240 frames', () => {
+  assert.deepEqual({ ...MATCH_MOMENT_CLIP }, { width: 1280, height: 720, fps: 30, minFrames: 45, maxFrames: 240 });
+  assert.ok(Object.isFrozen(MATCH_MOMENT_CLIP));
+  for (const id of MATCH_MOMENT_IDS) {
+    const good = moment(id);
+    const refused = (extra, message) => {
+      const clip = moment(id, 'side', extra);
+      // Format is checked before acceptance, so a bad delivery fails loudly, accepted or not.
+      for (const acceptance of [[], [accept(clip)]]) assert.throws(() => selectEntries([clip], acceptance), message, `${id} ${JSON.stringify(extra)}`);
+    };
+    refused({ loops: true }, /a match moment clip plays once/);
+    refused({ draft: undefined }, /"draft": false/);
+    refused({ performerSide: 'opponent', file: `${id}/opponent-side.mp4`, poster: `${id}/opponent-side.webp` }, /a match moment clip shows the player's athlete \("performerSide": "fighter"\)/);
+    refused({ width: 1920, height: 1080 }, /a match moment clip is 1280 by 720 at 30 frames a second/);
+    refused({ height: 1280, width: 720 }, /1280 by 720/);
+    refused({ fps: 60, durationSeconds: 1.6 }, /at 30 frames a second/);
+    refused({ fps: 24, durationSeconds: 4 }, /at 30 frames a second/);
+    refused({ frames: 44, durationSeconds: 44 / 30 }, /44 frames, but a match moment clip has between 45 and 240/);
+    refused({ frames: 241, durationSeconds: 241 / 30 }, /241 frames, but a match moment clip has between 45 and 240/);
+    refused({ durationSeconds: 3 }, /duration/);
+    refused({ camera: 'top', file: `${id}/fighter-top.mp4`, poster: `${id}/fighter-top.webp` }, /unexpected or repeated/);
+    refused({ poster: `${id}/fighter-side.png` }, /file names/);
+    // The shortest and the longest a moment may be, and both cameras.
+    for (const frames of [45, 240]) {
+      const clip = moment(id, 'side', { frames, durationSeconds: frames / 30 });
+      assert.deepEqual(files(selectEntries([clip], [accept(clip)])), [`${id}/fighter-side.mp4`], `${id} at ${frames} frames`);
+    }
+    // A front view is taken in on its own line like any view. The site does not show a moment
+    // until its side view is published too (findMatchMoment, tests/unrealMatchMoments.test.js).
+    const front = moment(id, 'front');
+    assert.deepEqual(files(selectEntries([front], [accept(front)])), [`${id}/fighter-front.mp4`], id);
+    // Its two views are one take seen from two sides: the same length.
+    const longer = moment(id, 'front', { frames: 120, durationSeconds: 4 });
+    assert.throws(() => selectEntries([good, longer], [accept(good), accept(longer)]), /same length/, id);
+    // A repeat of one view is refused like any repeat.
+    assert.throws(() => selectEntries([good, moment(id)], [accept(good)]), /unexpected or repeated/, id);
+  }
+  // A name that only looks like a moment is still refused with the clear message.
+  for (const name of ['match', 'match_greet', 'match_draw', 'match_greeting_2', 'greeting', 'match_victory']) {
+    assert.throws(() => selectEntries([moment(name)], []), /neither a technique \(.+\), a stance clip nor a match moment/, name);
+  }
+  // In the published order a moment sorts by its name like every other move, side before front.
+  const pack = [entry('standing_stance', 'fighter', 'side'), moment('match_win', 'front'), moment('match_win'), moment('match_greeting'), technique('fighter', 'side')];
+  assert.deepEqual(files(selectEntries(pack, pack.filter((clip) => !clip.loops).map(accept))), [
+    'double_leg/fighter-side.mp4', 'match_greeting/fighter-side.mp4', 'match_win/fighter-side.mp4', 'match_win/fighter-front.mp4', 'standing_stance/fighter-side.mp4',
+  ]);
+});
+
+test('an imported match moment clip takes its poster from frame 0, like every clip that plays once', () => {
+  const importer = readFileSync(new URL('../tools/import_unreal_clips.mjs', import.meta.url), 'utf8');
+  // One rule for every clip: a loop keeps the pack's poster, anything else gets frame 0 of its video.
+  assert.equal(importer.match(/const posterFrame = entry\.loops \? null : 0;/g).length, 1);
+  // The moment's rules are checked on the entry, before its acceptance line is looked for.
+  assert.match(importer, /if \(moment\) checkMatchMoment\(entry\);[\s\S]*?if \(!accepted\.has\(`\$\{entry\.file\} \$\{entry\.sha256\}`\)\) \{ notAccepted\.push\(entry\.file\); continue; \}/);
+  // The moment ids come from the module that has no imports, never from one that reads the
+  // clip list this tool writes: the importer has to start when that file is missing or broken
+  // (tests/unrealMatchMoments.test.js follows every file it loads, and runs it without the list).
+  assert.match(importer, /^import \{ MATCH_MOMENT_IDS, MATCH_MOMENT_PERFORMER, isMatchMoment \} from '\.\.\/src\/unreal\/matchMomentIds\.js';\r?$/m);
+  assert.doesNotMatch(importer, /from '[^']*(?:matchMoments|techniqueClips)(?:\.data)?\.js'/);
 });
 
 test('output is ordered by move, then fighter before opponent, then side before front', () => {
@@ -183,9 +272,10 @@ test('the acceptance list is checked for shape', () => {
   assert.throws(() => readAcceptance([line, line]), /repeated/);
 });
 
-test('the committed acceptance list is valid and names only technique files', () => {
+test('the committed acceptance list is valid and names only technique and match moment files', () => {
   const list = readAcceptance(JSON.parse(readFileSync(new URL('../tools/unreal_clip_acceptance.json', import.meta.url), 'utf8')));
-  for (const line of list) assert.ok(TECHNIQUE_IDS.includes(line.file.split('/')[0]), line.file);
+  // The two kinds of clip that wait for an acceptance line. A stance clip needs none.
+  for (const line of list) assert.ok([...TECHNIQUE_IDS, ...MATCH_MOMENT_IDS].includes(line.file.split('/')[0]), line.file);
 });
 
 test('everything published passes the importer again, in the published order', () => {
