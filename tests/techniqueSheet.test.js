@@ -92,6 +92,7 @@ test('one technique in the JSON has these fields, in this order', () => {
       'number', 'clipId', 'curriculumId', 'name', 'belt', 'lesson', 'guideStartingPosition', 'category', 'scenario',
       'starts', 'endsIn', 'isSubmission', 'steps', 'unityAnimationToday', 'unrealClipsToday', 'clipFileNames',
       'renderFrom', 'otherStarts', 'gameContinuesFrom', 'clipsNeeded', 'fighterOnlyReason', 'clipFilesNeeded', 'opensOn',
+      'ownerPublishedDrafts',
     ], technique.curriculumId);
   }
   assert.deepEqual(Object.keys(data), ['generatedBy', 'commit', 'uncommittedChanges', 'notice', 'clipFilePattern', 'performers', 'cameras', 'techniques']);
@@ -303,6 +304,56 @@ test('the Unreal clips of a technique are the published views of its clip id, fo
   assert.deepEqual(withClips.filter((technique) => techniqueClipReady(technique.clipId, fixtureViews)).map((technique) => technique.clipId), ['basic_tackle', 'hook_sweep']);
 });
 
+test('a draft the owner chose to show is marked as a draft, has a line of its own, and never counts as a clip the technique has', () => {
+  const draftsOf = (technique) => Object.fromEntries(PERFORMERS.map((performer) => [performer, unrealClipViews(technique.clipId, performer).filter((view) => view.draft === true).map((view) => view.camera)]));
+  const DRAFT_NOTE = ' The owner chose to show this unfinished take as it is: the site plays it for that performer and view only, marked "Draft choreography". It is not an accepted clip, so it counts for nothing under "Clips needed": this technique still needs an accepted clip of every performer named there, and until then the other performer keeps what the site showed before.';
+  const RULE = `The one exception is a draft the owner decides to show as it is. A separate tool (${code('tools/publish_unreal_clip_draft.mjs')}) publishes that one exact file, and the site plays it for its performer and view only, marked "Draft choreography". This sheet marks such a view "(draft)" under "Unreal clips today" and gives the technique an "Owner-published draft" line. A draft is not a delivered clip: the importer still leaves every draft out, and the technique still needs an accepted clip of every performer it needs.`;
+  const LEGEND = ' "Unreal clips today" lists the published views of each performer; a view marked "(draft)" is an unfinished take the owner chose to show, not an accepted clip.';
+
+  // With the published clip list: the drafts are the clip list's own, and the tool that publishes one exists.
+  for (const technique of data.techniques) assert.deepEqual(technique.ownerPublishedDrafts, draftsOf(technique), technique.clipId);
+  assert.ok(existsSync(fileURLToPath(new URL('../tools/publish_unreal_clip_draft.mjs', import.meta.url))));
+  const shown = data.techniques.filter((technique) => PERFORMERS.some((performer) => technique.ownerPublishedDrafts[performer].length));
+  assert.deepEqual(shown.map((technique) => [technique.clipId, technique.ownerPublishedDrafts]), [['double_leg', { fighter: ['side'], opponent: [] }]], 'the one draft on the site today');
+  const doubleLeg = sectionsOf(sheet.markdown)[allMoves.findIndex((move) => move.id === 'double-leg-takedown')].lines;
+  const at = doubleLeg.indexOf('- Unreal clips today: fighter: side (draft); opponent: none');
+  assert.ok(at > 0, 'the view is marked as a draft');
+  assert.equal(doubleLeg[at + 1], `- Owner-published draft: fighter side.${DRAFT_NOTE}`);
+  assert.ok(doubleLeg.includes(UNITY_YES), 'Unity still animates it: the rival keeps that animation');
+  assert.ok(doubleLeg.includes('- Clips needed: fighter and opponent.'), 'the draft changes nothing about whose clips it needs');
+  assert.deepEqual(indexRows(sheet.markdown).find((cells) => cells[1] === code('double_leg')).slice(7), ['yes', 'fighter and opponent', 'fighter: side (draft); opponent: none']);
+  // It is on the site, and still no technique plays its Unreal clips by the rule.
+  assert.equal(techniqueClipReady('double_leg', unrealClipViews), false);
+  assert.ok(lines.includes(countsLine(0)));
+  assert.equal(lines[lines.indexOf(countsLine(0)) + 2], `Showing an owner-published draft today: ${code('double_leg')} (fighter side). A draft is an unfinished take the owner chose to show as it is. It is not an accepted clip and is not counted as playing above.`);
+  assert.ok(lines.slice(lines.indexOf('## Clip files'), lines.indexOf('## Index')).includes(RULE));
+  assert.ok(lines.some((line) => line.endsWith(LEGEND)));
+
+  // A draft alone never switches a technique over, also one that needs the fighter's clips only:
+  // the hook sweep with a draft plays nothing by the rule, and with an accepted view beside the draft it does.
+  const draft = (moveId, performerSide, camera) => ({ ...clip(moveId, performerSide, camera), draft: true });
+  const onlyDrafts = build({ clips: [draft('hook_sweep', 'fighter', 'side'), draft('basic_tackle', 'fighter', 'side'), draft('basic_tackle', 'fighter', 'front'), draft('basic_tackle', 'opponent', 'side')] });
+  assert.ok(onlyDrafts.markdown.split('\n').includes(countsLine(0)), 'drafts are not counted as playing');
+  const made = JSON.parse(onlyDrafts.json).techniques;
+  assert.deepEqual(made.find((technique) => technique.clipId === 'hook_sweep').ownerPublishedDrafts, { fighter: ['side'], opponent: [] });
+  assert.deepEqual(made.find((technique) => technique.clipId === 'basic_tackle').unrealClipsToday, { fighter: ['side', 'front'], opponent: ['side'] });
+  const tackle = sectionsOf(onlyDrafts.markdown).find((section) => section.heading.includes(` ${code('basic_tackle')}: `)).lines;
+  assert.ok(tackle.includes('- Unreal clips today: fighter: side (draft), front (draft); opponent: side (draft)'));
+  assert.ok(tackle.includes(`- Owner-published draft: fighter side and front, opponent side.${DRAFT_NOTE}`));
+  assert.ok(onlyDrafts.markdown.split('\n').includes(`Showing an owner-published draft today: ${code('basic_tackle')} (fighter side and front, opponent side) and ${code('hook_sweep')} (fighter side). A draft is an unfinished take the owner chose to show as it is. It is not an accepted clip and is not counted as playing above.`));
+  const mixed = build({ clips: [draft('hook_sweep', 'fighter', 'side'), clip('hook_sweep', 'fighter', 'front')] });
+  assert.ok(mixed.markdown.split('\n').includes(countsLine(1)), 'an accepted view beside a draft does count');
+  assert.ok(sectionsOf(mixed.markdown).find((section) => section.heading.includes(` ${code('hook_sweep')}: `)).lines.includes('- Unreal clips today: fighter: side (draft), front; opponent: none'));
+
+  // Without a draft the sheet says nothing of one: no line in the header, none in a section.
+  const none = build({ clips: [clip('double_leg', 'fighter', 'side')] });
+  assert.ok(!none.markdown.includes('Showing an owner-published draft today'));
+  assert.ok(!none.markdown.includes('- Owner-published draft:'));
+  assert.ok(!none.markdown.split('\n').some((line) => (line.startsWith('- Unreal clips today: ') || line.startsWith('| ')) && line.includes('(draft)')), 'no view is marked');
+  assert.ok(none.markdown.split('\n').includes(RULE), 'the rule itself is always in the sheet');
+  for (const technique of JSON.parse(none.json).techniques) assert.deepEqual(technique.ownerPublishedDrafts, { fighter: [], opponent: [] });
+});
+
 test('where a technique starts and ends is given by the game\'s position ids and labels', () => {
   const label = (id) => (Object.hasOwn(positionLabels, id) ? positionLabels[id] : null);
   const named = Object.keys(positionLabels);
@@ -343,7 +394,7 @@ const OPENS_FRONT = '- The site opens on: the front view once one is published; 
 const OPENS_SIDE = '- The site opens on: the side view once one is published; the front view if it is the only one.';
 const OPENS_PICK = `Each technique's "The site opens on" line gives the view its clips open on until the viewer picks the other one with the Side and Front buttons. That pick then carries over to every later technique clip on the same screen, in Training or in the Arena, wherever that view is published.`;
 // The JSON's notice, which also says what its two lists of clip file names are.
-const NOTICE = "Generated file: do not edit it, run the tool again. In each technique, clipFileNames lists every file name the site's importer (tools/import_unreal_clips.mjs) accepts for its clips, and clipFilesNeeded only the names for the performers in clipsNeeded, the only clips of that technique the site ever shows. The site switches a technique to its clips once each performer in clipsNeeded has at least one of these views published: side views first, front views can follow. The name, lesson, scenario and steps of every technique are the owner's approved wording, copied character for character from the curriculum (src/data). They must not be changed.";
+const NOTICE = "Generated file: do not edit it, run the tool again. In each technique, clipFileNames lists every file name the site's importer (tools/import_unreal_clips.mjs) accepts for its clips, and clipFilesNeeded only the names for the performers in clipsNeeded, the only clips of that technique the site ever shows. The site switches a technique to its clips once each performer in clipsNeeded has at least one of these views published: side views first, front views can follow. ownerPublishedDrafts lists the views in unrealClipsToday that are drafts the owner chose to show as they are: they are on the site but are not accepted clips, and a technique never switches over with one. The name, lesson, scenario and steps of every technique are the owner's approved wording, copied character for character from the curriculum (src/data). They must not be changed.";
 
 test('every technique is rendered from the first position it starts in, and its section names the other starts', () => {
   const label = (id) => (Object.hasOwn(positionLabels, id) ? positionLabels[id] : null);

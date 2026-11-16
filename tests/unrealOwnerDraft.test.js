@@ -19,7 +19,10 @@ test('the one owner-approved draft keeps exact canonical files and never enters 
   assert.deepEqual(draftPublicationRow(entry(row), video, poster), { ...row });
   assert.equal(row.choreographyReviewed, false);
   assert.equal(row.posterFrame, 63, 'the owner approved the exact canonical native mid-clip poster');
-  assert.deepEqual(JSON.parse(readFileSync(new URL('../tools/unreal_clip_acceptance.json', import.meta.url))), []);
+  // Publication is not acceptance: no acceptance line names this file or these bytes. Lines for
+  // other clips are none of this test's business, so accepting another clip does not fail it.
+  const acceptance = JSON.parse(readFileSync(new URL('../tools/unreal_clip_acceptance.json', import.meta.url)));
+  assert.deepEqual(acceptance.filter(line => line.file === entry(row).file || line.sha256 === row.sha256), [], 'the draft has no acceptance line');
   const standard = selectEntries([entry(row)], [{ file: entry(row).file, sha256: row.sha256, acceptedOn: '2026-11-16' }]);
   assert.deepEqual(standard.selected, []);
   assert.deepEqual(standard.draftsLeftOut, ['double_leg/fighter-side.mp4']);

@@ -27,6 +27,11 @@
 // delivered entry that is not a draft and fails any of those checks but the
 // acceptance line stops the whole import.
 //
+// A draft the owner chose to show as it is (tools/publish_unreal_clip_draft.mjs)
+// is on the site without being an accepted clip. The sheet marks such a view
+// "(draft)", gives it a line of its own, and never counts it as a clip the
+// technique has: the technique still needs an accepted clip of every performer.
+//
 // Usage:
 //   node tools/build_technique_sheet.mjs <output dir>
 //
@@ -77,6 +82,8 @@ const PREVIEW_REASON = 'The rival never uses preview techniques';
 // Where the site takes delivered clips in, and the list it takes them by.
 const IMPORTER = 'tools/import_unreal_clips.mjs';
 const ACCEPTANCE = 'tools/unreal_clip_acceptance.json';
+// The tool that publishes a draft the owner chose to show as it is.
+const DRAFT_PUBLISHER = 'tools/publish_unreal_clip_draft.mjs';
 
 const fail = (message) => { throw new Error(message); };
 const code = (text) => `\`${text}\``;
@@ -94,9 +101,14 @@ function copied(text, what) {
 }
 // Text the curriculum may leave out: null when it does.
 const optional = (text, what) => (text === undefined || text === null ? null : copied(text, what));
-// The cameras of a technique's published views for one performer, in the
-// importer's camera order: what the site finds in the clip list.
-const publishedViews = (clips, clipId, performer) => CAMERAS.filter((camera) => clips.some((clip) => clip.moveId === clipId && clip.performerSide === performer && clip.camera === camera));
+// The clips of a technique for one performer, in the importer's camera order:
+// what the site finds in the clip list.
+const clipsOf = (clips, clipId, performer) => CAMERAS.map((camera) => clips.find((clip) => clip.moveId === clipId && clip.performerSide === performer && clip.camera === camera)).filter(Boolean);
+// The cameras of a technique's published views for one performer.
+const publishedViews = (clips, clipId, performer) => clipsOf(clips, clipId, performer).map((clip) => clip.camera);
+// Those of them that are drafts: unfinished takes the owner chose to show as
+// they are (tools/publish_unreal_clip_draft.mjs). The importer publishes none.
+const draftViews = (clips, clipId, performer) => clipsOf(clips, clipId, performer).filter((clip) => clip.draft === true).map((clip) => clip.camera);
 // The names the importer takes a technique's clips under (CLIP_FILE_PATTERN),
 // for the performers given, in the importer's order of performers and cameras.
 const fileNames = (clipId, performers) => PERFORMERS.filter((performer) => performers.includes(performer))
@@ -185,13 +197,24 @@ function describe(move, index, positionLabels, clips, game) {
     // The names of the clips it needs: those of the performers in clipsNeeded.
     clipFilesNeeded: fileNames(clipId, clipsNeeded),
     opensOn: openingCamera(clipId, where),
+    // The views in unrealClipsToday that are drafts the owner chose to show:
+    // on the site, but not accepted clips.
+    ownerPublishedDrafts: Object.fromEntries(PERFORMERS.map((performer) => [performer, draftViews(clips, clipId, performer)])),
   };
 }
 
 const hasClip = (technique, performer) => technique.unrealClipsToday[performer].length > 0;
+const isDraft = (technique, performer, camera) => technique.ownerPublishedDrafts[performer].includes(camera);
+const hasDraft = (technique) => PERFORMERS.some((performer) => technique.ownerPublishedDrafts[performer].length > 0);
+// A draft the owner chose to show is marked: it is on the site, but it is not
+// an accepted clip of the technique.
 const clipsText = (technique) => (PERFORMERS.some((performer) => hasClip(technique, performer))
-  ? PERFORMERS.map((performer) => `${performer}: ${technique.unrealClipsToday[performer].join(', ') || 'none'}`).join('; ')
+  ? PERFORMERS.map((performer) => `${performer}: ${technique.unrealClipsToday[performer].map((camera) => (isDraft(technique, performer, camera) ? `${camera} (draft)` : camera)).join(', ') || 'none'}`).join('; ')
   : 'none');
+// "fighter side", "fighter side and front, opponent side".
+const draftsText = (technique) => PERFORMERS.filter((performer) => technique.ownerPublishedDrafts[performer].length > 0)
+  .map((performer) => `${performer} ${andList(technique.ownerPublishedDrafts[performer])}`).join(', ');
+const draftLine = (technique) => `- Owner-published draft: ${draftsText(technique)}. The owner chose to show this unfinished take as it is: the site plays it for that performer and view only, marked "Draft choreography". It is not an accepted clip, so it counts for nothing under "Clips needed": this technique still needs an accepted clip of every performer named there, and until then the other performer keeps what the site showed before.`;
 // Whose clips a technique needs, in the index and in its section.
 const needsBoth = (technique) => technique.fighterOnlyReason === null;
 const neededCell = (technique) => (needsBoth(technique) ? 'fighter and opponent' : 'fighter only');
@@ -262,7 +285,10 @@ export function buildTechniqueSheet({ moves, positionLabels, clips, commit, unco
   const example = techniques.some((technique) => technique.clipId === EXAMPLE) ? EXAMPLE : techniques[0]?.clipId ?? 'clip_id';
   // The techniques that play their Unreal clips today, by the site's own rule
   // on the published clip list.
-  const playing = techniques.filter((technique) => techniqueClipReady(technique.clipId, (clipId, performer) => publishedViews(clips, clipId, performer)));
+  // The rule looks at the clips themselves: a draft is not a view a technique
+  // switches over with.
+  const playing = techniques.filter((technique) => techniqueClipReady(technique.clipId, (clipId, performer) => clipsOf(clips, clipId, performer)));
+  const drafts = techniques.filter(hasDraft);
   const fighterOnly = techniques.filter((technique) => !needsBoth(technique));
   const starters = techniques.filter((technique) => technique.belt === STARTER_BELT);
 
@@ -277,6 +303,9 @@ export function buildTechniqueSheet({ moves, positionLabels, clips, commit, unco
     '',
     `Techniques: ${techniques.length}. Steps: ${stepCount}. With a Unity animation: ${techniques.filter((technique) => technique.unityAnimationToday).length}. Playing Unreal clips today: ${playing.length}. Needing fighter and opponent clips: ${techniques.length - fighterOnly.length}. Needing fighter clips only: ${fighterOnly.length}.`,
     '',
+    ...(drafts.length
+      ? [`Showing an owner-published draft today: ${andList(drafts.map((technique) => `${code(technique.clipId)} (${draftsText(technique)})`))}. A draft is an unfinished take the owner chose to show as it is. It is not an accepted clip and is not counted as playing above.`, '']
+      : []),
     '## Clip files',
     '',
     `A technique's clips are named ${code(CLIP_FILE_PATTERN)}.`,
@@ -305,6 +334,8 @@ export function buildTechniqueSheet({ moves, positionLabels, clips, commit, unco
     '',
     `The site switches a technique to its Unreal clips once every performer it needs has at least one published view: both performers, or the ${code('fighter')} alone for a technique that needs ${code('fighter')} clips only. Until then the site plays the technique's Unity animation where Unity has one ("Unity animation: yes"), and otherwise shows the position picture.`,
     '',
+    `The one exception is a draft the owner decides to show as it is. A separate tool (${code(DRAFT_PUBLISHER)}) publishes that one exact file, and the site plays it for its performer and view only, marked "Draft choreography". This sheet marks such a view "(draft)" under "Unreal clips today" and gives the technique an "Owner-published draft" line. A draft is not a delivered clip: the importer still leaves every draft out, and the technique still needs an accepted clip of every performer it needs.`,
+    '',
     `Each technique's "The site opens on" line gives the view its clips open on until the viewer picks the other one with the Side and Front buttons. That pick then carries over to every later technique clip on the same screen, in Training or in the Arena, wherever that view is published.`,
     '',
     `What the site's importer (${code(IMPORTER)}) requires of every delivered technique clip. It publishes a clip only when all of these hold:`,
@@ -321,7 +352,7 @@ export function buildTechniqueSheet({ moves, positionLabels, clips, commit, unco
     '',
     '## Index',
     '',
-    `Every technique, in curriculum order. "#" is the number of its section below. "Starts in" and "Ends in" are the game's positions, named for where the athlete who performs the technique is; "none" means the technique leaves the position as it was. "Unity animation" says whether Unity has an animation of the technique, which the site plays until the technique's Unreal clips switch on. "Clips needed" says whose clips the technique needs: "fighter and opponent" for ${techniques.length - fighterOnly.length} of them and "fighter only" for ${fighterOnly.length}, as "Clip files" explains. "Unreal clips today" lists the published views of each performer.`,
+    `Every technique, in curriculum order. "#" is the number of its section below. "Starts in" and "Ends in" are the game's positions, named for where the athlete who performs the technique is; "none" means the technique leaves the position as it was. "Unity animation" says whether Unity has an animation of the technique, which the site plays until the technique's Unreal clips switch on. "Clips needed" says whose clips the technique needs: "fighter and opponent" for ${techniques.length - fighterOnly.length} of them and "fighter only" for ${fighterOnly.length}, as "Clip files" explains. "Unreal clips today" lists the published views of each performer; a view marked "(draft)" is an unfinished take the owner chose to show, not an accepted clip.`,
     '',
     '| # | Clip id | Name | Belt | Starts in | Ends in | Steps | Unity animation | Clips needed | Unreal clips today |',
     '| ---: | --- | --- | --- | --- | --- | ---: | --- | --- | --- |',
@@ -372,6 +403,7 @@ export function buildTechniqueSheet({ moves, positionLabels, clips, commit, unco
       ...(continuesElsewhere(technique) ? [continuesLine(technique)] : []),
       unityLine(technique),
       `- Unreal clips today: ${clipsText(technique)}`,
+      ...(hasDraft(technique) ? [draftLine(technique)] : []),
       `- Scenario: ${orNone(technique.scenario)}`,
       '',
       'Steps:',
@@ -388,7 +420,7 @@ export function buildTechniqueSheet({ moves, positionLabels, clips, commit, unco
     generatedBy: TOOL,
     commit,
     uncommittedChanges: Boolean(uncommitted),
-    notice: "Generated file: do not edit it, run the tool again. In each technique, clipFileNames lists every file name the site's importer (tools/import_unreal_clips.mjs) accepts for its clips, and clipFilesNeeded only the names for the performers in clipsNeeded, the only clips of that technique the site ever shows. The site switches a technique to its clips once each performer in clipsNeeded has at least one of these views published: side views first, front views can follow. The name, lesson, scenario and steps of every technique are the owner's approved wording, copied character for character from the curriculum (src/data). They must not be changed.",
+    notice: "Generated file: do not edit it, run the tool again. In each technique, clipFileNames lists every file name the site's importer (tools/import_unreal_clips.mjs) accepts for its clips, and clipFilesNeeded only the names for the performers in clipsNeeded, the only clips of that technique the site ever shows. The site switches a technique to its clips once each performer in clipsNeeded has at least one of these views published: side views first, front views can follow. ownerPublishedDrafts lists the views in unrealClipsToday that are drafts the owner chose to show as they are: they are on the site but are not accepted clips, and a technique never switches over with one. The name, lesson, scenario and steps of every technique are the owner's approved wording, copied character for character from the curriculum (src/data). They must not be changed.",
     clipFilePattern: CLIP_FILE_PATTERN,
     performers: [...PERFORMERS],
     cameras: [...CAMERAS],
