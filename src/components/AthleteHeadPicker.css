@@ -88,9 +88,10 @@
   outline-offset: 2px;
 }
 
-/* Buttons without a picture (the beard): one line each. */
+/* Buttons without a picture (the beard): side by side where each name fits on
+   one line, one above the other where it would not. */
 .app-shell .athlete-head-options.text-only {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(6.2rem, 1fr));
 }
 
 .app-shell .athlete-head-options.text-only button {
@@ -121,12 +122,6 @@
   color: #aab6c2;
   font-size: 0.8rem;
   line-height: 1.4;
-}
-
-/* A shaved head without a beard has nothing to color. The swatches stay in
-   use: the color is kept for when there is hair or a beard. */
-.app-shell .athlete-hair-colors.is-unused button {
-  opacity: 0.55;
 }
 
 /* A copy of the athlete's head beside hair color and beard, where the page is
@@ -168,14 +163,10 @@
   }
 }
 
-/* Narrow phones: the two beard buttons stack, so "Clean-shaven" stays on one line. */
+/* Narrow phones: a smaller head leaves the swatches their line. */
 @media (max-width: 400px) {
   .app-shell .athlete-head-preview {
     width: 5.5rem;
-  }
-
-  .app-shell .athlete-head-options.text-only {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -188,9 +179,5 @@
 
   .app-shell .athlete-head-preview {
     grid-row: auto;
-  }
-
-  .app-shell .athlete-head-options.text-only {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

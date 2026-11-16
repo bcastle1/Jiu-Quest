@@ -354,10 +354,13 @@
 }
 /* Where the versus bar is narrow, the portrait stands above the name, so the
    name keeps the whole width of its side and still breaks between words. The
-   other side follows, so both names end on one line. That is on phones, and
-   again from 761 to 860 px, where the Arena has two columns and the bar is
-   narrower than on a wide phone. */
-@media (max-width: 520px), (min-width: 761px) and (max-width: 860px) {
+   other side follows, so both names end on one line. The bar measures itself:
+   it is narrow on phones, and again in wider windows where the Arena has two
+   columns (from 761 px, and from 981 px beside the technique list). */
+.app-shell.jq-game .arena-top {
+  container: jiuquest-versus / inline-size;
+}
+@container jiuquest-versus (max-width: 560px) {
   .app-shell.jq-game .arena-top:has(.fighter-card.has-portrait) .fighter-card {
     flex-direction: column;
     align-items: flex-start;

@@ -273,15 +273,16 @@ test('the pictures tool and the page read the same choices and the same boxes', 
 // ---- Where the Unreal athlete cannot be shown (src/unreal/athleteStandIn.js) ----
 
 test('the classic pictures and the Unity scene take the nearest classic look from the chosen head, and nothing is saved', () => {
-  const classicFields = ['gender', 'skinTone', 'hairStyle', 'hairColor'];
-  const player = createFighter({ name: 'Stand-in', look: 'unreal', gender: 'girl', skinTone: '#120805', hairColor: '#f8f4ea', hairStyle: 'long hair', ...withHead({ face: 'dean', hair: 'shaved', hairColor: 'grey', beard: 'stubble' }) });
+  const classicFields = ['gender', 'skinTone', 'hairStyle', 'hairColor', 'emblem'];
+  const player = createFighter({ name: 'Stand-in', look: 'unreal', gender: 'girl', skinTone: '#120805', hairColor: '#f8f4ea', hairStyle: 'long hair', emblem: 'lion', ...withHead({ face: 'dean', hair: 'shaved', hairColor: 'grey', beard: 'stubble' }) });
   const drawn = classicStandIn(player);
   assert.notEqual(drawn, player);
-  assert.deepEqual(classicFields.map((field) => drawn[field]), ['boy', '#a86b4d', 'bald', '#6b6f86']);
+  // no patch either: the Unreal athlete's gi has none, and the Fighter Creator offers none for it
+  assert.deepEqual(classicFields.map((field) => drawn[field]), ['boy', '#a86b4d', 'bald', '#6b6f86', 'none']);
   // everything else is the fighter's own: the name, the gi colors, the head fields
   for (const [field, value] of Object.entries(player)) if (!classicFields.includes(field)) assert.deepEqual(drawn[field], value, field);
   // the fighter keeps its own classic fields, for the day it wears the Classic look again
-  assert.deepEqual(classicFields.map((field) => player[field]), ['girl', '#120805', 'long hair', '#f8f4ea']);
+  assert.deepEqual(classicFields.map((field) => player[field]), ['girl', '#120805', 'long hair', '#f8f4ea', 'lion']);
   // a fighter with the Classic look, an opponent and nothing at all come back as they are
   const classic = createFighter({ look: 'classic', hairStyle: 'mohawk' });
   assert.equal(classicStandIn(classic), classic);
@@ -295,8 +296,12 @@ test('the classic pictures and the Unity scene take the nearest classic look fro
   }
   for (const hair of ATHLETE_HAIRS) assert.ok(customizationOptions.hairStyles.includes(ATHLETE_STAND_IN.hairStyle[hair.id]), hair.id);
   for (const color of ATHLETE_HAIR_COLORS) assert.ok(customizationOptions.hairColors.includes(ATHLETE_STAND_IN.hairColor[color.id]), color.id);
-  assert.equal(new Set(Object.values(ATHLETE_STAND_IN.hairStyle)).size, ATHLETE_HAIRS.length, 'no two hairstyles share a classic one');
-  assert.deepEqual(standInAppearance({}), { gender: 'boy', skinTone: '#d99b71', hairStyle: 'wave cut', hairColor: '#11131c' }, 'the head of a new fighter');
+  // The classic list has two short cuts for the three here: the two buzz cuts share the crew cut, and the short
+  // coily cut is the short fade (the classic curly style is a tall head of curls, not a short cut).
+  assert.deepEqual({ ...ATHLETE_STAND_IN.hairStyle }, { fringe: 'wave cut', 'skin-fade': 'crew cut', 'coily-fade': 'short fade', 'coil-buzz': 'crew cut', shaved: 'bald' });
+  assert.equal(ATHLETE_STAND_IN.emblem, 'none');
+  assert.ok(customizationOptions.emblems.includes(ATHLETE_STAND_IN.emblem));
+  assert.deepEqual(standInAppearance({}), { gender: 'boy', skinTone: '#d99b71', hairStyle: 'wave cut', hairColor: '#11131c', emblem: 'none' }, 'the head of a new fighter');
   // the Unity scene is sent the same look
   const unity = toUnityAthlete(drawn, 'white');
   assert.deepEqual([unity.skinTone, unity.hairStyle, unity.hairColor], ['#a86b4d', 'bald', '#6b6f86']);
@@ -317,9 +322,9 @@ test('the Arena scoreboard shows the round portrait of a player with the Unreal 
   const css = repoFile('src/game/arena.css').toString('utf8');
   // older rules hide a portrait in this bar at some widths
   assert.match(css, /\.app-shell\.jq-game \.fighter-card \.mini-portrait \{[^}]*display: block;[^}]*border-radius: 50%;[^}]*\}/);
-  // The portrait stands above the name where the bar is narrow: on phones, and from 761 to 860 px, where the Arena
-  // has two columns and a long word in a name would otherwise break inside the word.
-  assert.match(css, /@media \(max-width: 520px\), \(min-width: 761px\) and \(max-width: 860px\) \{\r?\n\s+\.app-shell\.jq-game \.arena-top:has\(\.fighter-card\.has-portrait\) \.fighter-card \{[^}]*flex-direction: column;/);
+  // The portrait stands above the name where the bar is narrow. The bar measures itself, so that holds on phones
+  // and in every wider window where the Arena has two columns and a long word would otherwise break inside.
+  assert.match(css, /\.app-shell\.jq-game \.arena-top \{\r?\n\s+container: jiuquest-versus \/ inline-size;\r?\n\}\r?\n@container jiuquest-versus \(max-width: 560px\) \{\r?\n\s+\.app-shell\.jq-game \.arena-top:has\(\.fighter-card\.has-portrait\) \.fighter-card \{[^}]*flex-direction: column;/);
 });
 
 // ---- Pictures that cannot load (src/components/UnrealAthlete.jsx) ----
@@ -329,10 +334,14 @@ test('a head picture that cannot load leaves the chosen face as its base shows i
   assert.match(component, /const shown = !hasBody \? PUBLISHED_PICTURE : hasHead \? wanted : \{ \.\.\.wanted, key: wanted\.baseKey, head: null \};/);
   // the files are tried again twice, whichever file failed, and a pending try ends with the athlete
   assert.match(component, /const RETRY_DELAYS = \[4000, 15000\];/);
-  assert.match(component, /if \(!arrived\.every\(Boolean\) && tries < RETRY_DELAYS\.length\) \{/);
+  assert.match(component, /const waiting = !arrived\.every\(Boolean\) && tries < RETRY_DELAYS\.length;/);
+  assert.match(component, /if \(waiting\) timer = setTimeout\(\(\) => setRetry\(\{ id, count: tries \+ 1 \}\), RETRY_DELAYS\[tries\]\);/);
+  // while a failed file is still to be tried again the stand-in shows another head than the pressed buttons,
+  // so the athlete keeps its sign that it is working on it
+  assert.match(component, /changing: decided\.id !== id \|\| decided\.waiting,/);
   // After a try that followed a failure every picture is a new element (one that failed keeps its broken picture
   // while its address is the same); a new choice alone never makes them anew.
-  assert.match(component, /setDecided\(\(previous\) => \(\{ id, shown, attempt: tries > 0 \? previous\.attempt \+ 1 : previous\.attempt \}\)\);/);
+  assert.match(component, /setDecided\(\(previous\) => \(\{ id, shown, waiting, attempt: tries > 0 \? previous\.attempt \+ 1 : previous\.attempt \}\)\);/);
   for (const key of ['key={`base-${attempt}`}', 'key={`head-${attempt}`}', 'key={`${name}-${attempt}`}']) assert.ok(component.includes(key), key);
   assert.match(component, /return \(\) => \{ mounted = false; clearTimeout\(timer\); \};/);
   // the first time an athlete shows, its own images are in the page; after that it stays shown
