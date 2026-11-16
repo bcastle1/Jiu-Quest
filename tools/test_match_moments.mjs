@@ -175,13 +175,6 @@ async function staticSite() {
 // that wants to look at a greeting sets `hold` first: the page then stops the
 // next match moment's picture the moment it starts playing (see greetingHeld).
 // Each time a video runs out of data is written down apart, in `waits`.
-// A "playing" in `videos` is a start. A browser also fires "playing" each time
-// a video carries on after it stood still for want of data or of decoded
-// picture, and a busy machine does that within a few milliseconds of a start.
-// Such a "playing" is written down apart, in `resumes`: the video had been
-// waiting, and since it last played the page neither asked it to play ("play")
-// nor moved it to another moment ("seeking"). Every other "playing" is a
-// start, so a count of them is a count of the times a clip was started.
 // A check that wants to look at a greeting whose files are slow sets
 // `holdTimers` first: a timer as long as one of the greeting's time limits
 // (`limits`, in milliseconds) that the page starts is then kept back, and
@@ -189,7 +182,7 @@ async function staticSite() {
 // limit cannot run out while the check is still looking. Every other timer,
 // and every timer while `holdTimers` is off, runs as it always does.
 function watchPage({ limits }) {
-  window.__moments = { stages: [], videos: [], transport: [], waits: [], resumes: [], shifts: [], finishedWithoutToggle: 0, hold: false, held: 0, holdTimers: false, timersKept: 0 };
+  window.__moments = { stages: [], videos: [], transport: [], waits: [], shifts: [], finishedWithoutToggle: 0, hold: false, held: 0, holdTimers: false, timersKept: 0 };
   const log = window.__moments;
   const at = () => Math.round(performance.now());
   const [startTimer, stopTimer] = [window.setTimeout.bind(window), window.clearTimeout.bind(window)];
@@ -237,25 +230,11 @@ function watchPage({ limits }) {
       log.transport.push({ at: at(), type, element: videoIds.get(video), path: new URL(video.currentSrc || video.src, location.href).pathname, time: video.currentTime });
     }, true);
   }
-  // What has happened to each video since it last played: whether the page
-  // asked it to play, whether it was moved to another moment, whether it waited.
-  const since = new WeakMap();
-  const note = (video, what) => since.set(video, { ...since.get(video), [what]: true });
-  for (const what of ['play', 'seeking']) {
-    document.addEventListener(what, (event) => { if (event.target instanceof HTMLVideoElement) note(event.target, what); }, true);
-  }
   for (const type of ['playing', 'ended', 'error']) {
     document.addEventListener(type, (event) => {
       const video = event.target;
       if (!(video instanceof HTMLVideoElement)) return;
-      const entry = { at: at(), type, path: new URL(video.currentSrc || video.src, location.href).pathname, loop: video.loop, muted: video.muted, time: Number(video.currentTime.toFixed(3)) };
-      if (type === 'playing') {
-        const seen = since.get(video) ?? {};
-        since.delete(video);
-        // It only carried on after standing still: not a start.
-        if (seen.waiting && !seen.play && !seen.seeking) { log.resumes.push(entry); return; }
-      }
-      log.videos.push(entry);
+      log.videos.push({ at: at(), type, path: new URL(video.currentSrc || video.src, location.href).pathname, loop: video.loop, muted: video.muted, time: Number(video.currentTime.toFixed(3)) });
       if (type === 'playing' && log.hold && video.closest('.unreal-clip-stage[data-kind="moment"]')) {
         log.hold = false;
         log.held += 1;
@@ -265,9 +244,7 @@ function watchPage({ limits }) {
   }
   document.addEventListener('waiting', (event) => {
     const video = event.target;
-    if (!(video instanceof HTMLVideoElement)) return;
-    note(video, 'waiting');
-    log.waits.push({ at: at(), path: new URL(video.currentSrc || video.src, location.href).pathname, time: Number(video.currentTime.toFixed(3)) });
+    if (video instanceof HTMLVideoElement) log.waits.push({ at: at(), path: new URL(video.currentSrc || video.src, location.href).pathname, time: Number(video.currentTime.toFixed(3)) });
   }, true);
   try {
     new PerformanceObserver((list) => {
@@ -334,6 +311,19 @@ const navButton = (name) => page.getByRole('navigation', { name: 'Main', exact: 
 const restartButton = () => page.locator('.arena-page-heading').getByRole('button', { name: 'Restart match' });
 const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
 const log = () => page.evaluate(() => JSON.parse(JSON.stringify(window.__moments)));
+// A buffer resume is not another play session. An intentional test pause can
+// add one session, but no once-only check permits a seek, rewind or remount.
+function checkPlaySession(seen, path, { plays = 1, ends = 1 } = {}) {
+  const events = seen.transport.filter((entry) => entry.path === path);
+  assert.equal(events.filter((entry) => entry.type === 'play').length, plays, `${path}: expected play sessions`);
+  assert.equal(events.filter((entry) => entry.type === 'ended').length, ends, `${path}: expected completed passes`);
+  assert.equal(new Set(events.map((entry) => entry.element)).size, 1, `${path}: kept the same video element`);
+  assert.equal(events.filter((entry) => ['seeking', 'error'].includes(entry.type)).length, 0, `${path}: did not seek, rewind or fail`);
+  for (let index = 1; index < events.length; index += 1) {
+    assert.ok(events[index].time >= events[index - 1].time, `${path}: did not reset progress`);
+  }
+  return events;
+}
 const stages = async () => (await log()).stages.map((entry) => entry.stage);
 const stanceStage = () => page.locator(`${MAT} .unreal-clip-stage[data-kind="stance"]`);
 const momentStage = (id) => page.locator(`${MAT} .unreal-clip-stage[data-kind="moment"]${id ? `[data-move="${id}"]` : ''}`);
@@ -490,11 +480,12 @@ async function greetingPlaysOnce() {
   const seen = await log();
   assert.deepEqual(seen.stages.map((entry) => entry.stage), [`stance:${IDLE.moveId}`, `moment:${MATCH_GREETING}`, `stance:${IDLE.moveId}`], 'stance loop, greeting, stance loop');
   const played = seen.videos.filter((entry) => entry.path === greeting.video);
-  // It started by itself once (the second "playing" is this test letting go of the picture it held) and ended once.
-  assert.deepEqual(played.map((entry) => entry.type), ['playing', 'playing', 'ended'], 'the greeting started once and ended once');
+  // It starts by itself, this test pauses/resumes it once, then it ends once.
+  checkPlaySession(seen, greeting.video, { plays: 2 });
   assert.ok(played.every((entry) => entry.loop === false && entry.muted === true));
-  assert.ok(played[2].time >= FIXTURE_SECONDS - 0.2, `it played to its end (${played[2].time} of ${FIXTURE_SECONDS} seconds)`);
-  const handOver = seen.stages[2].at - played[2].at;
+  const ended = played.find((entry) => entry.type === 'ended');
+  assert.ok(ended.time >= FIXTURE_SECONDS - 0.2, `it played to its end (${ended.time} of ${FIXTURE_SECONDS} seconds)`);
+  const handOver = seen.stages[2].at - ended.at;
   assert.ok(handOver >= 0 && handOver < 500, `the loop takes over as the greeting ends (${handOver} ms)`);
   // How long this machine took to start the greeting's picture. The greeting gives way if
   // that takes longer than its time limit, which this check kept back (see holdNextGreeting).
@@ -639,7 +630,7 @@ async function pausedLoopStaysPaused() {
   await openArena();
   const loopVideo = `${MAT} .unreal-clip-stage[data-kind="stance"] video`;
   const transport = () => stanceStage().locator('.unreal-clip-play');
-  const loopStarts = async () => (await log()).videos.filter((entry) => entry.type === 'playing' && entry.path === IDLE_CLIP.video).length;
+  const loopStarts = async () => (await log()).transport.filter((entry) => entry.type === 'play' && entry.path === IDLE_CLIP.video).length;
   await press(transport());
   await page.waitForFunction((selector) => document.querySelector(selector)?.paused === true, loopVideo);
   assert.deepEqual(await texts(transport()), ['Play']);
@@ -768,8 +759,9 @@ async function greetingFilesArriveLate() {
   const seen = await log();
   assert.deepEqual(seen.stages.map((entry) => entry.stage), [`stance:${IDLE.moveId}`, `moment:${MATCH_GREETING}`, `stance:${IDLE.moveId}`]);
   const played = seen.videos.filter((entry) => entry.path === greeting.video);
-  assert.deepEqual(played.map((entry) => entry.type), ['playing', 'ended'], 'the greeting played once, to its end');
-  assert.ok(played[1].time >= FIXTURE_SECONDS - 0.2, `it was not cut short (${played[1].time} of ${FIXTURE_SECONDS} seconds)`);
+  checkPlaySession(seen, greeting.video);
+  const ended = played.find((entry) => entry.type === 'ended');
+  assert.ok(ended.time >= FIXTURE_SECONDS - 0.2, `it was not cut short (${ended.time} of ${FIXTURE_SECONDS} seconds)`);
   await context.close();
   checks.push(`${size.name}: while the greeting's own files are held back, its box shows the stance loop's still (brightness ${lit} of 255 in the middle of the picture; ${dark} without it), and techniques can be chosen; once they arrive the greeting plays to its end and hands over.`);
 }
@@ -830,10 +822,9 @@ async function greetingStalls() {
   }
   assert.deepEqual(seen.stages.map((entry) => entry.stage), [`stance:${IDLE.moveId}`, `moment:${MATCH_GREETING}`, `stance:${IDLE.moveId}`], 'stance loop, greeting, stance loop');
   const played = seen.videos.filter((entry) => entry.path === greeting.video);
-  assert.deepEqual(played.map((entry) => entry.type), ['playing'], 'the greeting started, and neither ended nor failed');
-  // The wait it did not come back from is the last one: a busy machine may also stand still for
-  // a moment right after the start and carry on (a resume, see watchPage).
-  const stopped = seen.waits.filter((entry) => entry.path === greeting.video && entry.at >= played[0].at).at(-1);
+  checkPlaySession(seen, greeting.video, { ends: 0 });
+  assert.ok(played.some((entry) => entry.type === 'playing'), 'the greeting actually started moving before it stalled');
+  const stopped = seen.waits.find((entry) => entry.path === greeting.video && entry.at >= played[0].at);
   assert.ok(stopped && stopped.time < FIXTURE_SECONDS - 0.2, `it ran out of data before its end (${JSON.stringify(seen.waits)})`);
   const stoodStill = seen.stages[2].at - stopped.at;
   assert.ok(stoodStill >= PASSING_MOMENT_PATIENCE.stall - 50 && stoodStill < PASSING_MOMENT_PATIENCE.stall + LATE, `the greeting gives way ${PASSING_MOMENT_PATIENCE.stall} ms after it stops (seen after ${stoodStill} ms)`);
@@ -951,8 +942,7 @@ async function finishedMatch({ id, saved, techniqueName, rival, search = '', exp
   assert.deepEqual(await texts(stage.getByRole('button')), ['Replay', 'Side', 'Front']);
   for (const item of await stage.getByRole('button').all()) assert.ok((await item.boundingBox()).height >= 44, 'the stage\'s controls are easy to tap');
   assert.equal(await stage.locator('.unreal-clip-note').count(), 0, 'no note under a moment that plays by itself');
-  const played = (await log()).videos.filter((entry) => entry.path === clip.video);
-  assert.deepEqual(played.map((entry) => entry.type), ['playing', 'ended'], `${id} played once`);
+  checkPlaySession(await log(), clip.video);
   assert.equal(await fits(), true, 'nothing scrolls sideways');
   await page.locator(MAT).scrollIntoViewIfNeeded();
   await capture(`${id}-result`);
@@ -1072,15 +1062,9 @@ async function resultChoiceIsKept() {
   const stage = momentStage(MATCH_WIN);
   const completedPass = async () => {
     const seen = await log();
-    const events = seen.transport.filter((entry) => entry.path.startsWith(`/assets/unreal-clips/${MATCH_WIN}/`));
-    assert.equal(events.filter((entry) => entry.type === 'play').length, 1, 'the match result started one play session');
-    assert.equal(events.filter((entry) => entry.type === 'ended').length, 1, 'the match result completed exactly once');
-    assert.equal(new Set(events.map((entry) => entry.element)).size, 1, 'the match result kept the same video element');
-    assert.equal(events.filter((entry) => ['seeking', 'error'].includes(entry.type)).length, 0, 'the match result did not seek, rewind or fail');
-    for (let index = 1; index < events.length; index += 1) {
-      assert.ok(events[index].time >= events[index - 1].time, 'the match result did not reset its progress');
-    }
-    return events;
+    const path = fixtures.find((item) => item.moveId === MATCH_WIN && item.camera === 'side').video;
+    assert.equal(seen.transport.some((entry) => entry.path.startsWith(`/assets/unreal-clips/${MATCH_WIN}/`) && entry.path !== path), false, 'the match result did not switch sources');
+    return checkPlaySession(seen, path);
   };
   const visitTraining = async (leave) => {
     await press(leave);
@@ -1268,13 +1252,6 @@ try {
 } catch (error) {
   report.status = 'failed'; report.failure = error.stack || String(error);
   if (page && !page.isClosed()) report.lastPageEvents = await log().catch(() => null);
-  // What the page wrote down says why a count was off (a video that stood still and carried on,
-  // say). It goes out before the error, so the error is still the last thing in the output.
-  if (report.lastPageEvents) {
-    const short = (entries = []) => entries.map((entry) => ({ ...entry, path: entry.path.split('/').slice(-2).join('/') }));
-    const { stages, videos, resumes, waits } = report.lastPageEvents;
-    console.error(`What the page recorded before the failure (${size?.name}): ${JSON.stringify({ stages, videos: short(videos), resumes: short(resumes), waits: short(waits) })}`);
-  }
   if (page && !page.isClosed()) await page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }).catch(() => {});
   console.error(error); process.exitCode = 1;
 } finally {
