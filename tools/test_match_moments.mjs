@@ -182,7 +182,7 @@ async function staticSite() {
 // limit cannot run out while the check is still looking. Every other timer,
 // and every timer while `holdTimers` is off, runs as it always does.
 function watchPage({ limits }) {
-  window.__moments = { stages: [], videos: [], waits: [], shifts: [], finishedWithoutToggle: 0, hold: false, held: 0, holdTimers: false, timersKept: 0 };
+  window.__moments = { stages: [], videos: [], transport: [], waits: [], shifts: [], finishedWithoutToggle: 0, hold: false, held: 0, holdTimers: false, timersKept: 0 };
   const log = window.__moments;
   const at = () => Math.round(performance.now());
   const [startTimer, stopTimer] = [window.setTimeout.bind(window), window.clearTimeout.bind(window)];
@@ -217,6 +217,19 @@ function watchPage({ limits }) {
     if (window.__expectToggle && document.querySelector('.arena-outcome[data-finished="true"]') && !mat.querySelector('.mat-view-toggle')) log.finishedWithoutToggle += 1;
   };
   new MutationObserver(look).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-kind', 'data-move', 'data-finished'] });
+  // `playing` can fire again after buffering without a new playback. Keep
+  // actual play sessions and progress separately, including element identity,
+  // so a once-only check can still detect a replay, rewind or replaced video.
+  const videoIds = new WeakMap();
+  let nextVideoId = 0;
+  for (const type of ['play', 'ended', 'seeking', 'timeupdate', 'error']) {
+    document.addEventListener(type, (event) => {
+      const video = event.target;
+      if (!(video instanceof HTMLVideoElement)) return;
+      if (!videoIds.has(video)) videoIds.set(video, ++nextVideoId);
+      log.transport.push({ at: at(), type, element: videoIds.get(video), path: new URL(video.currentSrc || video.src, location.href).pathname, time: video.currentTime });
+    }, true);
+  }
   for (const type of ['playing', 'ended', 'error']) {
     document.addEventListener(type, (event) => {
       const video = event.target;
@@ -1032,7 +1045,18 @@ async function resultChoiceIsKept() {
   await group.waitFor();
   const pressed = () => group.getByRole('button').evaluateAll((list) => list.map((item) => item.getAttribute('aria-pressed')));
   const stage = momentStage(MATCH_WIN);
-  const starts = async () => (await log()).videos.filter((entry) => entry.type === 'playing' && entry.path.startsWith(`/assets/unreal-clips/${MATCH_WIN}/`)).length;
+  const completedPass = async () => {
+    const seen = await log();
+    const events = seen.transport.filter((entry) => entry.path.startsWith(`/assets/unreal-clips/${MATCH_WIN}/`));
+    assert.equal(events.filter((entry) => entry.type === 'play').length, 1, 'the match result started one play session');
+    assert.equal(events.filter((entry) => entry.type === 'ended').length, 1, 'the match result completed exactly once');
+    assert.equal(new Set(events.map((entry) => entry.element)).size, 1, 'the match result kept the same video element');
+    assert.equal(events.filter((entry) => ['seeking', 'error'].includes(entry.type)).length, 0, 'the match result did not seek, rewind or fail');
+    for (let index = 1; index < events.length; index += 1) {
+      assert.ok(events[index].time >= events[index - 1].time, 'the match result did not reset its progress');
+    }
+    return events;
+  };
   const visitTraining = async (leave) => {
     await press(leave);
     await techniquePanel().waitFor({ state: 'detached' });
@@ -1042,7 +1066,7 @@ async function resultChoiceIsKept() {
   await stage.waitFor();
   await stage.scrollIntoViewIfNeeded();
   await untilEnded();
-  assert.equal(await starts(), 1);
+  const firstPass = await completedPass();
 
   // The player chooses the final exchange, then leaves by the Arena's own "Open training" button
   // ("Your current match stays available.") and comes back.
@@ -1058,7 +1082,7 @@ async function resultChoiceIsKept() {
   await page.waitForTimeout(700);
   assert.equal(await momentStage().count(), 0, 'the match result does not take the picture back');
   assert.equal(await matPicture(), chosen, 'the final exchange shows as it was left');
-  assert.equal(await starts(), 1, 'and the match result clip did not play again');
+  assert.deepEqual(await completedPass(), firstPass, 'and the match result clip did not play again');
   assert.equal(await fits(), true);
 
   // Chosen back, "Match result" is what shows after the next visit: the moment, once more from its start.
@@ -1218,6 +1242,7 @@ try {
   console.log(JSON.stringify({ checks, layouts, images: images.length, artifacts }, null, 2));
 } catch (error) {
   report.status = 'failed'; report.failure = error.stack || String(error);
+  if (page && !page.isClosed()) report.lastPageEvents = await log().catch(() => null);
   if (page && !page.isClosed()) await page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }).catch(() => {});
   console.error(error); process.exitCode = 1;
 } finally {
