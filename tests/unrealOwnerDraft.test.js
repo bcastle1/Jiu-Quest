@@ -56,3 +56,21 @@ test('changing a pinned field cannot inherit the owner publication exception', (
   assert.throws(() => draftPublicationRow(entry(row), video, Buffer.from('changed poster')));
   assert.ok(Object.isFrozen(OWNER_PUBLISHED_DRAFT));
 });
+
+test('a draft is never a view a technique switches over with, and no draft but the pinned one is shown', () => {
+  // The hook sweep needs the fighter's clips only, so one fighter view is all it waits for.
+  // By the rule before this publication (any published view counts) a draft of it would have switched it over.
+  const draft = { ...row, moveId: 'hook_sweep', video: '/assets/unreal-clips/hook_sweep/fighter-side.mp4', poster: '/assets/unreal-clips/hook_sweep/fighter-side.webp' };
+  assert.equal(isOwnerPublishedDraft(draft), false, 'another technique does not inherit the exception');
+  const pictureOf = clips => chooseTechniquePicture({ moveId: null, clipMoveId: 'hook_sweep', engine: 'unity', views: viewsOf(clips) });
+  assert.equal(techniqueClipReady('hook_sweep', viewsOf([draft])), false, 'a draft alone does not switch a technique over');
+  assert.deepEqual(pictureOf([draft]), { kind: 'engine' }, 'and a draft that is not the pinned one is not shown');
+  // The same take, accepted, does.
+  const accepted = { ...draft, draft: false };
+  assert.equal(techniqueClipReady('hook_sweep', viewsOf([accepted])), true);
+  assert.deepEqual(pictureOf([accepted]), { kind: 'clip', moveId: 'hook_sweep', performerSide: 'fighter', camera: 'side' });
+  // An accepted view beside a draft: the technique plays, and opens on the accepted view, not the draft.
+  const front = { ...accepted, camera: 'front' };
+  assert.equal(techniqueClipReady('hook_sweep', viewsOf([draft, front])), true);
+  assert.deepEqual(pictureOf([draft, front]), { kind: 'clip', moveId: 'hook_sweep', performerSide: 'fighter', camera: 'front' });
+});

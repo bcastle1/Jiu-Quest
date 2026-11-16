@@ -227,8 +227,11 @@ const neededLine = (technique) => `- Clips needed: ${needsBoth(technique)
 // where that is the only one.
 const opensOnLine = ({ clipId, opensOn }) => `- The site opens on: the ${opensOn} view once one is published; the ${CAMERAS.find((camera) => camera !== opensOn)} view ${Object.hasOwn(TECHNIQUE_OPENING_CAMERA, clipId) ? 'until then' : 'if it is the only one'}.`;
 // Whether Unity has an animation of the technique: a fact about Unity. The
-// site plays it until the technique's Unreal clips switch on.
-const unityLine = (technique) => `- Unity animation: ${technique.unityAnimationToday ? "yes. The site plays it until this technique's Unreal clips switch on." : 'no'}`;
+// site plays it until the technique's Unreal clips switch on, except for the
+// performer and view of a draft the owner chose to show.
+const unityLine = (technique) => `- Unity animation: ${technique.unityAnimationToday
+  ? `yes. The site plays it until this technique's Unreal clips switch on${hasDraft(technique) ? ', except where the owner-published draft below is shown instead' : ''}.`
+  : 'no'}`;
 const positionText = ({ id, label }) => (label === null ? `${code(id)} (no label)` : `${label} (${code(id)})`);
 // What the markdown shows where the curriculum has no text. In brackets, so it
 // never reads as the curriculum's own wording.

@@ -27,8 +27,9 @@ const clipIds = allMoves.map((move) => unrealClipMoveId(move.id));
 const stepTotal = allMoves.reduce((count, move) => count + move.steps.length, 0);
 // The header's counts line for the real curriculum, with `playing` techniques playing their Unreal clips.
 const countsLine = (playing) => `Techniques: ${allMoves.length}. Steps: ${stepTotal}. With a Unity animation: 4. Playing Unreal clips today: ${playing}. Needing fighter and opponent clips: ${allMoves.length - FIGHTER_ONLY_CLIP_IDS.length}. Needing fighter clips only: ${FIGHTER_ONLY_CLIP_IDS.length}.`;
-// The line a technique Unity has an animation of gets.
+// The line a technique Unity has an animation of gets, and the one it gets while a draft of it is shown.
 const UNITY_YES = "- Unity animation: yes. The site plays it until this technique's Unreal clips switch on.";
+const UNITY_YES_BUT_DRAFT = "- Unity animation: yes. The site plays it until this technique's Unreal clips switch on, except where the owner-published draft below is shown instead.";
 
 // The markdown's technique sections, in order: the heading line, then its lines.
 function sectionsOf(markdown) {
@@ -246,7 +247,8 @@ test('the Unity flag is true for exactly the four techniques Unity animates: a f
     // One line, then the published views on a line of their own.
     const section = sections[index].lines;
     const at = section.findIndex((line) => line.startsWith('- Unity '));
-    assert.equal(section[at], animated ? UNITY_YES : '- Unity animation: no', move.id);
+    const draftShown = PERFORMERS.some((performer) => unrealClipViews(unrealClipMoveId(move.id), performer).some((view) => view.draft === true));
+    assert.equal(section[at], animated ? (draftShown ? UNITY_YES_BUT_DRAFT : UNITY_YES) : '- Unity animation: no', move.id);
     assert.ok(section[at + 1].startsWith('- Unreal clips today: '), move.id);
     assert.equal(section.filter((line) => line.startsWith('- Unity ') || line.startsWith('- Unreal clips today: ')).length, 2, move.id);
   }
@@ -319,7 +321,8 @@ test('a draft the owner chose to show is marked as a draft, has a line of its ow
   const at = doubleLeg.indexOf('- Unreal clips today: fighter: side (draft); opponent: none');
   assert.ok(at > 0, 'the view is marked as a draft');
   assert.equal(doubleLeg[at + 1], `- Owner-published draft: fighter side.${DRAFT_NOTE}`);
-  assert.ok(doubleLeg.includes(UNITY_YES), 'Unity still animates it: the rival keeps that animation');
+  assert.ok(doubleLeg.includes(UNITY_YES_BUT_DRAFT), 'Unity still animates it: the rival keeps that animation');
+  assert.ok(!doubleLeg.includes(UNITY_YES), 'and the line no longer says the site plays Unity for both athletes');
   assert.ok(doubleLeg.includes('- Clips needed: fighter and opponent.'), 'the draft changes nothing about whose clips it needs');
   assert.deepEqual(indexRows(sheet.markdown).find((cells) => cells[1] === code('double_leg')).slice(7), ['yes', 'fighter and opponent', 'fighter: side (draft); opponent: none']);
   // It is on the site, and still no technique plays its Unreal clips by the rule.
@@ -347,6 +350,7 @@ test('a draft the owner chose to show is marked as a draft, has a line of its ow
 
   // Without a draft the sheet says nothing of one: no line in the header, none in a section.
   const none = build({ clips: [clip('double_leg', 'fighter', 'side')] });
+  assert.ok(sectionsOf(none.markdown)[allMoves.findIndex((move) => move.id === 'double-leg-takedown')].lines.includes(UNITY_YES));
   assert.ok(!none.markdown.includes('Showing an owner-published draft today'));
   assert.ok(!none.markdown.includes('- Owner-published draft:'));
   assert.ok(!none.markdown.split('\n').some((line) => (line.startsWith('- Unreal clips today: ') || line.startsWith('| ')) && line.includes('(draft)')), 'no view is marked');
