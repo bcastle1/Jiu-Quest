@@ -83,9 +83,9 @@ test('a still replaces the classic picture only where it is at least as exact', 
   assert.equal(choose(null), null);
 });
 
-test('the crouched standing still is shown: nothing is held back since the belt-tail repair renders', () => {
-  // Unreal rendered the still's five passes again on November 13, 2026 (15:34) with the lead athlete's
-  // belt tail off the back of his thigh: same camera, frame and pose, only the tail mesh changed.
+test('the crouched standing still is shown with the reviewed ready-hand renders', () => {
+  // These five Unreal passes refine wrist and finger rotations while preserving the
+  // published camera, body pose, garments and earlier lead belt-tail repair.
   // To hold a still back again, list it in HELD_UNREAL_POSITION_STILLS and change this test with it.
   assert.deepEqual(HELD_UNREAL_POSITION_STILLS, []);
   assert.throws(() => { HELD_UNREAL_POSITION_STILLS.push('standing'); }, TypeError);
@@ -97,14 +97,14 @@ test('the crouched standing still is shown: nothing is held back since the belt-
   assert.equal(chooseUnrealPositionStill(null), null);
   // Holding a still back still works.
   assert.equal(chooseUnrealPositionStill(snapshotOf('standing'), ['standing']), null);
-  // The still is frame 0 of the crouched standing_stance clip, built from the repair renders.
+  // The still is frame 0 of the crouched standing_stance clip, built from the ready-hand renders.
   assert.deepEqual([standing.sourceClip, standing.sourceFrame], ['standing_stance/fighter-side.mp4', 0]);
   assert.deepEqual({ ...standing.sources }, {
-    'base.png': '4ac1480b46662f79c906a016fbdc7c973d91ab56a74a04daf98e9114ea623b6f',
-    'lead-gi-white.png': '8493e9783e87d1fc1b27ac6fec9d5e6f3226e3529e3a5a09ec0d51b6314fad30',
-    'other-gi-white.png': '35ff493757d913861dc2c6b69168b8b897a5743e4855b4191093296e6f94ee17',
-    'lead-belt-white.png': 'ea05f13a0672e9df46431c48ede4bbd1402942f2d52650a72da013927eb8d2be',
-    'other-belt-white.png': 'eba6ef8c8676d925ec76a975cccffe3172b4524f4336153a4c9e9941fdc9fc62',
+    'base.png': 'fca1f1d42fd02b14deff85e51d2eda76f4a117c33571e20c54a58a92641f43f8',
+    'lead-gi-white.png': 'e8bf735b1924f83ce1ac376194af8f555ee8737a266564d52607798eba8f50c8',
+    'other-gi-white.png': 'b72e56cf53cdf490f0970e0a616647c0cb0b34170f376bd6dc4db485e121899d',
+    'lead-belt-white.png': 'a4bb79f33b053593c3d7a6c95b493d4c1e8a3d493d0243e0ff8e929996adfca1',
+    'other-belt-white.png': 'ab6f9970d8243d7684eef6cd5c4bdb308e2c2ca7a5ea7a26f7c07cd81bd2ca0a',
   });
 });
 
