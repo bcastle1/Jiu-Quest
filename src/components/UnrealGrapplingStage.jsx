@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { AlertCircle, Camera, Maximize2, Minimize2, Pause, Play, RotateCcw } from 'lucide-react';
 import { createLocalUnrealSession } from '../unreal/localSession.js';
 import { UNREAL_LOCAL_ORIGIN } from '../unreal/localTransport.js';
+import { classicStandIn } from '../unreal/athleteStandIn.js';
 import { toUnityAthlete, UNITY_CAMERAS, UNITY_SPEEDS } from '../unity/bridge.js';
 import './UnityGrapplingStage.css';
 import './UnrealGrapplingStage.css';
@@ -12,7 +13,7 @@ export default function UnrealGrapplingStage({ moveId, moveLabel, performerSide 
   const [speed, setSpeed] = useState(1), [camera, setCamera] = useState('side'), [fullScreen, setFullScreen] = useState(false), [message, setMessage] = useState('');
   const [reducedMotion, setReducedMotion] = useState(() => Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches));
   const compactRef = useRef(window.innerWidth < 640);
-  const scene = { moveId, performerSide, fighter: toUnityAthlete(fighter, fighterBelt), opponent: toUnityAthlete(opponent, opponentBelt) };
+  const scene = { moveId, performerSide, fighter: toUnityAthlete(classicStandIn(fighter), fighterBelt), opponent: toUnityAthlete(opponent, opponentBelt) };
   const sceneKey = JSON.stringify(scene);
   sceneRef.current = { ...scene, speed, camera, compactViewport: compactRef.current };
   const hasMove = Boolean(moveId), unsupported = status.receiverReady && !status.controlsEnabled;

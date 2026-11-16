@@ -66,6 +66,7 @@ import GrapplingStage from "./components/GrapplingStage.jsx";
 import UnityCombatPreview from "./components/UnityCombatPreview.jsx";
 import UnrealCharacterPreview, { UnrealPreviewCard } from "./components/UnrealCharacterPreview.jsx";
 import UnrealAthlete, { FighterLookPicker, UnrealAthleteStage } from "./components/UnrealAthlete.jsx";
+import AthleteHeadPicker from "./components/AthleteHeadPicker.jsx";
 import { isUnityEnabled, resolveUnityMove } from "./unity/bridge.js";
 import { resolveCombatRenderer } from './unreal/renderer.js';
 import { unrealClipViews } from './unreal/techniqueClips.js';
@@ -1456,8 +1457,9 @@ function ProfileBuilder({ fighter, beltStatus, updateFighter, createNewFighter, 
 
         <FighterLookPicker value={fighter.look} onChange={(look) => updateFighter({ look })} />
         {unrealLook && (
-          <p className="fighter-look-note">This athlete has one face, build and hairstyle for now. Choose the gi colors below. The belt follows your rank.</p>
+          <p className="fighter-look-note">Choose this athlete's face, hair and beard, then the gi colors below. The belt follows your rank. Your portrait and the Unreal standing picture show this look in Training and the Arena. Clips and stance pictures show the standard athlete, and classic position pictures follow your hair color and haircut.</p>
         )}
+        {unrealLook && <AthleteHeadPicker fighter={fighter} belt={beltStatus.belt} onChange={updateFighter} />}
 
         <div className={unrealLook ? "form-grid athlete-form" : "form-grid"}>
           <Field label="Name">

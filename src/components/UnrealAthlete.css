@@ -15,8 +15,16 @@
   height: 100%;
 }
 
-/* The body and the gi arrive as separate files. Nothing shows until all of
-   them can be painted in the same frame. */
+/* The head a player chose: a small picture laid over the base's head, under
+   the gi layers. Its box is set inline as percentages of the 900 x 1760
+   picture. Its edges are soft and end fully transparent, so it needs no trim. */
+.unreal-athlete > img.unreal-athlete-head {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* The body, the head and the gi arrive as separate files. Nothing shows until
+   all of them can be painted in the same frame. */
 .unreal-athlete > img,
 .unreal-athlete-layer {
   opacity: 0;
@@ -26,6 +34,46 @@
 .unreal-athlete.is-ready > img,
 .unreal-athlete.is-ready .unreal-athlete-layer {
   opacity: 1;
+}
+
+/* A choice whose picture is still on its way keeps the picture painted before.
+   If that takes longer than a moment, a line of light runs along the top edge. */
+.unreal-athlete.is-ready.is-changing::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(232, 194, 122, 0.95), transparent) no-repeat;
+  background-size: 45% 100%;
+  opacity: 0;
+  animation: unreal-athlete-changing 0.9s linear 0.35s infinite;
+  pointer-events: none;
+}
+
+@keyframes unreal-athlete-changing {
+  from { opacity: 1; background-position: -80% 0; }
+  to { opacity: 1; background-position: 180% 0; }
+}
+
+@keyframes unreal-athlete-waiting {
+  to { opacity: 0.8; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .unreal-athlete.is-ready.is-changing::after {
+    background-size: 100% 100%;
+    animation: unreal-athlete-waiting 0.01s linear 0.35s forwards;
+  }
+}
+
+/* Where only the head shows (the round portraits and the head beside the hair
+   colors), the picture's top edge lies outside the frame: the line runs along
+   the top of the 300-pixel square that is in view. */
+.mini-portrait .unreal-athlete.is-changing::after,
+.athlete-head-preview .unreal-athlete.is-changing::after {
+  top: 1.02%;
+  left: 31.11%;
+  right: 35.56%;
 }
 
 /* Each layer is (image x chosen color), then added to what is beneath it. */

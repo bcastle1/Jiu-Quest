@@ -188,8 +188,8 @@ async function stillShown(base) {
   await technique('Guillotine choke');
   let stage = await settled('main', 'unreal');
   const state = await inspect(stage);
-  assert.match(state.label, /^Standing\. Both athletes are in a neutral position\. Rendered in Unreal Engine\. Each athlete wears their own gi and belt colors\.$/);
-  assert.match(await stage.locator('.snapshot-position').innerText(), /^Standing\s+Unreal Engine · your gi and belt colors$/);
+  assert.match(state.label, /^Standing\. Both athletes are in a neutral position\. Rendered in Unreal Engine\. Each athlete wears their own gi and belt colors\. Your athlete has the face, hair and beard you chose\.$/);
+  assert.match(await stage.locator('.snapshot-position').innerText(), /^Standing\s+Unreal Engine · your face, hair, gi and belt colors$/);
   const opponentName = (await stage.locator('.snapshot-athlete').nth(1).innerText()).split('\n')[0];
   const opponentKit = await stage.locator('.snapshot-athlete').nth(1).locator('.snapshot-kit i').evaluateAll((swatches) => swatches.map((swatch) => {
     const [red, green, blue] = getComputedStyle(swatch).backgroundColor.match(/\d+/g).map(Number);
@@ -293,7 +293,7 @@ async function stillShown(base) {
   await nav('Training');
   await technique('Guillotine choke');
   stage = await settled('main', 'classic');
-  assert.match(await stage.locator('.snapshot-position').innerText(), /^Standing\s+Position snapshot · your appearance$/);
+  assert.match(await stage.locator('.snapshot-position').innerText(), /^Standing\s+Classic art · your gi colors, hair color and a similar haircut$/);
   checks.push('If any layer cannot load, the stage shows the classic picture, never a half-colored athlete.');
   await broken.close();
   blockedLayer = null;
@@ -326,7 +326,7 @@ async function stillHeldBack(base) {
   await nav('Training');
   await technique('Guillotine choke');
   let stage = await settled('main', 'classic');
-  assert.match(await stage.locator('.snapshot-position').innerText(), /^Standing\s+Position snapshot · your appearance$/);
+  assert.match(await stage.locator('.snapshot-position').innerText(), /^Standing\s+Classic art · your gi colors, hair color and a similar haircut$/);
   layouts.push({ viewport: page.viewportSize(), where: 'training', picture: await box(stage.locator('canvas.snapshot-canvas')) });
   await stage.scrollIntoViewIfNeeded();
   await capture('desktop-training-standing');

@@ -6,7 +6,9 @@ import { createArenaState, getArenaPositionLabel, getPositionForSide } from "../
 import GrapplingSnapshotStage from "./GrapplingSnapshotStage.jsx";
 import GrapplingStage from "./GrapplingStage.jsx";
 import StancePicker from "./StancePicker.jsx";
+import UnrealAthlete from "./UnrealAthlete.jsx";
 import { resolveArenaUnityPlayback } from "../unity/bridge.js";
+import { usesUnrealAthlete } from "../unreal/athlete.js";
 import { MATCH_GREETING, findMatchMoment, matchResultMoment, prefersReducedMotion } from "../unreal/matchMoments.js";
 import { findStance, stanceLoop } from "../unreal/stances.js";
 import { resolveArenaClipPlayback } from "../unreal/techniqueIds.js";
@@ -20,13 +22,25 @@ function requiredPosition(move) {
   return labels.length ? `Requires ${labels.join(" or ").toLowerCase()}.` : "Unavailable in this position.";
 }
 
+// One athlete in the scoreboard. A player who chose the Unreal athlete is
+// shown as a round portrait: the face, hair and beard from the Fighter Creator
+// above the collar of the gi jacket in its color. Everyone else keeps the two
+// gi swatches. The name beside it says who it is, so the picture is hidden
+// from screen readers like the swatches.
 function AthleteScore({ athlete, belt, stripes = 0, reverse = false }) {
+  const portrait = usesUnrealAthlete(athlete);
   return (
-    <div className={`fighter-card ${reverse ? "reverse" : ""}`}>
-      <span className="snapshot-kit" aria-hidden="true">
-        <i style={{ background: athlete.giTop }} />
-        <i style={{ background: athlete.giPants }} />
-      </span>
+    <div className={`fighter-card ${reverse ? "reverse" : ""} ${portrait ? "has-portrait" : ""}`.replace(/\s+/g, " ").trim()}>
+      {portrait ? (
+        <span className="mini-portrait" aria-hidden="true">
+          <UnrealAthlete fighter={athlete} belt={belt} />
+        </span>
+      ) : (
+        <span className="snapshot-kit" aria-hidden="true">
+          <i style={{ background: athlete.giTop }} />
+          <i style={{ background: athlete.giPants }} />
+        </span>
+      )}
       <span>
         <strong>{athlete.name}</strong>
         <small>{beltLabels[belt] ?? belt}{stripes ? ` · ${stripes} stripe${stripes === 1 ? "" : "s"}` : ""}</small>

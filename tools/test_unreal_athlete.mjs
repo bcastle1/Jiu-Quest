@@ -229,8 +229,10 @@ try {
   assert.equal(await look('Unreal athlete').getAttribute('aria-pressed'), 'true');
   assert.equal(await look('Classic').getAttribute('aria-pressed'), 'false');
   await athleteReady(stageFigure());
-  assert.deepEqual(await formLabels(), { fields: ['Name', 'Country', 'Start Position', 'Fighting Stance', 'Aura'], swatches: ['Gi Jacket', 'Gi Pants'] });
-  assert.match(await page.locator('.fighter-look-note').innerText(), /one face, build and hairstyle for now/);
+  assert.deepEqual(await formLabels(), { fields: ['Name', 'Country', 'Start Position', 'Fighting Stance', 'Aura'], swatches: ['Hair Color', 'Gi Jacket', 'Gi Pants'] });
+  // The athlete's own head choices (tools/test_unreal_athlete_heads.mjs checks them) stand in for the classic ones.
+  assert.match(await page.locator('.fighter-look-note').innerText(), /face, hair and beard, then the gi colors below/);
+  assert.equal(await page.locator('.athlete-head-picker').count(), 1);
   const desktopLayout = await insideStage();
   assert.ok(desktopLayout.figure.height >= 480, 'the athlete is shown large beside the Fighter Creator');
   layouts.push({ viewport: page.viewportSize(), ...desktopLayout });
@@ -302,6 +304,7 @@ try {
   assert.equal(await page.locator('.profile-stage .profile-art:not(.unreal-athlete-stage)').count(), 1);
   assert.deepEqual(await formLabels(), { fields: ['Name', 'Country', 'Gender', 'Start Position', 'Hair Style', 'Fighting Stance', 'Aura', 'Patch Emblem'], swatches: ['Skin Tone', 'Hair Color', 'Gi Jacket', 'Gi Pants'] });
   assert.equal(await page.locator('.fighter-look-note').count(), 0);
+  assert.equal(await page.locator('.athlete-head-picker').count(), 0, 'the classic look has its own hair and skin choices');
   assert.deepEqual([await stanceField().locator('.image-select.unreal-stances').count(), await stanceField().locator('.image-select-trigger .image-select-fighter').count()], [0, 1], 'the classic look keeps its own stance figures');
   await capture('desktop-classic');
   await nav('Overview');
