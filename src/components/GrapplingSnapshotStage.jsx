@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ImageOff, LoaderCircle, RotateCcw } from 'lucide-react';
 import { getArenaPositionLabel, getArenaSnapshot } from '../arena/outcome.js';
 import { getArenaAppearanceKey, renderArenaAppearance } from '../arena/appearance.js';
 import { usesUnrealAthlete } from '../unreal/athlete.js';
+import { classicStandIn } from '../unreal/athleteStandIn.js';
 import { chooseUnrealPositionStill } from '../unreal/positionStills.js';
 import UnrealPositionStill, { useUnrealPositionStill } from './UnrealPositionStill.jsx';
 import './GrapplingSnapshotStage.css';
@@ -20,8 +21,13 @@ export default function GrapplingSnapshotStage({ state, fighter, opponent, fight
   const [attempt, setAttempt] = useState(0);
   const [replay, setReplay] = useState(0);
   const snapshot = getArenaSnapshot(state);
-  const lead = snapshot.leadSide === 'opponent' ? opponent : fighter;
-  const other = snapshot.leadSide === 'opponent' ? fighter : opponent;
+  // In the classic picture a player with the Unreal athlete is drawn with the
+  // nearest classic skin tone, hairstyle and hair color to the head chosen in
+  // the Fighter Creator (src/unreal/athleteStandIn.js). The stand-in keeps the
+  // head fields and the gi colors, so the Unreal still reads it the same way.
+  const player = useMemo(() => classicStandIn(fighter), [fighter]);
+  const lead = snapshot.leadSide === 'opponent' ? opponent : player;
+  const other = snapshot.leadSide === 'opponent' ? player : opponent;
   const leadBelt = snapshot.leadSide === 'opponent' ? opponentBelt : fighterBelt;
   const otherBelt = snapshot.leadSide === 'opponent' ? fighterBelt : opponentBelt;
   const appearanceKey = getArenaAppearanceKey(snapshot.key, lead, other, leadBelt, otherBelt);
@@ -29,12 +35,12 @@ export default function GrapplingSnapshotStage({ state, fighter, opponent, fight
   const renderKey = `${sceneKey}-${attempt}-${replay}`;
   // A player who chose the Unreal athlete sees the Unreal still for this
   // position when one exists and is not held back
-  // (HELD_UNREAL_POSITION_STILLS). The classic picture stays as the fallback
-  // if any of its layers cannot load, and for every position Unreal has not
-  // rendered.
+  // (HELD_UNREAL_POSITION_STILLS), with the head chosen in the Fighter Creator
+  // on the player's athlete. The classic picture stays as the fallback if any
+  // of its files cannot load, and for every position Unreal has not rendered.
   // A caller whose words describe the classic picture turns the stills off.
   const unreal = unrealStills && usesUnrealAthlete(fighter) ? chooseUnrealPositionStill(snapshot) : null;
-  const stillStatus = useUnrealPositionStill(unreal?.still ?? null);
+  const stillStatus = useUnrealPositionStill(unreal?.still ?? null, lead, other);
   const showStill = Boolean(unreal) && stillStatus !== 'error';
   const status = showStill ? stillStatus : renderStatus.key === renderKey ? renderStatus.status : 'loading';
   useEffect(() => {
@@ -60,7 +66,14 @@ export default function GrapplingSnapshotStage({ state, fighter, opponent, fight
 
   const label = getArenaPositionLabel(state);
   const exact = showStill ? unreal.exact : snapshot.exactPositionAvailable;
-  const worn = showStill ? 'Rendered in Unreal Engine. Each athlete wears their own gi and belt colors.' : 'Each athlete wears their selected gi colors, hair, skin tone, belt, emblem and aura.';
+  // What the picture shows of each athlete. A player with the Unreal athlete
+  // chose no classic hairstyle, skin tone or emblem: the classic picture draws
+  // the stand-in look, and says so.
+  const worn = showStill
+    ? 'Rendered in Unreal Engine. Each athlete wears their own gi and belt colors. Your athlete has the face, hair and beard you chose.'
+    : usesUnrealAthlete(fighter)
+      ? 'Classic art. Each athlete wears their own gi and belt colors. Your athlete has your hair color and a similar haircut.'
+      : 'Each athlete wears their selected gi colors, hair, skin tone, belt, emblem and aura.';
   const description = exact
     ? `${label}. ${snapshot.topSide ? `${snapshot.topSide === 'fighter' ? fighter.name : opponent.name} is on top.` : snapshot.controlSide ? `${snapshot.controlSide === 'fighter' ? fighter.name : opponent.name} holds control.` : 'Both athletes are in a neutral position.'} ${worn}`
     : `General grappling reference. The exact ${label.toLowerCase()} setup is not pictured. Follow the technique steps and position labels.`;
@@ -75,7 +88,7 @@ export default function GrapplingSnapshotStage({ state, fighter, opponent, fight
       {status === 'ready' && result && <span className="snapshot-round">Exchange {result.round} settled</span>}
     </div>
     <figcaption className="snapshot-caption">
-      <div className="snapshot-position"><span>{label}</span><small>{!exact ? 'General reference · exact setup not pictured' : showStill ? 'Unreal Engine · your gi and belt colors' : 'Position snapshot · your appearance'}</small></div>
+      <div className="snapshot-position"><span>{label}</span><small>{!exact ? 'General reference · exact setup not pictured' : showStill ? 'Unreal Engine · your face, hair, gi and belt colors' : usesUnrealAthlete(fighter) ? 'Classic art · your gi colors, hair color and a similar haircut' : 'Position snapshot · your appearance'}</small></div>
       <div className="snapshot-identities"><AthleteKey athlete={fighter} player role={getArenaPositionLabel(state, 'fighter')} /><AthleteKey athlete={opponent} role={getArenaPositionLabel(state, 'opponent')} /></div>
       {result && <button className="snapshot-replay" aria-label="Review the settled position" disabled={status !== 'ready'} onClick={() => { setReplay((value) => value + 1); onReplay?.(); }}><RotateCcw size={16} /><span>Review</span></button>}
     </figcaption>

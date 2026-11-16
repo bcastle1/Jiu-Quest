@@ -1,0 +1,196 @@
+/* The head of the Unreal athlete in the Fighter Creator: face, hairstyle, hair
+   color and beard. styles.css is bundled after this file, so the rules carry
+   .app-shell to outrank the generic button and panel rules, as the athlete
+   stage rules in UnrealAthlete.css do. */
+.app-shell .athlete-head-picker {
+  display: grid;
+  gap: 1rem;
+}
+
+.app-shell .athlete-head-group {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* The same label as the fields and swatch rows around it. Weight and spacing
+   are set with !important because the page-wide text rules are. */
+.app-shell .athlete-head-label {
+  color: #8797a5;
+  font-family: var(--display);
+  font-size: 0.86rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+/* Buttons with a picture: as many columns as fit, never narrower than a thumb
+   and its name. */
+.app-shell .athlete-head-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.4rem, 1fr));
+  gap: 0.55rem;
+}
+
+.app-shell .athlete-head-options button {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 0.3rem;
+  min-height: 44px;
+  padding: 0.45rem 0.4rem 0.55rem;
+  border: 1px solid #222e3a;
+  border-radius: 10px 3px 10px 3px;
+  background: #0d131a;
+  color: #f2f5f8;
+  text-align: center;
+  cursor: pointer;
+}
+
+.app-shell .athlete-head-options button img {
+  display: block;
+  width: 100%;
+  max-width: 5.6rem;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 7px 2px 7px 2px;
+  background: #000;
+  object-fit: cover;
+}
+
+.app-shell .athlete-head-options button strong {
+  font-family: var(--display);
+  font-size: 0.98rem;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.15;
+}
+
+.app-shell .athlete-head-options button small {
+  color: #aab6c2;
+  font-size: 0.74rem;
+  line-height: 1.3;
+}
+
+.app-shell .athlete-head-options button:hover {
+  border-color: #5b6f84;
+}
+
+.app-shell .athlete-head-options button.active {
+  border-color: #e8c27a;
+  background: linear-gradient(180deg, rgba(232, 194, 122, 0.16), rgba(232, 194, 122, 0) 78%), #0d131a;
+  box-shadow: inset 0 -3px 0 #e8c27a;
+}
+
+.app-shell .athlete-head-options button:focus-visible {
+  outline: 2px solid #f6d999;
+  outline-offset: 2px;
+}
+
+/* Buttons without a picture (the beard): one line each. */
+.app-shell .athlete-head-options.text-only {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.app-shell .athlete-head-options.text-only button {
+  align-content: center;
+  padding: 0.6rem 0.5rem;
+}
+
+/* Hair color and beard share a row where there is room. The first column is
+   never narrower than the four swatches (4 x 44 px and three gaps of 8 px). */
+.app-shell .athlete-head-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+/* The swatch row's label stands above its swatches here, like the labels of
+   the groups around it (a swatch row elsewhere has its label at the left). */
+.app-shell .swatch-row.athlete-hair-colors {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+  min-width: 0;
+}
+
+.app-shell .athlete-hair-colors small {
+  display: block;
+  color: #aab6c2;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+/* A shaved head without a beard has nothing to color. The swatches stay in
+   use: the color is kept for when there is hair or a beard. */
+.app-shell .athlete-hair-colors.is-unused button {
+  opacity: 0.55;
+}
+
+/* A copy of the athlete's head beside hair color and beard, where the page is
+   one column and the stage is out of sight. */
+.app-shell .athlete-head-preview {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .app-shell .athlete-head-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 0.9rem;
+  }
+
+  .app-shell .athlete-head-preview {
+    position: relative;
+    display: block;
+    grid-row: 1 / span 2;
+    width: 6.5rem;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border: 1px solid #222e3a;
+    border-radius: 10px 3px 10px 3px;
+    background: #000;
+  }
+
+  /* The 300-pixel head-and-collar square of the 900 x 1760 picture. */
+  .app-shell .athlete-head-preview .unreal-athlete {
+    position: absolute;
+    top: -6%;
+    left: -93.33%;
+    width: 300%;
+  }
+}
+
+@media (max-width: 620px) {
+  .app-shell .athlete-head-options {
+    grid-template-columns: repeat(auto-fill, minmax(5.6rem, 1fr));
+  }
+}
+
+/* Narrow phones: the two beard buttons stack, so "Clean-shaven" stays on one line. */
+@media (max-width: 400px) {
+  .app-shell .athlete-head-preview {
+    width: 5.5rem;
+  }
+
+  .app-shell .athlete-head-options.text-only {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Narrowest phones: the head stands above the two groups, so the four hair
+   colors keep one line. */
+@media (max-width: 359px) {
+  .app-shell .athlete-head-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell .athlete-head-preview {
+    grid-row: auto;
+  }
+
+  .app-shell .athlete-head-options.text-only {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

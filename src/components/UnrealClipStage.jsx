@@ -105,7 +105,7 @@ function StanceClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opp
       <div className="unreal-clip-legend">
         <span><i style={{ background: UNREAL_CLIP_LOOK.fighter.swatch }} aria-hidden="true" />{fighterName} (you): {UNREAL_CLIP_LOOK.fighter.gi} gi</span>
         <span><i style={{ background: UNREAL_CLIP_LOOK.opponent.swatch }} aria-hidden="true" />{opponentName}: {UNREAL_CLIP_LOOK.opponent.gi} gi</span>
-        <small>Gi and belt colors are fixed in this clip.</small>
+        <small>Athletes and colors are fixed in this clip.</small>
       </div>
     </section>
   );
@@ -330,7 +330,7 @@ function TechniqueClip({ moveId, performerSide = 'fighter', moveLabel, fighter, 
         <div className="unreal-clip-legend">
           <span data-side="fighter"><i style={{ background: UNREAL_CLIP_LOOK.fighter.swatch }} aria-hidden="true" />{fighterName} (you): {UNREAL_CLIP_LOOK.fighter.gi} gi{performs('fighter')}</span>
           <span data-side="opponent"><i style={{ background: UNREAL_CLIP_LOOK.opponent.swatch }} aria-hidden="true" />{opponentName}: {UNREAL_CLIP_LOOK.opponent.gi} gi{performs('opponent')}</span>
-          <small>Gi and belt colors are fixed in this clip.</small>
+          <small>Athletes and colors are fixed in this clip.</small>
         </div>
       </div>
       <p className="unreal-clip-note" id={noteId}>{techniqueNote({ choreographyReviewed: clip.choreographyReviewed, reducedMotion: state.reducedMotion })}</p>
@@ -581,7 +581,7 @@ function MomentClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opp
         <div className="unreal-clip-legend">
           <span><i style={{ background: UNREAL_CLIP_LOOK.fighter.swatch }} aria-hidden="true" />{fighterName} (you): {UNREAL_CLIP_LOOK.fighter.gi} gi</span>
           <span><i style={{ background: UNREAL_CLIP_LOOK.opponent.swatch }} aria-hidden="true" />{opponentName}: {UNREAL_CLIP_LOOK.opponent.gi} gi</span>
-          <small>Gi and belt colors are fixed in this clip.</small>
+          <small>Athletes and colors are fixed in this clip.</small>
         </div>
       </div>
       {waits && <p className="unreal-clip-note" id={noteId}>Reduced motion is on; press Play when ready.</p>}

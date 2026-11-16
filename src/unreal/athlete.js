@@ -13,8 +13,9 @@ export const FIGHTER_LOOKS = Object.freeze(['unreal', 'classic']);
 // New fighters start as the Unreal athlete.
 export const NEW_FIGHTER_LOOK = 'unreal';
 
-// Choices only the classic art can show. The Unreal athlete has one face, build
-// and hairstyle, so the Fighter Creator hides these while it is selected.
+// Choices only the classic art can show. The Unreal athlete has one build and
+// its own faces, hairstyles and beards (src/unreal/athleteHeadOptions.js), so
+// the Fighter Creator hides these while it is selected.
 export const CLASSIC_ONLY_CHOICES = Object.freeze(['gender', 'skinTone', 'hairColor', 'hairStyle', 'emblem']);
 
 const ASSET_ROOT = '/assets/unreal-athlete/athlete-01';

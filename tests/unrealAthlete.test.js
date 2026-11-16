@@ -156,7 +156,10 @@ test('fighters saved before the Unreal athlete load with the right look and keep
 test('the athlete is still images only: it imports no renderer, stream or storage code', () => {
   const imports = (path) => [...repoFile(path).toString('utf8').matchAll(/^import (?:[^'"]* from )?['"]([^'"]+)['"];?$/gm)].map((match) => match[1]);
   assert.deepEqual(imports('src/unreal/athlete.js'), []);
-  assert.deepEqual(imports('src/components/UnrealAthlete.jsx'), ['react', '../data/curriculum.js', '../unreal/athlete.js', './UnrealAthlete.css']);
+  assert.deepEqual(imports('src/components/UnrealAthlete.jsx'), ['react', '../data/curriculum.js', '../unreal/athlete.js', '../unreal/athleteHeads.js', './UnrealAthlete.css']);
+  // The head choices are still images too: the options import nothing, the pictures only their data, the athlete and the options.
+  assert.deepEqual(imports('src/unreal/athleteHeadOptions.js'), []);
+  assert.deepEqual(imports('src/unreal/athleteHeads.js'), ['./athleteHeads.data.js', './athlete.js', './athleteHeadOptions.js']);
   // A fighter's look is not an input to renderer selection.
   assert.equal(resolveCombatRenderer.length, 1);
   assert.equal(resolveCombatRenderer('https://jiuquest.com/?look=unreal'), resolveCombatRenderer('https://jiuquest.com/'));

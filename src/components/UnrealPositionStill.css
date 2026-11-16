@@ -16,8 +16,16 @@
   height: 100%;
 }
 
-/* The athletes and their gis arrive as separate files. Nothing shows until all
-   of them can be painted in the same frame. */
+/* The head a player chose: a small picture laid over that athlete's head in the
+   base, under the gi layers. Its box is set inline as percentages of the
+   picture; its edges are soft and end fully transparent. */
+.unreal-position-still > img.unreal-position-head {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* The athletes, their heads and their gis arrive as separate files. Nothing
+   shows until all of them can be painted in the same frame. */
 .unreal-position-still > img,
 .unreal-position-layer {
   opacity: 0;

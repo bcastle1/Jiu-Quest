@@ -1,5 +1,6 @@
 import { allMoves, beltMoveCount, moves } from "./data/curriculum.js";
 import { NEW_FIGHTER_LOOK, normalizeFighterLook, savedFighterLook } from "./unreal/athlete.js";
+import { athleteHeadFields } from "./unreal/athleteHeadOptions.js";
 
 export const ADMIN_CODE = "patriots";
 export const MAX_FIGHTERS = 5;
@@ -181,6 +182,8 @@ export function createFighter(overrides = {}) {
     country: overrides.country ?? "United States",
     gender: overrides.gender ?? stockAppearance.gender,
     look: normalizeFighterLook(overrides.look, NEW_FIGHTER_LOOK),
+    // The head of the Unreal athlete: face, hairstyle, hair color and beard.
+    ...athleteHeadFields(overrides),
     skinTone: overrides.skinTone ?? stockAppearance.skinTone,
     hairColor: overrides.hairColor ?? stockAppearance.hairColor,
     hairStyle: overrides.hairStyle ?? stockAppearance.hairStyle,
@@ -238,6 +241,9 @@ function normalizeState(state) {
     // Saved before the Unreal athlete existed: the stock fighter moves to it,
     // a customized fighter keeps its classic art.
     look: savedFighterLook(fighter, stockAppearance),
+    // Saved before the athlete had head choices, or with a choice that no
+    // longer exists: the published athlete's head.
+    ...athleteHeadFields(fighter),
     stance: normalizeStance(fighter.stance),
     progress: { ...defaultProgress(), ...(fighter.progress ?? {}) },
   }));

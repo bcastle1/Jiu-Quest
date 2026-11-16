@@ -394,7 +394,7 @@ test('the greeting plays once, silent and inline, and gives way when it ends: th
   assert.deepEqual([heading.type, text(heading)], ['header', 'Unreal EngineMatch greeting']);
   // The legend is the one every clip has.
   const legend = findElement(tree, (node) => node.props?.className === 'unreal-clip-legend');
-  assert.equal(text(legend), 'Clipper (you): white giRyu Tanaka: navy giGi and belt colors are fixed in this clip.');
+  assert.equal(text(legend), 'Clipper (you): white giRyu Tanaka: navy giAthletes and colors are fixed in this clip.');
   // One control: Skip. No camera buttons, no Replay, no note.
   assert.deepEqual(buttons(tree).map((button) => [text(button), button.props.type, button.props.className]), [['Skip', 'button', 'unreal-clip-play']]);
   assert.equal(findElement(tree, (node) => node.props?.className === 'unreal-clip-note'), null);
@@ -1195,7 +1195,9 @@ const loadArena = () => loadComponent('src/components/CombatArenaView.jsx', {
   './GrapplingSnapshotStage.jsx': standInComponent('GrapplingSnapshotStage'),
   './GrapplingStage.jsx': standInComponent('GrapplingStage'),
   './StancePicker.jsx': standInComponent('StancePicker'),
+  './UnrealAthlete.jsx': standInComponent('UnrealAthlete'),
   '../unity/bridge.js': repoModule('src/unity/bridge.js'),
+  '../unreal/athlete.js': repoModule('src/unreal/athlete.js'),
   '../unreal/matchMoments.js': momentsInThatList,
   '../unreal/stances.js': repoModule('src/unreal/stances.js'),
   '../unreal/techniqueIds.js': repoModule('src/unreal/techniqueIds.js'),

@@ -332,3 +332,40 @@
   .app-shell.jq-game .round-core > span,
   .app-shell.jq-game .round-core small { letter-spacing: 0.02em !important; }
 }
+
+/* ---- The player's portrait in the versus bar ---- */
+
+/* A player who chose the Unreal athlete stands in the versus bar as a round
+   portrait: the face, hair and beard from the Fighter Creator, where everyone
+   else has two gi swatches. Older rules hide a portrait in this bar at some
+   widths; it shows at every width. */
+.app-shell.jq-game .fighter-card .mini-portrait {
+  display: block;
+  width: 3.5rem;
+  height: 3.5rem;
+  border: 0;
+  border-radius: 50%;
+  background: #000;
+  box-shadow: 0 0 0 1px #a57f38, 0 0 0 3px #080c12;
+}
+.app-shell.jq-game .fighter-card .mini-portrait::after { content: none; }
+@media (max-width: 1120px) {
+  .app-shell.jq-game .fighter-card .mini-portrait { width: 3rem; height: 3rem; }
+}
+/* Where the versus bar is narrow, the portrait stands above the name, so the
+   name keeps the whole width of its side and still breaks between words. The
+   other side follows, so both names end on one line. That is on phones, and
+   again from 761 to 860 px, where the Arena has two columns and the bar is
+   narrower than on a wide phone. */
+@media (max-width: 520px), (min-width: 761px) and (max-width: 860px) {
+  .app-shell.jq-game .arena-top:has(.fighter-card.has-portrait) .fighter-card {
+    flex-direction: column;
+    align-items: flex-start;
+    /* both sides end on the same line, whatever stands above the name */
+    align-self: stretch;
+    justify-content: flex-end;
+    gap: 0.3rem;
+  }
+  .app-shell.jq-game .arena-top:has(.fighter-card.has-portrait) .fighter-card.reverse { align-items: flex-end; }
+  .app-shell.jq-game .fighter-card .mini-portrait { width: 2.5rem; height: 2.5rem; }
+}

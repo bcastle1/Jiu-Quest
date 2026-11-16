@@ -51,7 +51,11 @@ test('stills name real Arena pictures, with no repeats and no stray files', () =
   }
   const published = [];
   for (const position of readdirSync(repoPath('public/assets/unreal-positions'))) {
-    for (const file of readdirSync(repoPath(`public/assets/unreal-positions/${position}`))) published.push(`/assets/unreal-positions/${position}/${file}`);
+    for (const file of readdirSync(repoPath(`public/assets/unreal-positions/${position}`))) {
+      // The heads a player can choose are in a folder of their own: tests/unrealAthleteHeads.test.js pins every file in it.
+      if (file === 'heads') continue;
+      published.push(`/assets/unreal-positions/${position}/${file}`);
+    }
   }
   assert.deepEqual(published.sort(), UNREAL_POSITION_STILLS.flatMap((still) => Object.values(still.layers)).sort());
 });
@@ -136,7 +140,15 @@ test('the snapshot stage asks the selection rule for Unreal-look players and kee
   assert.match(stage, /if \(showStill\) return undefined;/, 'the classic picture is not rendered behind a still');
   assert.match(stage, /\{showStill\s*\? <UnrealPositionStill still=\{unreal\.still\}[^>]*lead=\{lead\} other=\{other\} leadBelt=\{leadBelt\} otherBelt=\{otherBelt\}[^>]*\/>\s*: <canvas /);
   const component = repoFile('src/components/UnrealPositionStill.jsx').toString('utf8');
-  assert.match(component, /if \(!complete\) loads\.delete\(still\.position\);/, 'a failed load is tried again next time');
+  assert.match(component, /if \(!complete\) loads\.delete\(key\);/, 'a failed load is tried again next time');
+  // The heads the two athletes chose are part of the picture: the stage waits for their files with the layers,
+  // and a head that cannot load is an error like a missing layer (the classic picture stands in).
+  assert.match(stage, /const stillStatus = useUnrealPositionStill\(unreal\?\.still \?\? null, lead, other\);/);
+  assert.match(component, /return \[heads\.base, \.\.\.heads\.heads\.map\(\(head\) => head\.url\), \.\.\.layers\];/);
+  // an athlete with another face has a jacket layer of its own: loaded and painted in the published one's place
+  assert.match(component, /\.map\(\(\[name, url\]\) => heads\.layers\[name\] \?\? url\);/);
+  assert.match(component, /backgroundImage: `url\(\$\{heads\.layers\[tint\.name\] \?\? tint\.url\}\)`/);
+  assert.match(component, /const complete = results\.every\(Boolean\);/);
   // The data and its helpers bring in nothing that could start a renderer.
   const module = repoFile('src/unreal/positionStills.js').toString('utf8');
   assert.deepEqual([...module.matchAll(/^import .* from '(.+)';$/gm)].map((match) => match[1]), ['./positionStills.data.js', './athlete.js']);

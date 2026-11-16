@@ -3,6 +3,7 @@ import { AlertCircle, Camera, LoaderCircle, Maximize2, Minimize2, Pause, Play, R
 import { createUnityBridge, snapshotFallbackUrl, toUnityAthlete, UNITY_CAMERAS, UNITY_DEFAULT_CAMERA, UNITY_EVENT, UNITY_SPEEDS } from '../unity/bridge.js';
 import { createUnityCanvas, createUnityPlayer } from '../unity/loader.js';
 import { createUnityLoadState } from '../unity/loadState.js';
+import { classicStandIn } from '../unreal/athleteStandIn.js';
 import './UnityGrapplingStage.css';
 
 let nextInstance = 0;
@@ -28,9 +29,11 @@ export default function UnityGrapplingStage({ moveId, moveLabel, performerSide =
   const [fullScreen, setFullScreen] = useState(false);
   const [stageMessage, setStageMessage] = useState('');
   const [reducedMotion, setReducedMotion] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  // A player with the Unreal athlete is drawn here with the nearest classic skin
+  // tone, hairstyle and hair color to the head chosen in the Fighter Creator.
   const scene = {
     moveId, performerSide,
-    fighter: toUnityAthlete(fighter, fighterBelt),
+    fighter: toUnityAthlete(classicStandIn(fighter), fighterBelt),
     opponent: toUnityAthlete(opponent, opponentBelt),
   };
   const sceneKey = JSON.stringify(scene);

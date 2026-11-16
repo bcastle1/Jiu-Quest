@@ -161,7 +161,7 @@ try {
   const legend = await stage().locator('.unreal-clip-legend').innerText();
   const [fighterName, opponentName] = await page.locator('.arena-top .fighter-card strong').allTextContents();
   assert.ok(legend.includes(`${fighterName} (you): white gi`) && legend.includes(`${opponentName}: navy gi`), legend);
-  assert.match(legend, /Gi and belt colors are fixed in this clip\./);
+  assert.match(legend, /Athletes and colors are fixed in this clip\./);
   assert.match(await video().getAttribute('aria-label'), /^Standing stance\. .+ in the white gi and .+ in the navy gi, seen from the side\.$/);
   checks.push('The legend says who wears which gi and that the clip\'s colors are fixed.');
 

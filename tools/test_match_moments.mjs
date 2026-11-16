@@ -394,7 +394,7 @@ async function checkMomentStage(id, { held }) {
   assert.deepEqual(await stage.locator('.unreal-clip-heading > *').allTextContents(), ['Unreal Engine', title]);
   assert.equal(await stage.locator('video').getAttribute('aria-label'), `${title}. ${fighterName} in the white gi and ${opponentName} in the navy gi, seen from the side.`);
   const legend = await stage.locator('.unreal-clip-legend').innerText();
-  assert.ok(legend.includes(`${fighterName} (you): white gi`) && legend.includes(`${opponentName}: navy gi`) && legend.includes('Gi and belt colors are fixed in this clip.'), legend);
+  assert.ok(legend.includes(`${fighterName} (you): white gi`) && legend.includes(`${opponentName}: navy gi`) && legend.includes('Athletes and colors are fixed in this clip.'), legend);
   checkLegend(await legendLines(page, MAT), `${size.name} ${id}`);
   const state = await video();
   assert.deepEqual([state.path, state.poster, state.loop, state.muted, state.inline, state.controls], [clip.video, clip.poster, false, true, true, false], `${id} is silent, inline and never loops`);
