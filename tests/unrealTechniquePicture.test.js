@@ -8,6 +8,7 @@ import { isMatchMoment } from '../src/unreal/matchMoments.js';
 import { UNREAL_STANCES } from '../src/unreal/stances.js';
 import { FIGHTER_ONLY_CLIP_IDS, TECHNIQUE_OPENING_CAMERA, TECHNIQUE_PERFORMERS, chooseTechniquePicture, techniqueClipPerformers, techniqueClipReady, techniqueMoves } from '../src/unreal/techniquePicture.js';
 import { UNREAL_CLIPS, unrealClipViews } from '../src/unreal/techniqueClips.js';
+import { isOwnerPublishedDraft } from '../src/unreal/techniquePicture.js';
 import { resolveArenaClipPlayback, unrealClipMoveId } from '../src/unreal/techniqueIds.js';
 import { STAND_IN_REACT, asModule, createHookRunner, findElement, loadComponent, repoModule, standInComponent, useGlobals, viewsOf } from './helpers/stageHarness.js';
 
@@ -570,6 +571,7 @@ test('coverage: which curriculum techniques have Unreal clips for each performer
     const sidesWithClips = TECHNIQUE_PERFORMERS.filter((side) => cameras[side].length > 0);
     const needed = techniqueClipPerformers(clipMoveId);
     const ready = techniqueClipReady(clipMoveId, unrealClipViews);
+    const ownerDraft = unrealClipViews(clipMoveId, 'fighter').some(isOwnerPublishedDraft);
     // A fighter-only import is allowed (spec 2.2), so a technique still missing
     // a performer it needs is reported, not failed; it must simply not switch over.
     assert.equal(ready, needed.every((side) => cameras[side].length > 0), `${clipMoveId} switches over only once every performer it needs has clips`);
@@ -579,21 +581,21 @@ test('coverage: which curriculum techniques have Unreal clips for each performer
       const sides = TECHNIQUE_PERFORMERS.map((side) => `${side}: ${cameras[side].join('+') || 'none'}`).join(', ');
       const missing = needed.filter((side) => cameras[side].length === 0);
       const fighterAlone = needed.length < TECHNIQUE_PERFORMERS.length ? ' (the fighter\'s alone: the rival never performs it from its clip start)' : '';
-      t.diagnostic(`${clipMoveId}: ${sides} -> ${ready ? `plays Unreal clips${fighterAlone}` : `${missing.join(' and ')} has no clips yet, so it keeps playing as before (${asBefore})`}`);
+      t.diagnostic(`${clipMoveId}: ${sides} -> ${ownerDraft ? 'the exact owner-approved fighter draft plays; the rival keeps its fallback; choreography is not accepted' : ready ? `plays Unreal clips${fighterAlone}` : `${missing.join(' and ')} has no clips yet, so it keeps playing as before (${asBefore})`}`);
     }
 
     // On the release default, in Training (the player) and in the Arena (either winner).
     const picture = stagePicture(trainingProps(move), 'unity', '', unrealClipViews);
-    assert.equal(picture.kind, ready ? 'clip' : 'engine', `${clipMoveId} on the release default`);
+    assert.equal(picture.kind, ready || ownerDraft ? 'clip' : 'engine', `${clipMoveId} on the release default`);
     // A technique Unity animates gets the same answer from a call with its engine move id alone.
-    if (moveId !== null) assert.equal(chooseTechniquePicture({ moveId, engine: 'unity', search: '', views: unrealClipViews }).kind, ready ? 'clip' : 'engine', `${moveId} on the release default`);
+    if (moveId !== null) assert.equal(chooseTechniquePicture({ moveId, engine: 'unity', search: '', views: unrealClipViews }).kind, ready || ownerDraft ? 'clip' : 'engine', `${moveId} on the release default`);
     assert.equal(techniqueMoves({ engine: 'unity', moveId, clipMoveId, search: '', views: unrealClipViews }), ready || moveId !== null, `${clipMoveId} heading on the release default`);
     for (const actorIsPlayer of [true, false]) {
       const performerSide = actorIsPlayer ? 'fighter' : 'opponent';
       const settled = stagePicture(arenaProps({ move, actorIsPlayer, animationSucceeded: true, startedFrom: move.starts[0] }), 'unity', '', unrealClipViews);
       // The winner's own clip once the technique is ready. A rival with no clip
       // of its own (a fighter-only technique) gets what it got before.
-      const plays = ready && cameras[performerSide].length > 0;
+      const plays = ready && cameras[performerSide].length > 0 || ownerDraft && performerSide === 'fighter';
       assert.equal(settled.kind, plays ? 'clip' : 'engine', `${clipMoveId} in the Arena on the release default`);
       if (plays) assert.deepEqual([settled.moveId, settled.performerSide], [clipMoveId, performerSide]);
     }
@@ -610,7 +612,7 @@ test('coverage: which curriculum techniques have Unreal clips for each performer
     }
   }
   assert.equal(counts.playing + counts.waiting + counts.none, allMoves.length);
-  t.diagnostic(`${counts.playing} of ${allMoves.length} curriculum techniques play Unreal clips. With clips, but not yet of every performer they need: ${counts.waiting}. No clip: ${counts.none}. Both of those play as before.`);
+  t.diagnostic(`${counts.playing} of ${allMoves.length} curriculum techniques have all required accepted views. With clips, but not all required views: ${counts.waiting}. No clip: ${counts.none}. Only an exact owner-approved draft may play before full acceptance.`);
 
   // The report leaves no technique clip out: every published clip is a stance
   // clip, a match moment (tests/unrealMatchMoments.test.js) or belongs to one

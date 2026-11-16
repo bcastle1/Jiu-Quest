@@ -278,9 +278,9 @@ test('the committed acceptance list is valid and names only technique and match 
   for (const line of list) assert.ok([...TECHNIQUE_IDS, ...MATCH_MOMENT_IDS].includes(line.file.split('/')[0]), line.file);
 });
 
-test('everything published passes the importer again, in the published order', () => {
+test('every non-draft publication passes the acceptance importer again, in published order', () => {
   // The pack entry each published clip came from, as far as the clip list records it.
-  const pack = published.map((clip) => {
+  const pack = published.filter((clip) => clip.draft !== true).map((clip) => {
     const stem = `${clip.moveId}/${clip.performerSide}-${clip.camera}`;
     return {
       moveId: clip.moveId, performerSide: clip.performerSide, camera: clip.camera, file: `${stem}.mp4`, poster: `${stem}.webp`,
