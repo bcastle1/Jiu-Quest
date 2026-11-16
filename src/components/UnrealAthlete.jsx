@@ -47,7 +47,7 @@ const RETRY_DELAYS = [4000, 15000];
 // (an element that failed keeps its broken picture while its address stays the
 // same).
 function useAthletePicture(wanted) {
-  const [decided, setDecided] = useState({ id: null, shown: null, attempt: 0 });
+  const [decided, setDecided] = useState({ id: null, shown: null, waiting: false, attempt: 0 });
   const [retry, setRetry] = useState({ id: null, count: 0 });
   const headUrl = wanted.head?.url ?? null;
   // A picture is named by its files; `wanted` is a new object on every render.
@@ -64,15 +64,17 @@ function useAthletePicture(wanted) {
       const hasHead = !headUrl || arrived[body.length];
       const shown = !hasBody ? PUBLISHED_PICTURE : hasHead ? wanted : { ...wanted, key: wanted.baseKey, head: null };
       // `attempt` only ever grows, and only after a try that followed a failure: a new choice never changes it.
-      setDecided((previous) => ({ id, shown, attempt: tries > 0 ? previous.attempt + 1 : previous.attempt }));
-      if (!arrived.every(Boolean) && tries < RETRY_DELAYS.length) {
-        timer = setTimeout(() => setRetry({ id, count: tries + 1 }), RETRY_DELAYS[tries]);
-      }
+      // `waiting` says another try is on its way.
+      const waiting = !arrived.every(Boolean) && tries < RETRY_DELAYS.length;
+      setDecided((previous) => ({ id, shown, waiting, attempt: tries > 0 ? previous.attempt + 1 : previous.attempt }));
+      if (waiting) timer = setTimeout(() => setRetry({ id, count: tries + 1 }), RETRY_DELAYS[tries]);
     });
     return () => { mounted = false; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, tries]);
-  return { shown: decided.shown, changing: decided.id !== id, attempt: decided.attempt };
+  // A choice is on its way until it is decided, and for as long as a failed file is still to be tried again: the
+  // stand-in shows another head than the pressed buttons, so the athlete keeps saying that it is working on it.
+  return { shown: decided.shown, changing: decided.id !== id || decided.waiting, attempt: decided.attempt };
 }
 
 // The Unreal athlete with the head and in the gi and belt colors of one

@@ -390,10 +390,13 @@ try {
   await athleteShows(stageFigure(), deanBase);
   assert.equal(await stageFigure().locator('img.unreal-athlete-head').count(), 0, 'no part of the missing head is painted');
   assert.deepEqual([await pressed('Face'), await pressed('Hair'), await pressed('Hair color')], [['dean'], ['skin-fade'], ['brown']], 'the choice itself is kept');
+  // The athlete shows another head than the pressed buttons: it keeps its sign that it is working on it.
+  assert.equal(await stageFigure().evaluate((element) => element.classList.contains('is-changing')), true, 'while the picture is still to be tried again the athlete is marked as changing');
   // The file is tried again by itself: once it can load, the chosen head shows without another press.
   await page.unroute(`**${blocked}`);
   await athleteShows(stageFigure(), 'dean/skin-fade/brown/none');
   await athleteShows(page.locator('.fighter-select .mini-portrait .unreal-athlete'), 'dean/skin-fade/brown/none');
+  await page.waitForFunction(() => !document.querySelector('.profile-stage .unreal-athlete-stage-figure').classList.contains('is-changing'));
   checks.push('If only the picture over a chosen head cannot load, the chosen face shows as its base picture has it and the choice is kept; the picture is tried again and shows once it loads.');
   await broken.close();
   // The face's own base is missing: the published athlete stands in, whole.
@@ -504,9 +507,10 @@ try {
   }
   checks.push('At 390 and 320 pixels every head button is at least 44 pixels each way and on screen, a tap changes the athlete and the head preview beside hair color and beard, the hair colors keep one line, the Arena scoreboard shows the portrait above the name, and nothing scrolls sideways.');
 
-  // ---- A tablet held upright ----
-  // From 761 pixels the Arena has two columns, and its scoreboard is narrower than on a wide phone.
-  for (const width of [768, 820]) {
+  // ---- Windows between a phone and a desktop ----
+  // From 761 pixels the Arena has two columns, and from 981 pixels it stands beside the technique list: in both
+  // its scoreboard is narrower than on a wide phone. 600 pixels is a wide phone or a small tablet.
+  for (const width of [600, 768, 820, 1000]) {
     const tablet = await open({ viewport: { width, height: 1024 } }, savedFighter(fields('dean', 'skin-fade', 'brown', 'stubble'), { name: 'New Challenger' }));
     await page.goto(`${base}/?engine=snapshot`);
     await nav('Profile');
@@ -524,7 +528,7 @@ try {
     if (width === 768) { await page.locator('.arena-top').scrollIntoViewIfNeeded(); await capture('tablet-768-arena', { fullPage: false }); }
     await tablet.close();
   }
-  checks.push('At 768 and 820 pixels, where the Arena has two columns, a two-word name in the scoreboard breaks between its words, and the four hair colors and both beard names keep one line.');
+  checks.push('At 600, 768, 820 and 1000 pixels a two-word name in the Arena scoreboard breaks between its words, and the four hair colors and both beard names keep one line.');
 
   assert.deepEqual(errors, []);
   assert.deepEqual(consoleErrors, [], 'Unexpected browser console errors');

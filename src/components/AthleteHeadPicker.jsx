@@ -57,7 +57,7 @@ export default function AthleteHeadPicker({ fighter, belt = 'white', onChange })
         <span className="athlete-head-preview" aria-hidden="true">
           <UnrealAthlete fighter={fighter} belt={belt} />
         </span>
-        <div className={`swatch-row athlete-hair-colors ${colorUsed ? '' : 'is-unused'}`.trim()} role="group" aria-label="Hair color" data-part="hairColor">
+        <div className="swatch-row athlete-hair-colors" role="group" aria-label="Hair color" data-part="hairColor">
           <span>Hair Color</span>
           <div>
             {ATHLETE_HAIR_COLORS.map((color) => (
