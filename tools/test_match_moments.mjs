@@ -175,6 +175,13 @@ async function staticSite() {
 // that wants to look at a greeting sets `hold` first: the page then stops the
 // next match moment's picture the moment it starts playing (see greetingHeld).
 // Each time a video runs out of data is written down apart, in `waits`.
+// A "playing" in `videos` is a start. A browser also fires "playing" each time
+// a video carries on after it stood still for want of data or of decoded
+// picture, and a busy machine does that within a few milliseconds of a start.
+// Such a "playing" is written down apart, in `resumes`: the video had been
+// waiting, and since it last played the page neither asked it to play ("play")
+// nor moved it to another moment ("seeking"). Every other "playing" is a
+// start, so a count of them is a count of the times a clip was started.
 // A check that wants to look at a greeting whose files are slow sets
 // `holdTimers` first: a timer as long as one of the greeting's time limits
 // (`limits`, in milliseconds) that the page starts is then kept back, and
@@ -182,7 +189,7 @@ async function staticSite() {
 // limit cannot run out while the check is still looking. Every other timer,
 // and every timer while `holdTimers` is off, runs as it always does.
 function watchPage({ limits }) {
-  window.__moments = { stages: [], videos: [], transport: [], waits: [], shifts: [], finishedWithoutToggle: 0, hold: false, held: 0, holdTimers: false, timersKept: 0 };
+  window.__moments = { stages: [], videos: [], transport: [], waits: [], resumes: [], shifts: [], finishedWithoutToggle: 0, hold: false, held: 0, holdTimers: false, timersKept: 0 };
   const log = window.__moments;
   const at = () => Math.round(performance.now());
   const [startTimer, stopTimer] = [window.setTimeout.bind(window), window.clearTimeout.bind(window)];
@@ -230,11 +237,25 @@ function watchPage({ limits }) {
       log.transport.push({ at: at(), type, element: videoIds.get(video), path: new URL(video.currentSrc || video.src, location.href).pathname, time: video.currentTime });
     }, true);
   }
+  // What has happened to each video since it last played: whether the page
+  // asked it to play, whether it was moved to another moment, whether it waited.
+  const since = new WeakMap();
+  const note = (video, what) => since.set(video, { ...since.get(video), [what]: true });
+  for (const what of ['play', 'seeking']) {
+    document.addEventListener(what, (event) => { if (event.target instanceof HTMLVideoElement) note(event.target, what); }, true);
+  }
   for (const type of ['playing', 'ended', 'error']) {
     document.addEventListener(type, (event) => {
       const video = event.target;
       if (!(video instanceof HTMLVideoElement)) return;
-      log.videos.push({ at: at(), type, path: new URL(video.currentSrc || video.src, location.href).pathname, loop: video.loop, muted: video.muted, time: Number(video.currentTime.toFixed(3)) });
+      const entry = { at: at(), type, path: new URL(video.currentSrc || video.src, location.href).pathname, loop: video.loop, muted: video.muted, time: Number(video.currentTime.toFixed(3)) };
+      if (type === 'playing') {
+        const seen = since.get(video) ?? {};
+        since.delete(video);
+        // It only carried on after standing still: not a start.
+        if (seen.waiting && !seen.play && !seen.seeking) { log.resumes.push(entry); return; }
+      }
+      log.videos.push(entry);
       if (type === 'playing' && log.hold && video.closest('.unreal-clip-stage[data-kind="moment"]')) {
         log.hold = false;
         log.held += 1;
@@ -244,7 +265,9 @@ function watchPage({ limits }) {
   }
   document.addEventListener('waiting', (event) => {
     const video = event.target;
-    if (video instanceof HTMLVideoElement) log.waits.push({ at: at(), path: new URL(video.currentSrc || video.src, location.href).pathname, time: Number(video.currentTime.toFixed(3)) });
+    if (!(video instanceof HTMLVideoElement)) return;
+    note(video, 'waiting');
+    log.waits.push({ at: at(), path: new URL(video.currentSrc || video.src, location.href).pathname, time: Number(video.currentTime.toFixed(3)) });
   }, true);
   try {
     new PerformanceObserver((list) => {
@@ -808,7 +831,9 @@ async function greetingStalls() {
   assert.deepEqual(seen.stages.map((entry) => entry.stage), [`stance:${IDLE.moveId}`, `moment:${MATCH_GREETING}`, `stance:${IDLE.moveId}`], 'stance loop, greeting, stance loop');
   const played = seen.videos.filter((entry) => entry.path === greeting.video);
   assert.deepEqual(played.map((entry) => entry.type), ['playing'], 'the greeting started, and neither ended nor failed');
-  const stopped = seen.waits.find((entry) => entry.path === greeting.video && entry.at >= played[0].at);
+  // The wait it did not come back from is the last one: a busy machine may also stand still for
+  // a moment right after the start and carry on (a resume, see watchPage).
+  const stopped = seen.waits.filter((entry) => entry.path === greeting.video && entry.at >= played[0].at).at(-1);
   assert.ok(stopped && stopped.time < FIXTURE_SECONDS - 0.2, `it ran out of data before its end (${JSON.stringify(seen.waits)})`);
   const stoodStill = seen.stages[2].at - stopped.at;
   assert.ok(stoodStill >= PASSING_MOMENT_PATIENCE.stall - 50 && stoodStill < PASSING_MOMENT_PATIENCE.stall + LATE, `the greeting gives way ${PASSING_MOMENT_PATIENCE.stall} ms after it stops (seen after ${stoodStill} ms)`);
@@ -1243,6 +1268,13 @@ try {
 } catch (error) {
   report.status = 'failed'; report.failure = error.stack || String(error);
   if (page && !page.isClosed()) report.lastPageEvents = await log().catch(() => null);
+  // What the page wrote down says why a count was off (a video that stood still and carried on,
+  // say). It goes out before the error, so the error is still the last thing in the output.
+  if (report.lastPageEvents) {
+    const short = (entries = []) => entries.map((entry) => ({ ...entry, path: entry.path.split('/').slice(-2).join('/') }));
+    const { stages, videos, resumes, waits } = report.lastPageEvents;
+    console.error(`What the page recorded before the failure (${size?.name}): ${JSON.stringify({ stages, videos: short(videos), resumes: short(resumes), waits: short(waits) })}`);
+  }
   if (page && !page.isClosed()) await page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }).catch(() => {});
   console.error(error); process.exitCode = 1;
 } finally {
