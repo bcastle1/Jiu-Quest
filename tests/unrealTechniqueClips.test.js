@@ -11,6 +11,7 @@ import { resolveCombatRenderer } from '../src/unreal/renderer.js';
 import { UNREAL_STANCES } from '../src/unreal/stances.js';
 import { unrealClipMoveId } from '../src/unreal/techniqueIds.js';
 import { MATCH_MOMENT_CLIP } from '../tools/import_unreal_clips.mjs';
+import { isOwnerPublishedDraft } from '../src/unreal/techniquePicture.js';
 
 // The clip id of every curriculum technique: any of them can take clips.
 const TECHNIQUE_CLIP_IDS = allMoves.map((move) => unrealClipMoveId(move.id));
@@ -35,10 +36,17 @@ test('every published clip is the pinned file and something a browser can start 
     const poster = repoFile(`public${clip.poster}`);
     assert.equal(poster.length, clip.posterBytes, `${name} poster size`);
     assert.equal(sha256(poster), clip.posterSha256, `${name} poster was replaced`);
-    assert.equal(poster.toString('latin1', 0, 4) + poster.toString('latin1', 8, 16), 'RIFFWEBPVP8 ', `${name} poster is a lossy WebP`);
-    assert.deepEqual([poster.readUInt16LE(26) & 0x3fff, poster.readUInt16LE(28) & 0x3fff], [clip.width, clip.height], `${name} poster matches the video size`);
+    if (isOwnerPublishedDraft(clip)) {
+      assert.equal(poster.toString('latin1', 0, 4) + poster.toString('latin1', 8, 16), 'RIFFWEBPVP8L', 'the approved draft retains its canonical lossless poster');
+      const dimensions = poster.readUInt32LE(21);
+      assert.deepEqual([(dimensions & 0x3fff) + 1, ((dimensions >>> 14) & 0x3fff) + 1], [clip.width, clip.height]);
+      assert.equal(clip.posterSourceSha256, clip.posterSha256, 'the canonical poster is copied unchanged');
+    } else {
+      assert.equal(poster.toString('latin1', 0, 4) + poster.toString('latin1', 8, 16), 'RIFFWEBPVP8 ', `${name} poster is a lossy WebP`);
+      assert.deepEqual([poster.readUInt16LE(26) & 0x3fff, poster.readUInt16LE(28) & 0x3fff], [clip.width, clip.height], `${name} poster matches the video size`);
+      assert.notEqual(clip.posterSourceSha256, clip.posterSha256, 'the published poster is a smaller copy of the delivered one');
+    }
     assert.match(clip.posterSourceSha256, /^[0-9a-f]{64}$/);
-    assert.notEqual(clip.posterSourceSha256, clip.posterSha256, 'the published poster is a smaller copy of the delivered one');
 
     assert.deepEqual([clip.width, clip.height, clip.fps], [1280, 720, 30]);
     assert.ok(Number.isInteger(clip.frames) && clip.frames > 0);
@@ -86,7 +94,7 @@ test('a looping clip is a stance held on the feet, and a clip that plays once is
       assert.equal(clip.posterFrame, null, `${name} loops, so its poster is the pack's`);
     } else {
       assert.ok(techniques.has(clip.moveId) || clip.moveId.startsWith('enter_') || isMatchMoment(clip.moveId), `${name} plays once, so it is a technique, a stance entry or a match moment`);
-      assert.equal(clip.posterFrame, 0, `${name} plays once, so its poster is its first frame`);
+      assert.equal(clip.posterFrame, isOwnerPublishedDraft(clip) ? 63 : 0, `${name}: approved draft keeps its canonical frame 63 poster; normal imports open on frame 0`);
     }
     // A match moment never loops, shows the player's athlete only, and is as
     // long as the importer allows (tools/import_unreal_clips.mjs).

@@ -333,7 +333,7 @@ function TechniqueClip({ moveId, performerSide = 'fighter', moveLabel, fighter, 
           <small>Athletes and colors are fixed in this clip.</small>
         </div>
       </div>
-      <p className="unreal-clip-note" id={noteId}>{techniqueNote({ choreographyReviewed: clip.choreographyReviewed, reducedMotion: state.reducedMotion })}</p>
+      <p className="unreal-clip-note" id={noteId}>{clip.draft === true && clip.draftNotice ? `${clip.draftNotice} ` : ''}{techniqueNote({ choreographyReviewed: clip.choreographyReviewed, reducedMotion: state.reducedMotion })}</p>
     </section>
   );
 }

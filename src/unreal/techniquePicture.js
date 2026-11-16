@@ -57,13 +57,33 @@ export const TECHNIQUE_OPENING_CAMERA = Object.freeze({ rear_naked_choke: 'front
 
 const ENGINE = Object.freeze({ kind: 'engine' });
 
+// The owner explicitly approved publishing this exact draft as-is on 2026-11-16.
+// This is permission to show one unfinished take, not choreography acceptance.
+// A new render or another performer/camera needs its own publication decision.
+export const OWNER_PUBLISHED_DRAFT = Object.freeze({
+  moveId: 'double_leg', performerSide: 'fighter', camera: 'side',
+  sha256: '3872c9e491ab556290577986968626ff7dd53e894f455164915063cf596efc0f',
+  bytes: 593719,
+  posterSha256: 'b37745ede6f918db94b003b534f0f717fc386b11db84a6bd96009e8f5ae12aab',
+  posterBytes: 271326,
+  ownerDraftPublishedOn: '2026-11-16',
+  draftNotice: 'Lunge, forward drive, and grips are still being refined.',
+});
+
+export function isOwnerPublishedDraft(clip) {
+  return Boolean(clip) && clip.draft === true && clip.choreographyReviewed === false
+    && Object.entries(OWNER_PUBLISHED_DRAFT).every(([key, value]) => clip[key] === value)
+    && clip.video === '/assets/unreal-clips/double_leg/fighter-side.mp4'
+    && clip.poster === '/assets/unreal-clips/double_leg/fighter-side.webp';
+}
+
 const engineParam = (search = '') => new URLSearchParams(search).get('engine');
 
 // Every performer the technique needs (techniqueClipPerformers) has at least
 // one accepted view of this exact move. `moveId` is the clip id, as in the clip
 // list.
 export function techniqueClipReady(moveId, views) {
-  return Boolean(moveId) && techniqueClipPerformers(moveId).every((side) => views(moveId, side).length > 0);
+  return Boolean(moveId) && techniqueClipPerformers(moveId).every((side) => views(moveId, side).some((clip) => clip.draft !== true));
 }
 
 export function chooseTechniquePicture({ moveId, clipMoveId = moveId, performerSide = 'fighter', engine, search = '', views }) {
@@ -73,10 +93,15 @@ export function chooseTechniquePicture({ moveId, clipMoveId = moveId, performerS
   // (keep testing Unity) turns technique clips off for the visit.
   const forced = engineParam(search);
   if (forced === 'snapshot' || forced === 'unity') return ENGINE;
+  // Only this exact approved draft can show before bilateral acceptance. The
+  // rival keeps its engine fallback; old front/opponent takes are not borrowed.
+  const draft = views(clipMoveId, performerSide).find((clip) => isOwnerPublishedDraft(clip)
+    && clip.moveId === clipMoveId && clip.performerSide === performerSide);
+  if (draft) return Object.freeze({ kind: 'clip', moveId: clipMoveId, performerSide, camera: draft.camera });
   if (!techniqueClipReady(clipMoveId, views)) return ENGINE;
   // The requested performer's own views only: a technique that switched over
   // with the fighter's views alone gives the rival no clip.
-  const found = views(clipMoveId, performerSide);
+  const found = views(clipMoveId, performerSide).filter((clip) => clip.draft !== true);
   if (!found.length) return ENGINE; // e.g. performerSide 'referee'
   const camera = (found.find((clip) => clip.camera === TECHNIQUE_OPENING_CAMERA[clipMoveId]) ?? found[0]).camera;
   return Object.freeze({ kind: 'clip', moveId: clipMoveId, performerSide, camera });

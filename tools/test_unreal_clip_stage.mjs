@@ -20,7 +20,7 @@ import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 import { resolveUnityMove } from '../src/unity/bridge.js';
 import { findUnrealClip, unrealClipViews } from '../src/unreal/techniqueClips.js';
-import { techniqueClipReady } from '../src/unreal/techniquePicture.js';
+import { isOwnerPublishedDraft, techniqueClipReady } from '../src/unreal/techniquePicture.js';
 import { CARD, MAT, TECHNIQUE_IDS, arenaStart, checkArenaWin, checkTraining, curriculumMove, inTraining, openTrainingTechnique, playArena, techniqueStage, watchUnity } from './unreal_technique_checks.mjs';
 
 const root = resolve('dist');
@@ -281,10 +281,11 @@ try {
   // ---- Techniques: each one switches itself on once every performer it needs has clips ----
   // Every curriculum technique has a clip id, so any of them can be ready.
   const ready = TECHNIQUE_IDS.filter((moveId) => techniqueClipReady(moveId, unrealClipViews));
-  const waiting = TECHNIQUE_IDS.filter((moveId) => !ready.includes(moveId));
-  report.techniqueClips = { ready, waiting };
+  const ownerDrafts = TECHNIQUE_IDS.filter((moveId) => unrealClipViews(moveId, 'fighter').some(isOwnerPublishedDraft));
+  const waiting = TECHNIQUE_IDS.filter((moveId) => !ready.includes(moveId) && !ownerDrafts.includes(moveId));
+  report.techniqueClips = { ready, ownerDrafts, waiting };
   quietUnity = true;
-  if (!ready.length) checks.push('No technique clip is published; technique steps did not run.');
+  if (!ready.length && !ownerDrafts.length) checks.push('No technique clip is published; technique steps did not run.');
   for (const moveId of ready) {
     const views = { fighter: unrealClipViews(moveId, 'fighter'), opponent: unrealClipViews(moveId, 'opponent') };
     const move = curriculumMove(moveId);
@@ -337,7 +338,40 @@ try {
     checks.push(`${title}: the player's Arena win plays the real clip, labelled as theirs, with no Unity request.`);
   }
 
-  // A technique still without clips of every performer it needs shows what it
+  // A separately approved draft is exercised without treating it as accepted
+  // bilateral choreography. Its canonical poster can be a later native frame.
+  for (const moveId of ownerDrafts) {
+    assert.equal(techniqueClipReady(moveId, unrealClipViews), false);
+    const views = { fighter: unrealClipViews(moveId, 'fighter'), opponent: unrealClipViews(moveId, 'opponent') };
+    assert.equal(views.fighter.length, 1);
+    assert.ok(isOwnerPublishedDraft(views.fighter[0]));
+    assert.deepEqual(views.opponent, [], 'no old opposite-performer take is paired with this draft');
+    const move = curriculumMove(moveId);
+    const training = await open({ viewport: { width: 1440, height: 900 } });
+    await checkTraining(page, { base, moveId, views: views.fighter, unity: watchUnity(page), capture, checks });
+    assert.equal(await techniqueStage(page, CARD).getByRole('button', { name: 'Front', exact: true }).count(), 0);
+    await training.close();
+    const fight = await seededFight(move);
+    const unity = watchUnity(page);
+    const seen = await playArena(page, { base, moveId, unity,
+      want: counts => counts.fighter >= 1 && counts.opponent >= 1,
+      playerTries: counts => counts.fighter < 1,
+      onWin: async win => {
+        if (win.performer === 'fighter') {
+          await checkArenaWin(page, { win, moveId, views, unity, title: move.name });
+          assert.equal(await techniqueStage(page, MAT).getByRole('button', { name: 'Front', exact: true }).count(), 0);
+          await capture(`owner-draft-${moveId}-player-arena`);
+        } else {
+          await page.locator(`${MAT} .unity-stage[data-engine="unity"]`).waitFor({ timeout: 15000 });
+          assert.equal(await techniqueStage(page, MAT).count(), 0, 'the rival never borrows the fighter draft');
+        }
+      },
+    });
+    await fight.close();
+    checks.push(`${move.name}: exact owner-approved draft plays in Training/player Arena with its flaw note and no Front view; rival win selects the prior Unity stage (${seen.headlines.join('; ')}). Unity is withheld in this routing suite, so this does not certify rival WebGL playback.`);
+  }
+
+  // A technique without accepted views or an exact owner-published draft shows what it
   // showed before on the release default: the Unity stage where Unity animates
   // it, and the position picture, under "Position reference", everywhere else.
   const shown = { unity: [], picture: [], arenaOnly: [] };

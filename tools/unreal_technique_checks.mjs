@@ -157,8 +157,9 @@ function checkLabels(state, { clip, title, performer, reducedMotion = false }) {
   assert.equal(state.title, title);
   assert.equal(state.label, `${title}, Unreal Engine clip`);
   assert.equal(state.tag, clip.choreographyReviewed === false ? 'Draft choreography' : null);
-  assert.equal(state.note, techniqueNote({ choreographyReviewed: clip.choreographyReviewed, reducedMotion }));
-  assert.match(state.note, /^Pre-rendered video\. Animated visual reference\. .*Playback does not award points or training repetitions\./);
+  const draftNotice = clip.draft === true && clip.draftNotice ? `${clip.draftNotice} ` : '';
+  assert.equal(state.note, draftNotice + techniqueNote({ choreographyReviewed: clip.choreographyReviewed, reducedMotion }));
+  assert.match(state.note, /Pre-rendered video\. Animated visual reference\. .*Playback does not award points or training repetitions\./);
   assert.equal(state.describedBy, state.noteId, 'the region is described by its note');
   const [performs, other] = performer === 'opponent' ? [state.opponentLine, state.fighterLine] : [state.fighterLine, state.opponentLine];
   assert.match(performs, / · performs the technique$/, `the ${performer} performs`);
