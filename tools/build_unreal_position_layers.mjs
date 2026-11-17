@@ -34,7 +34,8 @@
 //   np.interp        linear between points, flat outside them.
 //   resize(LANCZOS)  Pillow's two-pass resample: 22-bit fixed-point Lanczos-3 coefficients,
 //                    horizontal pass rounded to 8 bits, then the vertical pass.
-//   WebP             sharp (libvips 8.17.3, libwebp 1.6.0), quality 90 or 88, effort 6, no metadata.
+//   WebP             sharp (libvips 8.17.3, libwebp 1.6.0), effort 6, no metadata: quality 90 for the base and
+//                    88 for the tinted layers, or the position's own `quality` for those.
 //                    Pillow hands the same RGB to libwebp with quality and method=6. The bytes
 //                    depend on the libwebp release, so they are not expected to equal Pillow's.
 import { createHash } from 'node:crypto';
@@ -65,6 +66,8 @@ let POSITIONS = {
     crop: [510, 255, 1620, 1080],
     size: [1620, 1080],
     families: ['standing'],
+    cloth: { times: 4, rise: 0.15 },
+    quality: 96,
     jacket: {
       lead: [
         [700, 300], [1400, 300], [1400, 860], [1100, 860], [1010, 800], [980, 800], [968, 805.5], [960.5, 807.3],
@@ -215,10 +218,26 @@ function gaussianBlur(image, width, height, blurRadius) {
   return current;
 }
 
+// cloth_mask of the Python tool: 1 where a white pass turned cloth white, 0 where it only lit what lies beside
+// the cloth. The renders hold whole numbers, so the transfer function is looked up once per 8-bit value.
+function clothMask(white, base, { times, rise }) {
+  const light = Float64Array.from({ length: 256 }, (unused, value) => toLinear(value));
+  const mask = new Uint8Array(white.length / 3);
+  for (let index = 0; index < mask.length; index += 1) {
+    let cloth = 1;
+    for (let channel = 0; channel < 3; channel += 1) {
+      const lit = light[white[index * 3 + channel]], dark = light[base[index * 3 + channel]];
+      if (!(lit > times * dark || lit - dark > rise)) cloth = 0;
+    }
+    mask[index] = cloth;
+  }
+  return mask;
+}
+
 // soft() and region() of the Python tool: a Float32Array of 0..1 per pixel.
-function region(delta, width, height, median, blur) {
+function region(delta, width, height, median, blur, cloth) {
   const mask = new Uint8Array(width * height);
-  for (let index = 0; index < mask.length; index += 1) mask[index] = Math.min(delta[index * 3], delta[index * 3 + 1], delta[index * 3 + 2]) > 14 ? 255 : 0;
+  for (let index = 0; index < mask.length; index += 1) mask[index] = Math.min(delta[index * 3], delta[index * 3 + 1], delta[index * 3 + 2]) > 14 && (!cloth || cloth[index]) ? 255 : 0;
   const blurred = gaussianBlur(maxMask(medianMask(mask, width, height, median), width, height, 5), width, height, blur);
   return Float32Array.from(blurred, (value) => f32(value / 255));
 }
@@ -409,6 +428,10 @@ async function main() {
     const base = renders.base;
     const [left, top, cropWidth, cropHeight] = settings.crop;
     if (Math.abs(cropWidth / cropHeight - settings.size[0] / settings.size[1]) > 0.002) fail(`${position}: crop and size have different proportions`);
+    const cloth = settings.cloth ?? null;
+    if (cloth && !(cloth.times > 1 && cloth.rise > 0 && cloth.rise < 1)) fail(`${position}: cloth needs times above 1 and rise between 0 and 1`);
+    const quality = settings.quality ?? 88;
+    if (!(Number.isInteger(quality) && quality >= 1 && quality <= 100)) fail(`${position}: quality must be a whole number from 1 to 100`);
 
     const layers = { base };
     const details = {};
@@ -420,8 +443,8 @@ async function main() {
         beltDelta[index] = Math.min(255, Math.max(0, beltWhite[index] - base[index]));
         giDelta[index] = Math.min(255, Math.max(0, white[index] - base[index]));
       }
-      const beltRegion = region(beltDelta, width, height, 5, 1.4);
-      const giRegion = region(giDelta, width, height, 7, 1.8);
+      const beltRegion = region(beltDelta, width, height, 5, 1.4, cloth && clothMask(beltWhite, base, cloth));
+      const giRegion = region(giDelta, width, height, 7, 1.8, cloth && clothMask(white, base, cloth));
       const belt = new Float32Array(pixelCount * 3);
       for (let index = 0; index < pixelCount; index += 1) {
         for (let channel = 0; channel < 3; channel += 1) {
@@ -518,7 +541,7 @@ async function main() {
       const resized = resizeLanczos(cut, cropWidth, cropHeight, settings.size[0], settings.size[1]);
       // When the crop already has the published size, Pillow returns it unchanged. The resample here must agree.
       if (cropWidth === settings.size[0] && cropHeight === settings.size[1] && Buffer.compare(Buffer.from(cut), Buffer.from(resized)) !== 0) fail(`${position}/${name}: resampling at the same size changed the picture`);
-      const data = await sharp(Buffer.from(resized), { raw: { width: settings.size[0], height: settings.size[1], channels: 3 } }).webp({ quality: name === 'base' ? 90 : 88, effort: 6 }).toBuffer();
+      const data = await sharp(Buffer.from(resized), { raw: { width: settings.size[0], height: settings.size[1], channels: 3 } }).webp({ quality: name === 'base' ? 90 : quality, effort: 6 }).toBuffer();
       writeFileSync(join(folder, fileName), data);
       files[name] = { bytes: data.length, sha256: sha256(data) };
       urls[name] = `/assets/unreal-positions/${position}/${fileName}`;
@@ -537,7 +560,7 @@ async function main() {
       files,
       sources,
     });
-    report[position] = { crop: settings.crop, size: settings.size, ...details, bytes: Object.values(files).reduce((sum, item) => sum + item.bytes, 0) };
+    report[position] = { crop: settings.crop, size: settings.size, ...(cloth ? { cloth } : {}), ...(quality === 88 ? {} : { quality }), ...details, bytes: Object.values(files).reduce((sum, item) => sum + item.bytes, 0) };
   }
 
   const body = JSON.stringify(stills, null, 2);

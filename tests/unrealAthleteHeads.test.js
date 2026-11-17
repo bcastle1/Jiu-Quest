@@ -18,6 +18,7 @@ import { findUnrealPositionStill } from '../src/unreal/positionStills.js';
 import { ATHLETE_STAND_IN, classicStandIn, standInAppearance } from '../src/unreal/athleteStandIn.js';
 import { toUnityAthlete } from '../src/unity/bridge.js';
 import { createFighter, customizationOptions, loadState, saveState } from '../src/storage.js';
+import { HEAD_PICTURE, headPicture } from '../tools/unreal_athlete_head_picture.mjs';
 
 const repoFile = (path) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)));
 const STORAGE_KEY = 'jiuquest:v1';
@@ -145,6 +146,36 @@ test('every choice has its published picture, pinned by size and SHA-256, and no
     assert.equal(new Set(KEYS.map((key) => pins.sources[scene][key])).size, KEYS.length, `${scene}: every choice has a render of its own`);
   }
   assert.throws(() => { pins.files[files[0].url].sha256 = 'changed'; }, TypeError);
+});
+
+test('the head pictures belong to the published layers they were built on', () => {
+  // The heads tool keeps the SHA-256 of every published layer it read (pins.layers): the base of each picture, which
+  // it measured its reference renders against and on which the head pictures lie, and the jacket layers Dean's own
+  // are made from. New layers (another floor, light, pose or encoding) without new heads would lay the old heads on
+  // a new picture, and no other test would notice: the tool's own check runs only when the tool runs, and it measured
+  // 1.11 of 255 for heads rendered with the old hands, under its limit of 1.5.
+  const layers = {
+    [UNREAL_ATHLETE.layers.base]: UNREAL_ATHLETE.files.base.sha256,
+    [UNREAL_ATHLETE.layers.jacket]: UNREAL_ATHLETE.files.jacket.sha256,
+    [still.layers.base]: still.files.base.sha256,
+    [still.layers.leadJacket]: still.files.leadJacket.sha256,
+    [still.layers.otherJacket]: still.files.otherJacket.sha256,
+  };
+  assert.deepEqual(Object.keys(pins.layers).sort(), Object.keys(layers).sort(), 'the tool read the base and the jacket layers of both pictures');
+  for (const [url, digest] of Object.entries(layers)) {
+    const rebuild = `${url} is not the layer the head pictures were built on: rebuild them from renders of its scene (docs/unreal-integration.md, "Faces, hair and beards of the Unreal athlete")`;
+    assert.equal(pins.layers[url], digest, rebuild);
+    assert.equal(createHash('sha256').update(repoFile(`public${url}`)).digest('hex'), digest, rebuild);
+  }
+  // The tool reads published layers in one place, which records them.
+  const tool = repoFile('tools/build_unreal_athlete_heads.mjs').toString('utf8');
+  assert.deepEqual(tool.match(/^.*'public'.*$/gm).map((line) => line.trim()), [
+    "const publicDir = resolve(publicOption ?? join(ROOT, 'public'));",
+    "const data = readFileSync(join(ROOT, 'public', url));",
+  ]);
+  // Dean's standing jacket layers are the published ones with his own collar light, at their WebP quality.
+  const layerTool = repoFile('tools/build_unreal_position_layers.mjs').toString('utf8');
+  assert.equal(Number(tool.match(/jacketQuality: (\d+),/)[1]), Number(layerTool.match(/let POSITIONS = \{\s+standing: \{[\s\S]*?\n\s+quality: (\d+),/)[1]));
 });
 
 test('the pins are for the tests: the page never loads them', () => {
@@ -371,4 +402,53 @@ test('the build tool stops before it reads or writes anything when a flag has no
   assert.equal(source.match(/rmSync\(/g).length, 2, 'the unfinished folders, and the exchange at the end');
   assert.ok(source.indexOf('const standingVariants = variantsOf(\'standing\');') < source.indexOf('discardUnfinished = () => { for (const scene of'), 'both lists are read before anything is written');
   assert.ok(source.indexOf('rmSync(target, { recursive: true, force: true });') > source.indexOf('// ---- the data module ----'), 'the exchange comes after every picture');
+});
+
+test('a head picture leaves out only faint light at the edge of its box, and a head that reaches the edge still stops the tool', () => {
+  // The rule the tool makes every head picture with, tried on small made-up boxes: a base of even grey, and a render
+  // that differs from it in squares given as [left, top, size, how many levels brighter].
+  const width = 100, height = 80;
+  const box = (...squares) => {
+    const data = Buffer.alloc(width * height * 3, 40);
+    for (const [left, top, size, rise] of squares) {
+      for (let y = top; y < top + size; y += 1) data.fill(40 + rise, (y * width + left) * 3, (y * width + left + size) * 3);
+    }
+    return { width, height, data };
+  };
+  const base = box();
+  const head = [40, 25, 16, 100];                 // a head, well inside its box
+  const cheek = [14, 30, 6, 12];                  // faint light away from the edge, apart from the head
+  const corner = (rise) => [92, 72, 8, rise];     // light in the lower right corner, as on the lead's hand in the dojo set
+  const alpha = (picture, x, y) => picture.data[(y * width + x) * 4 + 3];
+  assert.equal(HEAD_PICTURE.faintEdge, 20);
+  const inside = headPicture(box(head, cheek), base);
+  assert.deepEqual([inside.touchesEdge, inside.leftOut, inside.changed], [0, undefined, 16 * 16 + 6 * 6], 'a picture inside its box is kept whole');
+  assert.ok(alpha(inside, 48, 33) === 255 && alpha(inside, 17, 33) > 0, 'the head and the faint light beside it are in the picture');
+  assert.deepEqual([...inside.data.subarray((33 * width + 48) * 4, (33 * width + 48) * 4 + 4)], [140, 140, 140, 255], 'the render, where the picture covers');
+  // Up to 20 levels a part at the edge is left out: the hand keeps the base's light, and the picture is the one it
+  // would be had the corner not changed at all.
+  for (const rise of [17, 20]) {
+    const picture = headPicture(box(head, cheek, corner(rise)), base);
+    assert.deepEqual([picture.touchesEdge, picture.leftOut], [0, { parts: 1, pixels: 8 * 8, largestDifference: rise }], `${rise} levels at the edge`);
+    assert.equal(alpha(picture, 95, 75), 0, `${rise}: the corner is not in the picture`);
+    assert.ok(picture.data.equals(inside.data), `${rise}: the rest of the picture is unchanged`);
+  }
+  // More than that is not light: the picture still reaches the edge, so the tool stops.
+  const stronger = headPicture(box(head, cheek, corner(21)), base);
+  assert.ok(stronger.touchesEdge > 0 && stronger.leftOut === undefined, '21 levels at the edge stop the tool');
+  // So does a head that reaches the edge itself, and faint light the covered region joins to the head.
+  const tooBig = headPicture(box([40, 0, 16, 100]), base);
+  assert.ok(tooBig.touchesEdge > 0 && tooBig.leftOut === undefined, 'a head too big for its box');
+  const joined = headPicture(box(head, [44, 5, 8, 15]), base);
+  assert.ok(joined.touchesEdge > 0 && joined.leftOut === undefined, 'faint light joined to the head is part of the head');
+  // A picture that would hold only faint light at the edge, or nothing, is nothing: the tool stops on that too.
+  assert.equal(headPicture(box(corner(17)), base), null);
+  assert.equal(headPicture(base, base), null);
+  // The tool makes its head pictures with this rule, in one place, and stops on both outcomes in both pictures.
+  const tool = repoFile('tools/build_unreal_athlete_heads.mjs').toString('utf8');
+  assert.match(tool, /^import \{[^}]*\bheadPicture\b[^}]*\} from '\.\/unreal_athlete_head_picture\.mjs';$/m);
+  assert.doesNotMatch(tool, /function (?:headPicture|faintEdgeParts|coverChange)\b|\bfaintEdge:/);
+  assert.equal(tool.match(/const picture = headPicture\(/g).length, 2);
+  assert.equal(tool.match(/if \(!picture\) fail\(/g).length, 2);
+  assert.equal(tool.match(/if \(picture\.touchesEdge\) fail\(/g).length, 2);
 });

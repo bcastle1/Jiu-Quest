@@ -27,7 +27,9 @@
 // place of the athlete), and two modules: src/unreal/athleteHeads.data.js, the
 // little the page needs (folders, sizes, where a head lies), and
 // src/unreal/athleteHeads.pins.js, which pins every published file (size and
-// SHA-256) and the hashes of the renders they came from, for the tests.
+// SHA-256), the hashes of the renders they came from, and the SHA-256 of the
+// published layers the tool read (the bases and jacket layers the heads belong
+// to), for the tests.
 // --module names the first; it must end in .data.js, and the second is written
 // beside it as .pins.js. --public names another folder to write the pictures
 // under; a trial run names both, and the tool stops if --public comes alone.
@@ -52,6 +54,7 @@ import { fileURLToPath } from 'node:url';
 import {
   ATHLETE_BEARDS, ATHLETE_FACES, ATHLETE_HAIRS, ATHLETE_HAIR_COLORS, DEFAULT_ATHLETE_HEAD, athleteFace, athleteHeadKey, athleteHeadKeys,
 } from '../src/unreal/athleteHeadOptions.js';
+import { blur, counts, difference, headPicture, over } from './unreal_athlete_head_picture.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -80,6 +83,10 @@ export const SCENES = Object.freeze({
   standing: Object.freeze({
     render: [2560, 1440], crop: [510, 255, 1620, 1080], size: [1620, 1080],
     headBoxes: Object.freeze({ lead: [500, 80, 250, 280], other: [880, 40, 250, 280] }),
+    // Dean's jacket layers are the published ones with his own collar light, so they keep the WebP quality of the
+    // published standing jacket layers (`quality` of the still in tools/build_unreal_position_layers.mjs): at 88 a
+    // white jacket and white pants meet in a faint dotted line.
+    jacketQuality: 96,
     folder: 'assets/unreal-positions/standing/heads',
   }),
 });
@@ -87,9 +94,9 @@ const SETTINGS = Object.freeze({
   giThreshold: 14,          // a pixel is gi where every channel brightens by more than this when the gi turns white
   pokeThreshold: 12,        // inside the gi a base may differ from the reference by this much before it is replaced
   clothCeiling: 56,         // the black gi of the reference render is darker than this in every channel; skin is not
-  changeThreshold: 7,       // a head picture covers the pixels that differ from the face's base by more than this
   donorLimit: 0.01,         // share of a published head's pixels that may differ clearly from the same choice rendered with the variants
-  grow: 6, feather: 3,      // pixels the covered region is grown by, and the width of its soft edge
+  // What a head picture covers, how its edge is softened, and which faint parts at the edge of its box are left out:
+  // HEAD_PICTURE in tools/unreal_athlete_head_picture.mjs, with headPicture(), which the unit tests try.
   baseQuality: 90, headQuality: 88, thumbQuality: 82,
 });
 
@@ -119,6 +126,15 @@ sharp.cache(false);
 
 // ---- renders ----
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
+// The published layers the head pictures are made for, read from this working copy (in a trial run too). The pins keep
+// the SHA-256 of each (`layers`): a head picture belongs to the base it lies on and to the jacket layers Dean's are made
+// from, and tests/unrealAthleteHeads.test.js fails when the published layers are no longer those.
+const layersRead = {};
+function publishedLayer(url) {
+  const data = readFileSync(join(ROOT, 'public', url));
+  layersRead[url] = sha256(data);
+  return data;
+}
 const verified = new Map();
 function checked(entry, what) {
   if (!entry?.file) fail(`heads.json lacks ${what}`);
@@ -147,55 +163,7 @@ const renderBox = (scene, [left, top, width, height]) => {
 };
 
 // ---- masks ----
-// Largest channel difference of two regions of the same size.
-function difference(a, b) {
-  const out = new Uint8Array(a.width * a.height);
-  for (let i = 0, p = 0; i < out.length; i += 1, p += 3) {
-    out[i] = Math.max(Math.abs(a.data[p] - b.data[p]), Math.abs(a.data[p + 1] - b.data[p + 1]), Math.abs(a.data[p + 2] - b.data[p + 2]));
-  }
-  return out;
-}
-// For every pixel, how many set pixels lie in the square of the given radius around it (outside the picture counts as unset).
-function counts(mask, width, height, radius) {
-  const integral = new Uint32Array((width + 1) * (height + 1));
-  for (let y = 0; y < height; y += 1) {
-    let row = 0;
-    for (let x = 0; x < width; x += 1) {
-      row += mask[y * width + x] ? 1 : 0;
-      integral[(y + 1) * (width + 1) + x + 1] = integral[y * (width + 1) + x + 1] + row;
-    }
-  }
-  const out = new Uint16Array(width * height);
-  for (let y = 0; y < height; y += 1) {
-    const top = Math.max(0, y - radius), bottom = Math.min(height, y + radius + 1);
-    for (let x = 0; x < width; x += 1) {
-      const left = Math.max(0, x - radius), right = Math.min(width, x + radius + 1);
-      out[y * width + x] = integral[bottom * (width + 1) + right] - integral[top * (width + 1) + right] - integral[bottom * (width + 1) + left] + integral[top * (width + 1) + left];
-    }
-  }
-  return out;
-}
-const over = (values, limit) => Uint8Array.from(values, (value) => (value > limit ? 1 : 0));
-// Three box blurs along each axis: close to a Gaussian of the given radius. Values are 0..1.
-function blur(values, width, height, radius) {
-  let current = Float32Array.from(values);
-  const pass = (source, horizontal) => {
-    const out = new Float32Array(source.length);
-    const lines = horizontal ? height : width, length = horizontal ? width : height;
-    for (let line = 0; line < lines; line += 1) {
-      const at = (i) => source[horizontal ? line * width + i : i * width + line];
-      let sum = 0;
-      for (let i = -radius; i <= radius; i += 1) sum += at(Math.min(length - 1, Math.max(0, i)));
-      for (let i = 0; i < length; i += 1) {
-        out[horizontal ? line * width + i : i * width + line] = sum / (2 * radius + 1);
-        sum += at(Math.min(length - 1, i + radius + 1)) - at(Math.max(0, i - radius));
-      }
-    }
-    return out;
-  };
-  for (let i = 0; i < 3; i += 1) current = pass(pass(current, true), false);
-  return current;
-}
+// (difference, counts, over and blur come from tools/unreal_athlete_head_picture.mjs, with the head picture itself.)
 // The gi of the reference athlete: where every channel brightens clearly when the gi turns white.
 function giMask(white, black) {
   const width = white.width, height = white.height;
@@ -259,8 +227,8 @@ function giLight(white, black) {
 // A published jacket layer with the head box replaced by another face's own gi light: beside another neck the collar
 // shows where the first athlete's neck was, and the other way round. `piece` has the size of the box; it fades into
 // the published layer over a few pixels at the box's edge, where the two agree (the same gi on the same body).
-async function jacketWith(publishedFile, piece, [left, top, width, height]) {
-  const { data, info } = await sharp(readFileSync(publishedFile)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+async function jacketWith(publishedUrl, piece, [left, top, width, height]) {
+  const { data, info } = await sharp(publishedLayer(publishedUrl)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
   if (piece.width !== width || piece.height !== height) fail('a jacket piece does not have the size of its box');
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -273,35 +241,8 @@ async function jacketWith(publishedFile, piece, [left, top, width, height]) {
   }
   return { width: info.width, height: info.height, data };
 }
-// The picture laid over a head: the render where it differs from the base, with a soft edge. Null when nothing differs.
-function headPicture(render, base) {
-  const width = render.width, height = render.height;
-  const changed = over(difference(render, base), SETTINGS.changeThreshold);
-  // a changed pixel counts when at least two of its eight neighbours changed too (single noisy pixels do not)
-  const steady = Uint8Array.from(counts(changed, width, height, 1), (count, i) => (changed[i] && count >= 3 ? 1 : 0));
-  const total = steady.reduce((sum, value) => sum + value, 0);
-  if (total === 0) return null;
-  const grown = over(counts(steady, width, height, SETTINGS.grow), 0);
-  const soft = blur(grown, width, height, SETTINGS.feather);
-  const data = Buffer.alloc(width * height * 4);
-  let touchesEdge = 0, covered = 0;
-  for (let i = 0; i < soft.length; i += 1) {
-    const x = i % width, y = (i - x) / width;
-    // nothing may reach the edge of the box: the picture ends there
-    const margin = Math.min(x, y, width - 1 - x, height - 1 - y);
-    let alpha = Math.min(1, Math.max(0, (soft[i] - 0.08) / 0.84));
-    if (alpha > 0.5 && margin < 2) touchesEdge += 1;
-    alpha *= Math.min(1, margin / 4);
-    const a = Math.round(alpha * 255);
-    if (a === 0) continue;
-    covered += 1;
-    data[i * 4] = render.data[i * 3];
-    data[i * 4 + 1] = render.data[i * 3 + 1];
-    data[i * 4 + 2] = render.data[i * 3 + 2];
-    data[i * 4 + 3] = a;
-  }
-  return { width, height, data, changed: total, covered, touchesEdge };
-}
+// The picture laid over a head (headPicture) is made in tools/unreal_athlete_head_picture.mjs: the render where it differs
+// from the base, with a soft edge, and faint parts at the edge of its box left out. Null when nothing differs.
 
 // ---- output ----
 // Nothing published is touched until every picture is built. The tool writes into a folder beside each published
@@ -360,6 +301,14 @@ function sameHead(variantHead, referenceHead, what) {
 const published = ATHLETE_FACES[0];
 if (baseKey(published) !== athleteHeadKey(DEFAULT_ATHLETE_HEAD)) fail('the first face must be the published athlete');
 const report = { front: {}, standing: {} };
+// For the report: how many head pictures had a faint part at the edge of their box left out, and the largest difference left out.
+function noteLeftOut(scene, name, picture) {
+  const row = (scene[name] ??= { pictures: 0, pixels: 0, largestDifference: 0 });
+  if (!picture.leftOut) return;
+  row.pictures += 1;
+  row.pixels += picture.leftOut.pixels;
+  row.largestDifference = Math.max(row.largestDifference, picture.leftOut.largestDifference);
+}
 // Both lists are read before anything is written: a choice without a render stops the tool at once.
 const frontVariants = variantsOf('front');
 const standingVariants = variantsOf('standing');
@@ -379,7 +328,7 @@ const frontData = { headBox: front.headBox, bases: {}, jackets: {}, heads: {}, t
   const thumbRender = renderBox(front, front.thumbBox);
   const resize = (pipeline, [width, height]) => pipeline.resize(width, height, { kernel: 'lanczos3', fit: 'fill' });
   // How close this renderer's reference comes to the published base: the published layers are added to bases made from it.
-  const publishedBase = await sharp(readFileSync(join(ROOT, 'public', 'assets', 'unreal-athlete', 'athlete-01', 'front-base.webp'))).removeAlpha().raw().toBuffer();
+  const publishedBase = await sharp(publishedLayer('/assets/unreal-athlete/athlete-01/front-base.webp')).removeAlpha().raw().toBuffer();
   const referenceSmall = await resize(rgb(black), front.size).raw().toBuffer();
   let sum = 0;
   for (let i = 0; i < publishedBase.length; i += 1) sum += Math.abs(publishedBase[i] - referenceSmall[i]);
@@ -404,7 +353,7 @@ const frontData = { headBox: front.headBox, bases: {}, jackets: {}, heads: {}, t
       const cropBox = [headRender[0] - front.crop[0], headRender[1] - front.crop[1], headRender[2], headRender[3]];
       const light = giLight(cut(patched(wholeWhite, white, weights), cropBox), cut(baseImage, cropBox));
       const piece = await resize(rgb(light), [front.headBox[2], front.headBox[3]]).raw().toBuffer();
-      const jacket = await jacketWith(join(ROOT, 'public', 'assets', 'unreal-athlete', 'athlete-01', 'front-jacket.webp'), { width: front.headBox[2], height: front.headBox[3], data: piece }, front.headBox);
+      const jacket = await jacketWith('/assets/unreal-athlete/athlete-01/front-jacket.webp', { width: front.headBox[2], height: front.headBox[3], data: piece }, front.headBox);
       await debug(`front-jacket-${face.id}.png`, jacket);
       frontData.jackets[face.id] = await publish(front.folder, `jacket-${face.id}.webp`, rgb(jacket), { quality: SETTINGS.headQuality });
       report.front[`base-${face.id}`] = { pixelsTakenFromReference: poked };
@@ -420,6 +369,7 @@ const frontData = { headBox: front.headBox, bases: {}, jackets: {}, heads: {}, t
       const picture = headPicture(await region(entry, `front ${key}`, front, headRender), baseHead);
       if (!picture) fail(`front: ${key} shows nothing the base of ${face.id} does not`);
       if (picture.touchesEdge) fail(`front: the head of ${key} reaches the edge of its box (${picture.touchesEdge} pixels): widen headBox`);
+      noteLeftOut(report.front, 'faintEdgeLeftOut', picture);
       await debug(`front-${fileKey(key)}.png`, picture, 4);
       frontData.heads[key] = await publish(front.folder, `${fileKey(key)}.webp`, resize(rgba(picture), [front.headBox[2], front.headBox[3]]), { quality: SETTINGS.headQuality, alphaQuality: 92 });
     }
@@ -436,7 +386,7 @@ const standingData = { lead: { headBox: standing.headBoxes.lead, bases: {}, jack
   const otherWhite = await region(reference.otherGiWhite, 'standing reference (other gi white)', standing, standing.crop);
   const leadGi = giMask(leadWhite, base), otherGi = giMask(otherWhite, base);
   const gi = Uint8Array.from(leadGi, (value, i) => (value || otherGi[i] ? 1 : 0));
-  const publishedBase = await sharp(readFileSync(join(ROOT, 'public', 'assets', 'unreal-positions', 'standing', 'base.webp'))).removeAlpha().raw().toBuffer();
+  const publishedBase = await sharp(publishedLayer('/assets/unreal-positions/standing/base.webp')).removeAlpha().raw().toBuffer();
   let sum = 0;
   for (let i = 0; i < publishedBase.length; i += 1) sum += Math.abs(publishedBase[i] - base.data[i]);
   report.standing.referenceAgainstPublishedBase = +(sum / publishedBase.length).toFixed(3);
@@ -461,9 +411,9 @@ const standingData = { lead: { headBox: standing.headBoxes.lead, bases: {}, jack
         await debug(`standing-${role}-base-${face.id}.png`, baseImage);
         standingData[role].bases[face.id] = await publish(standing.folder, `${role}-base-${face.id}.webp`, rgb(baseImage), { quality: SETTINGS.baseQuality });
         const light = giLight(cut(patched(wholeWhite, role === 'lead' ? leadWhite : otherWhite, weights), standing.headBoxes[role]), cut(baseImage, standing.headBoxes[role]));
-        const jacket = await jacketWith(join(ROOT, 'public', 'assets', 'unreal-positions', 'standing', `${role}-jacket.webp`), light, standing.headBoxes[role]);
+        const jacket = await jacketWith(`/assets/unreal-positions/standing/${role}-jacket.webp`, light, standing.headBoxes[role]);
         await debug(`standing-${role}-jacket-${face.id}.png`, jacket);
-        standingData[role].jackets[face.id] = await publish(standing.folder, `${role}-jacket-${face.id}.webp`, rgb(jacket), { quality: SETTINGS.headQuality });
+        standingData[role].jackets[face.id] = await publish(standing.folder, `${role}-jacket-${face.id}.webp`, rgb(jacket), { quality: standing.jacketQuality });
         report.standing[`${role}-base-${face.id}`] = { pixelsTakenFromReference: poked };
       }
       for (const key of KEYS.filter((candidate) => candidate.startsWith(`${face.id}/`))) {
@@ -471,6 +421,7 @@ const standingData = { lead: { headBox: standing.headBoxes.lead, bases: {}, jack
         const picture = headPicture(await region(standingVariants.get(key), `standing ${key}`, standing, headRender), baseHead);
         if (!picture) fail(`standing: ${key} shows nothing the base of ${face.id} does not (${role})`);
         if (picture.touchesEdge) fail(`standing: the ${role} head of ${key} reaches the edge of its box (${picture.touchesEdge} pixels): widen headBoxes.${role}`);
+        noteLeftOut(report.standing, `faintEdgeLeftOut-${role}`, picture);
         await debug(`standing-${role}-${fileKey(key)}.png`, picture, 4);
         standingData[role].heads[key] = await publish(standing.folder, `${role}-${fileKey(key)}.webp`, rgba(picture), { quality: SETTINGS.headQuality, alphaQuality: 92 });
       }
@@ -532,10 +483,12 @@ for (const rows of [frontData.bases, frontData.jackets, frontData.heads, frontDa
   for (const file of Object.values(rows)) pinned[file.url] = { bytes: file.bytes, sha256: file.sha256 };
 }
 const pinsText = `// Written by tools/build_unreal_athlete_heads.mjs from Unreal renders. Do not edit by hand.
-// Every published head picture with its size and SHA-256, and the hashes of the
-// renders they were made from. tests/unrealAthleteHeads.test.js checks the files.
-// The page never imports this module.
-export default ${literal({ files: pinned, sources })};
+// Every published head picture with its size and SHA-256, the hashes of the renders
+// they were made from, and the SHA-256 of the published layers the tool read
+// (layers: each picture's base, and the jacket layers Dean's are made from).
+// tests/unrealAthleteHeads.test.js checks the files, and that those layers are
+// still the published ones. The page never imports this module.
+export default ${literal({ layers: layersRead, files: pinned, sources })};
 `;
 writeFileSync(moduleFile.replace(/\.data\.js$/, '.pins.js'), pinsText);
 

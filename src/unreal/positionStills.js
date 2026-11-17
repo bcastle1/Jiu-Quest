@@ -10,6 +10,12 @@
 // "lead" is the athlete on top or in control. In a neutral position it is the
 // athlete on the left, which is the player. The still is a picture of a
 // settled position, never an animation of a technique.
+//
+// The standing layers published now are built from Claude's renders of
+// November 17, 2026 in the dojo set (a straw tatami floor under four
+// rectangular lights) of Codex's five ready-hand passes of November 16: the
+// same frame, camera, pose and colors, another floor and light. See "The dojo
+// set" and "Unreal position stills" in docs/unreal-integration.md.
 import stills from './positionStills.data.js';
 import { safeHexColor } from './athlete.js';
 
@@ -25,7 +31,8 @@ export function findUnrealPositionStill(key) {
 // downloaded. Nothing is held now. The crouched standing still was held while
 // the lead athlete's belt tail poked through the back of his thigh, and is
 // shown since Unreal's repair renders of November 13, 2026 (15:34) were built
-// into its layers. To hold a still again, put its position key in this list,
+// into its layers; every later render of its passes keeps that repair. To hold
+// a still again, put its position key in this list,
 // for example Object.freeze(['standing']), and update the hold-back test in
 // tests/unrealPositionStills.test.js with it.
 export const HELD_UNREAL_POSITION_STILLS = Object.freeze([]);

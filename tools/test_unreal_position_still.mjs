@@ -37,7 +37,11 @@ const DESIGNED = { selectedFighterId: 'designed', fighters: [{ id: 'designed', n
 // lead's upper back and near thigh, the other's shoulder and near thigh, and
 // the flat of each belt. The last is the lead athlete's cheek, which no color
 // touches. They belong to this pose and crop: work them out again from the
-// layers when the still is rebuilt.
+// layers when the still is rebuilt. Measured again on the layers built from the
+// dojo renders of November 17, 2026: every pixel within 7 layer pixels of each
+// point passes the checks below (its own layer above 100 and every other layer
+// under 20; for the cheek every layer under 8), 11 or more for all but the
+// other athlete's belt, so none was moved.
 const POINTS = { leadJacket: [0.321, 0.3259], leadPants: [0.3086, 0.6491], leadBelt: [0.1969, 0.4352], otherJacket: [0.6611, 0.2954], otherPants: [0.7556, 0.5944], otherBelt: [0.7833, 0.4111], leadFace: [0.392, 0.2269] };
 let browser, server, page, blockedLayer = null;
 
