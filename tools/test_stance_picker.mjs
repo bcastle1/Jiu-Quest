@@ -1,8 +1,9 @@
 // Verifies the Arena's starting-stance picker in the built site in a real
 // browser: the seven stances are offered as pictures while both athletes are on
-// their feet, choosing one changes the fighter's stance and is remembered, the
-// clip above is the one that stance leads to (with a plain note when Unreal has
-// not rendered that stance yet), the keyboard works, the picker leaves once an
+// their feet (also while the match greeting plays, which a new stance ends),
+// choosing one changes the fighter's stance and is remembered, the clip above
+// is the one that stance leads to (with a plain note when Unreal has not
+// rendered that stance yet), the keyboard works, the picker leaves once an
 // exchange settles, and the page fits phones. It checks the page. It does not
 // run Unreal or any stream.
 import assert from 'node:assert/strict';
@@ -155,9 +156,15 @@ try {
   await nav('Arena');
   await picker().waitFor();
   await page.getByRole('button', { name: 'Standing Start', exact: true }).click();
+  // A match that starts on the feet opens with the match greeting in the stance clip's place
+  // (tools/test_match_moments.mjs checks it). The picker stays beside it, and a new stance is
+  // what the player asked to see: it ends the greeting and its clip shows.
+  const greeting = page.locator('.mat-window .unreal-clip-stage[data-kind="moment"][data-move="match_greeting"]');
+  await greeting.waitFor();
   assert.equal(await picker().count(), 1, 'still on their feet with nothing settled: the stance can change');
   await radio('Sumo Base').check();
   await shows('sumo base', 'sumo chosen during the first exchange');
+  assert.equal(await greeting.count(), 0, 'choosing a stance ends the greeting');
   await page.locator('.combat-moves .combat-group').first().locator('button:not([disabled])').first().click();
   await page.locator('.sequence-panel .order-stack').waitFor();
   await page.getByRole('button', { name: 'Submit sequence', exact: true }).click();
@@ -170,7 +177,7 @@ try {
   await page.getByLabel('Your starting position', { exact: true }).selectOption('mount-bottom');
   await page.getByRole('button', { name: 'Position Start', exact: true }).click();
   assert.equal(await picker().count(), 0);
-  checks.push('The picker stays while the athletes are on their feet, and leaves once an exchange settles or a start is off the feet.');
+  checks.push('The picker stays while the athletes are on their feet, also beside the match greeting, which a new stance ends; it leaves once an exchange settles or a start is off the feet.');
   await match.close();
 
   // ---- Phones ----

@@ -309,6 +309,10 @@ async function exchange(page, move, unity, own = true, start = arenaStart(move))
   assert.ok(pick >= 0, `${own ? move.name : `a technique other than ${move.name}`} is on offer (${offered.map((choice) => choice.name).join(', ')})`);
   await choices.nth(pick).click();
   await page.locator('.sequence-panel .order-stack').waitFor();
+  // A match that starts on the feet opens with the match greeting in the stance clip's place
+  // (tools/test_match_moments.mjs). Choosing the technique ends it, as it does for a player, so
+  // the box measured here is the stance clip's.
+  assert.equal(await page.locator(`${MAT} .unreal-clip-stage[data-kind="moment"]`).count(), 0, 'choosing a technique ends the match greeting');
   const stance = page.locator(`${MAT} .unreal-clip-stage[data-kind="stance"] .unreal-clip-viewport`);
   const stanceBox = await stance.count() ? await pageBox(stance) : null;
   const unityMark = unity?.count() ?? 0;

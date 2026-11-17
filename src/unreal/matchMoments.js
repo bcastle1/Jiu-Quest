@@ -1,8 +1,9 @@
 // Match moments: three short pre-rendered Unreal clips around a match. They
 // are not techniques and not stances.
 //
-//   match_greeting  the two athletes slap hands and bump fists before a match
-//                   that starts on the feet; it ends in the standing stance
+//   match_greeting  before a match that starts on the feet, the two athletes
+//                   rise from the standing stance, bump fists and settle back
+//                   into it
 //   match_win       a short celebration after a match the player won
 //   match_loss      a tired, respectful reaction after a match the player lost
 //

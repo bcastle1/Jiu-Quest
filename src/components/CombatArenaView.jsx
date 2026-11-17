@@ -75,6 +75,9 @@ export default function CombatArenaView({
   // is treated as a start. Focus that is on a control, such as the menu
   // button pressed to come back during a match, is still left alone.
   const lastPhaseRef = useRef(null);
+  // Whether focus was on the stance loop's own controls (its Pause or camera
+  // buttons) when Restart match was pressed: see the greeting's focus effect.
+  const stanceFocusRef = useRef(false);
   const opponent = combat.npc;
   const position = getPositionForSide(combat, "fighter");
   const positionLabel = getArenaPositionLabel(combat);
@@ -188,6 +191,20 @@ export default function CombatArenaView({
     }
   }, [combat.phase]);
 
+  // Restart match while a technique is being chosen keeps the phase, so the
+  // effect above does not run. A restart on the feet greets, and the greeting
+  // takes the stance loop's place, the loop's own buttons with it. Focus that
+  // was on one of them (a browser that does not focus a button it clicks, such
+  // as Safari, leaves it there) would drop to the page: it goes to the technique
+  // heading instead, where a start puts it. Focus anywhere else stays where it
+  // is, and so does focus on a loop that stays because there is no greeting.
+  useEffect(() => {
+    const lost = stanceFocusRef.current;
+    stanceFocusRef.current = false;
+    const focused = document.activeElement;
+    if (greeting && lost && (!focused || focused === document.body)) chooseRef.current?.focus({ preventScroll: true });
+  }, [greeting]);
+
   const begin = (startPosition) => {
     startCombat(opponent, startPosition);
     announce(`Match started against ${opponent.name} from ${getArenaPositionLabel(startPosition)}. Choose your first technique.`, "success");
@@ -239,6 +256,8 @@ export default function CombatArenaView({
       announce("Restart cancelled. Your current match is unchanged.");
       return;
     }
+    // Whether focus is on the stance loop's own controls, which a greeting would take away.
+    stanceFocusRef.current = Boolean(matRef.current?.querySelector('.unreal-clip-stage[data-kind="stance"]')?.contains(document.activeElement));
     const startPosition = createArenaState(combat.startPosition).position;
     startCombat(opponent, startPosition);
     announce(`Match restarted against ${opponent.name} from ${getArenaPositionLabel(startPosition)}.`, "success");

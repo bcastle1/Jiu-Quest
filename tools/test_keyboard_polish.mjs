@@ -4,7 +4,9 @@
 // Admin access dialog while it is open and goes back to the Admin button when
 // it closes; starting an Arena match or preparing the next action leaves focus
 // on the technique heading instead of dropping it on the page, without
-// scrolling; and the heading typeface is named in index.html so it is fetched
+// scrolling (a match that starts on the feet opens with the match greeting
+// meanwhile, and one Tab still reaches the first technique); and the heading
+// typeface is named in index.html so it is fetched
 // with the page, once. It checks the page. It never types into the Admin
 // access field, and it does not run Unity, Unreal or any stream.
 import assert from 'node:assert/strict';
@@ -335,13 +337,17 @@ async function arenaByKeyboard() {
   const atStart = await arenaView();
   await page.keyboard.press('Enter');
   await hint('Select your response from standing.');
+  // A match that starts on the feet opens with the match greeting in the stance clip's place
+  // (tools/test_match_moments.mjs checks it). Focus is not sent to it, and the keys below go
+  // past it the way a player's would: choosing a technique ends it.
+  assert.equal(await page.locator('.mat-window .unreal-clip-stage[data-kind="moment"][data-move="match_greeting"]').count(), 1, 'the match greeting plays');
   assert.equal(await focused(), HEADING, 'Standing Start leaves focus on the technique heading, not on the page');
   assert.equal(await page.evaluate(() => Boolean(document.activeElement.closest('aside[aria-label="Technique selection"]'))), true);
   const started = await arenaView();
   assert.equal(started.scrollY, atStart.scrollY, 'Standing Start does not scroll the page');
   await capture(`${size.name}-arena-keyboard-start`);
   await page.keyboard.press('Tab');
-  assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('aside[aria-label="Technique selection"] .combat-moves button:not([disabled])')), true, `one Tab reaches the first technique that can be chosen (focus is on ${await focused()})`);
+  assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('aside[aria-label="Technique selection"] .combat-moves button:not([disabled])')), true, `one Tab reaches the first technique that can be chosen, past the greeting (focus is on ${await focused()})`);
 
   // One exchange. The rival picks its technique at random, and about one pick
   // in four from standing is a submission that ends the match there and then.
@@ -550,7 +556,7 @@ try {
   checks.push('The Admin access dialog opens with focus in its field; Tab and Shift+Tab go round inside it and never leave; Escape and the Close button return focus to the Admin button without scrolling the page.');
 
   for (size of SIZES) { await arenaByKeyboard(); await arenaByPointer(); await arenaReturn(); await arenaFromOverview(); }
-  checks.push('Standing Start and Prepare Next Action by keyboard leave focus on the Choose a technique heading without scrolling to it, and one Tab reaches the first technique.');
+  checks.push('Standing Start and Prepare Next Action by keyboard leave focus on the Choose a technique heading without scrolling to it, and one Tab reaches the first technique (after Standing Start, past the match greeting playing in the stance clip\'s place).');
   checks.push('Kneeling Start by mouse or touch leaves focus on the heading, not the page; Restart match keeps focus; coming back to the Arena during a match does not move focus.');
   checks.push('The Overview\'s Open Arena button, which starts a match and opens the Arena together, leaves focus on the heading.');
 

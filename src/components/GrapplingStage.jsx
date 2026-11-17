@@ -38,6 +38,13 @@ export default function GrapplingStage({ idleStanding = false, onRendererChange,
   // paused if it was paused. Any other picture forgets them.
   const [stanceCamera, setStanceCamera] = useState(null);
   const [stancePlays, setStancePlays] = useState(null);
+  // A still of the frame the greeting ended on, when it played to its end on
+  // the first frame of the loop that follows (see `endsOnLoop` below). The loop
+  // that mounts in its place takes it, so it is held here for that one render.
+  const [handover, setHandover] = useState(null);
+  useEffect(() => {
+    if (handover !== null) setHandover(null);
+  }, [handover]);
   const choose = event => {
     const value = event.target.value, url = new URL(window.location.href);
     url.searchParams.set('engine', value);
@@ -65,7 +72,7 @@ export default function GrapplingStage({ idleStanding = false, onRendererChange,
   const picture = !idleStanding && chooseTechniquePicture({ moveId: props.moveId, clipMoveId: clipMoveId === undefined ? props.moveId : clipMoveId, performerSide: clipPerformerSide ?? props.performerSide, engine, search: window.location.search, views: unrealClipViews });
   // The picture without a match moment: exactly what showed before moments.
   const usual = idleClip
-    ? <UnrealClipStage key="stance" moveId={idle.moveId} performerSide={idle.performerSide} moveLabel={IDLE_CLIP.label} camera={stanceCamera} onCameraChange={setStanceCamera} wantsPlay={stancePlays} onWantsPlayChange={setStancePlays} fighter={props.fighter} opponent={props.opponent} compact={props.compact} fallback={stage} />
+    ? <UnrealClipStage key="stance" moveId={idle.moveId} performerSide={idle.performerSide} moveLabel={IDLE_CLIP.label} camera={stanceCamera} onCameraChange={setStanceCamera} wantsPlay={stancePlays} onWantsPlayChange={setStancePlays} opening={handover} fighter={props.fighter} opponent={props.opponent} compact={props.compact} fallback={stage} />
     : picture && picture.kind === 'clip'
       ? <UnrealClipStage key={`technique:${picture.moveId}:${picture.performerSide}:${props.signal ?? ''}`} kind="technique" moveId={picture.moveId} performerSide={picture.performerSide} moveLabel={props.moveLabel} study={Boolean(props.compact)} camera={camera ?? picture.camera} onCameraChange={setCamera} rate={rate} onRateChange={setRate} fighter={props.fighter} opponent={props.opponent} onUnavailable={onClipUnavailable} fallback={stage} />
       : stage;
@@ -76,7 +83,18 @@ export default function GrapplingStage({ idleStanding = false, onRendererChange,
   // frame.
   const greeting = momentId === MATCH_GREETING;
   const momentFits = isMatchMoment(momentId) && engine !== 'unreal' && (greeting ? Boolean(idleClip) && !prefersReducedMotion() : !idleStanding);
-  const moment = momentFits ? findMatchMoment(momentId, greeting ? loopView.camera : undefined) : null;
+  const published = momentFits ? findMatchMoment(momentId, greeting ? loopView.camera : undefined) : null;
+  // The greeting is rendered to rise out of the standard stance loop of the
+  // player's athlete and to settle back into that loop's first frame, in one
+  // view. It plays only over that loop, in that view: there it runs in and out
+  // without a seam, and its last frame is handed to the loop that follows, so
+  // the loop takes over from the frame the greeting stopped on instead of from
+  // its own poster. Over any other loop (the player's own stance, a rival's
+  // stance, or a view the greeting was not rendered from) both cuts would show,
+  // an athlete snapping from one stance into another or the camera flipping
+  // twice, so there is no greeting there and that loop carries on.
+  const endsOnLoop = greeting && Boolean(published) && idle.moveId === IDLE_CLIP.moveId && idle.performerSide === published.performerSide && loopView.camera === published.camera;
+  const moment = greeting && !endsOnLoop ? null : published;
   // A moment that cannot be shown here is over before it starts. Say so after
   // the render, so whoever asked for it can stop asking.
   const momentMissing = Boolean(momentId) && !moment;
@@ -86,7 +104,7 @@ export default function GrapplingStage({ idleStanding = false, onRendererChange,
   return <>
     {local && <label className="unreal-renderer-choice">Character graphics<select aria-label="Character graphics" value={engine} onChange={choose}><option value="unity">Unity</option><option value="unreal">Unreal · local preview</option><option value="snapshot">Position snapshots</option></select></label>}
     {moment
-      ? <UnrealClipStage key={`moment:${moment.moveId}:${props.signal ?? ''}`} kind="moment" moveId={moment.moveId} moveLabel={MATCH_MOMENT_TITLES[moment.moveId]} holdLastFrame={!greeting} camera={greeting ? moment.camera : undefined} backdrop={greeting ? loopView.poster : undefined} fighter={props.fighter} opponent={props.opponent} onDone={onMomentDone} fallback={usual} />
+      ? <UnrealClipStage key={`moment:${moment.moveId}:${props.signal ?? ''}`} kind="moment" moveId={moment.moveId} moveLabel={MATCH_MOMENT_TITLES[moment.moveId]} holdLastFrame={!greeting} camera={greeting ? moment.camera : undefined} backdrop={greeting ? loopView.poster : undefined} fighter={props.fighter} opponent={props.opponent} onDone={onMomentDone} onLastFrame={endsOnLoop ? setHandover : undefined} fallback={usual} />
       : usual}
   </>;
 }

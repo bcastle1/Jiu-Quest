@@ -1,30 +1,47 @@
-// Verifies the three match moments in a real browser, before any of their
-// clips is published: the greeting before a match that starts on the feet
-// (match_greeting), and the end of a finished match (match_win, match_loss).
+// Verifies the three match moments in a real browser: the greeting before a
+// match that starts on the feet (match_greeting), and the end of a finished
+// match (match_win, match_loss). Only the greeting's side view is published;
+// the win and the loss are not.
 //
-// It builds one test bundle into tmp/ whose clip list is the real one plus
-// fixture entries for the three moments: the published standing-stance files of
-// the player's athlete, relabelled as clips that play once (no new video). The
-// bundle is never published. With it, at 1440x900 and 390x844, it checks that
-// the greeting plays once in the stance loop's picture box and hands over to
-// the loop without moving anything, that a technique can be chosen while it
-// plays, that a new stance, Skip, a kneeling start, leaving the Arena, a clip
-// that cannot load and reduced motion each leave the stance loop showing, that
-// it opens on the view the stance loop is showing, that a loop the player
-// paused is still paused when it comes back, that its box shows the stance
-// loop's still while its own files are on their way, that it gives way by
-// itself when those files never arrive or stop part of the way through, and
-// that a finished match offers "Match result" and "Final exchange": the moment
-// plays once and holds with Replay, the final exchange is exactly what the
-// release build shows, the toggle is a keyboard and touch control that never
-// moves, the picture the player chose is still the one showing after a visit
-// to Training, and reduced motion starts on the final exchange. One more pass
-// at 320 pixels checks that the greeting and that header fit the narrowest
-// phone.
-// Against the release build (dist/) it checks that nothing changed: the stance
-// loop keeps playing through Standing Start in the same <video>, focus stays
-// where a start leaves it, a finished match has no toggle, and no match moment
-// file is asked for.
+// Against the release build (dist/), with the real greeting, at 1440x900 and
+// 390x844, it checks that Standing Start plays the greeting once in the stance
+// loop's place, with focus on the technique heading, and that the stance loop
+// takes over from the greeting's last frame: that frame stays in the box until
+// the loop's own first frame is on screen, it is the loop's first frame, and
+// the loop's poster (a frame halfway through the loop) never shows in between,
+// also when the loop's file is slow. It checks that Skip hands over to the
+// loop at once, that reduced motion has no greeting (and that a start then
+// leaves focus where it was, also on the stance loop's own control), that there
+// is no greeting over any loop but the one it was rendered for (none over the
+// front view of the standard loop, over the karate loop of the player's own
+// stance, or over the sumo loop of the rival who holds sumo base) and none of
+// its files is asked for there, that a Restart match which does not move focus
+// from the stance loop's Pause button greets with focus on the technique
+// heading, during the greeting and after it, and that a finished match has no
+// "Match result" header, because neither end-of-match moment is published,
+// and asks for none of their files.
+//
+// The rest runs in a test bundle built into tmp/ whose clip list is the real
+// one, less the real match moment entries, plus fixture entries for the three
+// moments: the published standing-stance files of the player's athlete,
+// relabelled as clips that play once (no new video). The bundle is never
+// published. With it, at 1440x900 and 390x844, it checks that the greeting
+// plays once in the stance loop's picture box and hands over to the loop
+// without moving anything, that a technique can be chosen while it plays, that
+// a new stance, Skip, a kneeling start, leaving the Arena, a clip that cannot
+// load and reduced motion each leave the stance loop showing, that there is no
+// greeting over the karate loop while the bundle's front greeting plays over
+// the front view of the standard loop, that a loop the player paused is still
+// paused when it comes back (resting on the frame the greeting ended on), that
+// its box shows the stance loop's still while its own files are on their way,
+// that it gives way by itself when those files never arrive or stop part of the
+// way through, and that a finished match offers "Match result" and "Final
+// exchange": the moment plays once and holds with Replay, the final exchange is
+// exactly what the release build shows, the toggle is a keyboard and touch
+// control that never moves, the picture the player chose is still the one
+// showing after a visit to Training, and reduced motion starts on the final
+// exchange. One more pass at 320 pixels checks that the greeting and that
+// header fit the narrowest phone.
 // Unity's build manifest answers 404 here, so a Unity stage shows without
 // starting WebGL. It checks video files played by the browser. It does not run
 // Unreal or any stream.
@@ -51,7 +68,7 @@ await mkdir(artifacts, { recursive: true });
 const checks = [], images = [], errors = [], consoleErrors = [], expectedConsoleErrors = [], failedResponses = [], layouts = [];
 const browserOptions = { headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) };
 const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.mp4': 'video/mp4', '.wasm': 'application/wasm', '.data': 'application/octet-stream', '.glb': 'model/gltf-binary' };
-const report = { startedAtUtc: new Date().toISOString(), status: 'running', scope: 'Fixture match moment clips (relabelled stance files) in a test bundle, and the release build without them, in desktop Chromium with phone viewport and touch emulation. No Unreal runtime, no WebGL, no physical device.' };
+const report = { startedAtUtc: new Date().toISOString(), status: 'running', scope: 'The release build with its published match greeting, and fixture match moment clips (relabelled stance files) in a test bundle, in desktop Chromium with phone viewport and touch emulation. No Unreal runtime, no WebGL, no physical device.' };
 const STORAGE_KEY = 'jiuquest:v1';
 const MAT = '.mat-window';
 // A wide screen with a mouse, and a phone with touch.
@@ -79,6 +96,9 @@ const SEED = 20261115;
 const IDLE = stanceLoop(DEFAULT_STANCE, defaultNpcs[0].stance);
 const IDLE_CLIP = findUnrealClip(IDLE.moveId, IDLE.performerSide);
 const FIXTURE_SECONDS = IDLE_CLIP.frames / IDLE_CLIP.fps;
+// The greeting the release build plays: the published side view.
+const GREETING = findUnrealClip(MATCH_GREETING, 'fighter', 'side');
+const GREETING_SECONDS = GREETING ? GREETING.frames / GREETING.fps : 0;
 // How much later than its time limit a greeting may be seen to give way: the
 // limit is a timer in the page, and a busy machine runs it late, never early.
 const LATE = 3000;
@@ -132,14 +152,15 @@ function send(response, bytes, offset, asked) {
   if (offset < stall.bytes) response.write(bytes.subarray(0, stall.bytes - offset));
 }
 
-// The bundle's own files first, then the release build. A fixture path is
-// served from the stance file it relabels.
+// The bundle's own files first, then the release build. In the test bundle a
+// fixture path is served from the stance file it relabels; the release build
+// gets its own files, the real greeting among them.
 async function staticSite() {
   await stat(resolve(dist, 'index.html'));
   server = createServer(async (request, response) => {
     try {
       const asked = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
-      const pathname = asked.replace(new RegExp(`^/assets/unreal-clips/(${MATCH_MOMENT_IDS.join('|')})/`), '/assets/unreal-clips/standing_stance/');
+      const pathname = bundle === dist ? asked : asked.replace(new RegExp(`^/assets/unreal-clips/(${MATCH_MOMENT_IDS.join('|')})/`), '/assets/unreal-clips/standing_stance/');
       const relative = `.${pathname.endsWith('/') ? `${pathname}index.html` : pathname}`;
       for (const root of [...new Set([bundle, dist])]) {
         const file = resolve(root, relative);
@@ -181,10 +202,43 @@ async function staticSite() {
 // starts counting only when the check lets go (window.__releaseTimers), so the
 // limit cannot run out while the check is still looking. Every other timer,
 // and every timer while `holdTimers` is off, runs as it always does.
+// Each stance loop's <video> gets an entry in `loops`: its file, whether the
+// greeting's last frame (the canvas .unreal-clip-handover) lay over it when it
+// was put on the page, every painted frame until the browser presented a frame
+// of the video's own (with whether the still covered it then), that first
+// presented frame, and when the still went. A check that wants to look at that
+// first frame sets `pauseLoopOnFirstFrame`: the loop is then paused on it.
 function watchPage({ limits }) {
-  window.__moments = { stages: [], videos: [], transport: [], waits: [], shifts: [], finishedWithoutToggle: 0, hold: false, held: 0, holdTimers: false, timersKept: 0 };
+  window.__moments = { stages: [], videos: [], transport: [], waits: [], shifts: [], loops: [], finishedWithoutToggle: 0, hold: false, held: 0, holdTimers: false, timersKept: 0, pauseLoopOnFirstFrame: false };
   const log = window.__moments;
   const at = () => Math.round(performance.now());
+  const loopVideos = new Map();
+  let shownStill = null;
+  const lookAtLoops = () => {
+    const stage = document.querySelector('.mat-window .unreal-clip-stage[data-kind="stance"]');
+    const video = stage?.querySelector('video');
+    const still = stage?.querySelector('.unreal-clip-handover') ?? null;
+    if (video && !loopVideos.has(video)) {
+      const entry = { path: new URL(video.getAttribute('src'), location.href).pathname, poster: video.getAttribute('poster'), born: at(), stillAtBirth: Boolean(still), frames: [], firstFrame: null, stillGone: null };
+      loopVideos.set(video, entry);
+      log.loops.push(entry);
+      video.requestVideoFrameCallback?.((now, meta) => {
+        entry.firstFrame = { at: Math.round(now), mediaTime: meta.mediaTime, presentedFrames: meta.presentedFrames };
+        if (log.pauseLoopOnFirstFrame) { log.pauseLoopOnFirstFrame = false; video.pause(); }
+      });
+    }
+    if (shownStill && !shownStill.still.isConnected && shownStill.entry.stillGone === null) shownStill.entry.stillGone = at();
+    if (still && video) shownStill = { still, entry: loopVideos.get(video) };
+  };
+  new MutationObserver(lookAtLoops).observe(document, { childList: true, subtree: true });
+  const paintedFrame = (now) => {
+    lookAtLoops();
+    const stage = document.querySelector('.mat-window .unreal-clip-stage[data-kind="stance"]');
+    const entry = loopVideos.get(stage?.querySelector('video'));
+    if (entry && entry.firstFrame === null && entry.frames.length < 600) entry.frames.push({ at: Math.round(now), still: Boolean(stage.querySelector('.unreal-clip-handover')) });
+    requestAnimationFrame(paintedFrame);
+  };
+  requestAnimationFrame(paintedFrame);
   const [startTimer, stopTimer] = [window.setTimeout.bind(window), window.clearTimeout.bind(window)];
   const kept = new Map();
   let keptIds = 0;
@@ -487,15 +541,18 @@ async function greetingPlaysOnce() {
   assert.ok(ended.time >= FIXTURE_SECONDS - 0.2, `it played to its end (${ended.time} of ${FIXTURE_SECONDS} seconds)`);
   const handOver = seen.stages[2].at - ended.at;
   assert.ok(handOver >= 0 && handOver < 500, `the loop takes over as the greeting ends (${handOver} ms)`);
+  // It ended on the side view of the standard loop it took the place of, so it handed its last
+  // frame to the loop, which kept it until a frame of its own was on screen.
+  const loop = checkHandover(seen);
   // How long this machine took to start the greeting's picture. The greeting gives way if
   // that takes longer than its time limit, which this check kept back (see holdNextGreeting).
   const startedAfter = played[0].at - seen.stages[1].at;
   // Nothing on the page moved when the loop took over, which nobody pressed anything for.
   assert.equal(seen.shiftsWatched, true, 'this browser reports layout shifts');
   assert.deepEqual(seen.shifts.filter((shift) => shift.at >= seen.stages[1].at - 50), [], 'no layout shift from the start of the greeting on');
-  layouts.push({ check: 'greeting', size: size.name, viewport: page.viewportSize(), before, during, after, startMilliseconds: startedAfter, handOverMilliseconds: handOver });
+  layouts.push({ check: 'greeting', size: size.name, viewport: page.viewportSize(), before, during, after, startMilliseconds: startedAfter, handOverMilliseconds: handOver, stillFrames: loop.frames.length });
   await context.close();
-  checks.push(`${size.name}: Standing Start plays the greeting once in the stance loop's place, silent and inline, with focus on the technique heading and techniques ready to choose (its picture started moving ${startedAfter} ms after it took the loop's place; the limit is ${PASSING_MOMENT_PATIENCE.start} ms); when it ends the stance loop takes over in the same boxes ${handOver} ms later, with no layout shift.`);
+  checks.push(`${size.name}: Standing Start plays the greeting once in the stance loop's place, silent and inline, with focus on the technique heading and techniques ready to choose (its picture started moving ${startedAfter} ms after it took the loop's place; the limit is ${PASSING_MOMENT_PATIENCE.start} ms); when it ends the stance loop takes over in the same boxes ${handOver} ms later, under the greeting's last frame until its own first frame is there, with no layout shift.`);
 }
 
 // Each way the greeting gives way before its end leaves the stance loop showing.
@@ -549,6 +606,9 @@ async function greetingGivesWay() {
   await page.waitForTimeout(400);
   assert.equal(await momentStage().count(), 0, 'coming back to a running match does not greet again');
   assert.equal(await count(), 4);
+  // None of these greetings played to its end, so none handed its last frame on: each loop
+  // after them opened as a loop always does.
+  assert.deepEqual((await log()).loops.filter((loop) => loop.stillAtBirth), [], 'a greeting cut short hands no frame on');
 
   // A start that is not on the feet has no greeting.
   await page.reload();
@@ -575,8 +635,30 @@ async function greetingGivesWay() {
   checks.push(`${size.name}: choosing a technique, a new starting stance, Skip and leaving the Arena each end the greeting and leave the stance loop showing; Restart match and the Overview's Open Arena greet again; Kneeling Start does not.`);
 }
 
-// The greeting opens on the view the stance loop is showing, with that view's
-// still behind it: the camera never flips between the loop and the greeting.
+// Presses `start` (a start on the feet) while `clip` is the stance loop on
+// screen, where there is no greeting: the loop carries on in the same <video>,
+// playing, and no match moment file is asked for.
+async function noGreetingOver(clip, start) {
+  await stanceStage().locator('video').evaluate((element) => { element.dataset.mark = 'the loop before the start'; });
+  const stagesBefore = (await log()).stages.length;
+  const askedBefore = momentRequests.length;
+  await start();
+  await hint('Select your response from standing.');
+  await page.waitForTimeout(900);
+  const seen = await log();
+  assert.deepEqual(seen.stages.slice(stagesBefore).map((entry) => entry.stage), [], `no greeting over ${clip.video}: the mat window kept the one stage it had`);
+  const state = await video();
+  assert.deepEqual([state.path, state.mark, state.paused, state.loop], [clip.video, 'the loop before the start', false, true], `${clip.video} carries on in the same <video>`);
+  await untilPlaying('stance', clip.video);
+  assert.deepEqual(momentRequests.slice(askedBefore), [], `no match moment file is asked for over ${clip.video}`);
+}
+
+// The greeting plays only over the loop it was rendered for: the standard
+// stance loop of the player's athlete, in a view the greeting has. There it
+// opens on the view the loop is showing, with that view's still behind it, and
+// hands its last frame to the loop. Over another loop, here the karate loop,
+// there is no greeting: the cuts into it and out of it would show the white
+// athlete snap from his stance into the crouch and back.
 async function greetingFollowsTheLoop() {
   const context = await open();
   await openArena();
@@ -588,11 +670,6 @@ async function greetingFollowsTheLoop() {
   const cameras = () => stanceStage().getByRole('group', { name: 'Camera view', exact: true });
   const stances = page.getByRole('radiogroup', { name: 'Starting stance', exact: true });
   const shown = async () => [await momentStage().getAttribute('data-camera'), (await video()).path, await stillBehind()];
-  const loopBack = async (clip) => {
-    await greetingResumed();
-    await momentStage().waitFor({ state: 'detached', timeout: 30000 });
-    await untilPlaying('stance', clip.video);
-  };
 
   // The player looks at the standard loop from the front, then picks the karate stance, whose
   // loop has a side view only: that loop shows from the side, with no camera buttons.
@@ -601,26 +678,26 @@ async function greetingFollowsTheLoop() {
   await stances.getByRole('radio', { name: 'Karate Stance', exact: true }).check();
   await untilPlaying('stance', karateClip.video);
   assert.deepEqual([await stanceStage().getAttribute('data-camera'), await cameras().count()], ['side', 0]);
-  // Standing Start: the greeting opens on the side, where this loop is, over this loop's still.
-  await holdNextGreeting();
-  await press(button('Standing Start'));
-  const side = await greetingHeld('side');
-  assert.deepEqual(await shown(), ['side', side.video, karateClip.poster], 'over a loop that shows from the side, the greeting opens on the side');
-  await loopBack(karateClip);
-  assert.equal(await stanceStage().getAttribute('data-camera'), 'side');
+  // Standing Start: no greeting over the karate loop, which carries on.
+  await noGreetingOver(karateClip, () => press(button('Standing Start')));
 
   // Back in the wrestling stance the loop has the front view the player chose, and shows it.
-  // Restart match: the greeting opens on the front, over the front still, and the loop comes back on the front.
+  // Restart match: the test bundle's greeting has a front view, so it opens on the front, over the
+  // front still, and the loop comes back on the front.
   await stances.getByRole('radio', { name: 'Wrestling Stance', exact: true }).check();
   await untilPlaying('stance', front.video);
   await holdNextGreeting();
   await press(restartButton());
   const ahead = await greetingHeld('front');
   assert.deepEqual(await shown(), ['front', ahead.video, front.poster], 'over a loop that shows from the front, the greeting opens on the front');
-  await loopBack(front);
+  await greetingResumed();
+  await momentStage().waitFor({ state: 'detached', timeout: 30000 });
+  await untilPlaying('stance', front.video);
   assert.equal(await stanceStage().getAttribute('data-camera'), 'front');
+  // A front view of the greeting ends on the front view of the standard loop, so the loop takes over from it.
+  checkHandover(await log(), front);
   await context.close();
-  checks.push(`${size.name}: the greeting opens on the view the stance loop is showing, over that view's still: the side for the karate loop (which has no front view) although Front was chosen on the standard loop before, and the front once the standard loop is back.`);
+  checks.push(`${size.name}: there is no greeting over the karate loop (Standing Start leaves it playing in the same <video>, and no match moment file is asked for); back on the standard loop, which keeps the Front view the player chose before, Restart match plays the test bundle's front greeting on the front, over the front still, and the standard loop's front view takes over from its last frame.`);
 }
 
 // A stance loop the player paused is still paused when it comes back after the
@@ -644,7 +721,9 @@ async function pausedLoopStaysPaused() {
   assert.equal(await onHeading(), true, 'Standing Start leaves focus on the technique heading');
   await greetingResumed();
   await momentStage().waitFor({ state: 'detached', timeout: 30000 });
-  // The loop that comes back is the paused one: it rests on its still, with Play to start it.
+  // The loop that comes back is the paused one, with Play to start it. It rests on the frame the
+  // greeting ended on, which the greeting handed over: a loop that has not played yet has shown
+  // no frame of its own, so that frame stays.
   await stanceStage().waitFor();
   await page.waitForFunction((selector) => document.querySelector(selector)?.readyState >= 1, loopVideo);
   // Longer than one turn of the loop: time enough to start, if it were going to.
@@ -653,6 +732,7 @@ async function pausedLoopStaysPaused() {
   assert.deepEqual([state.path, state.loop, state.paused, state.time], [IDLE_CLIP.video, true, true, 0], 'after the greeting the stance loop is back, still paused');
   assert.deepEqual(await texts(transport()), ['Play']);
   assert.equal(await loopStarts(), startsBefore, 'the loop did not start by itself');
+  assert.deepEqual([await page.locator(HANDOVER_STILL).count(), (await log()).loops.at(-1).stillAtBirth], [1, true], 'the paused loop rests on the frame the greeting ended on');
 
   // A greeting cut short by choosing a technique leaves the loop paused too.
   await holdNextGreeting();
@@ -666,13 +746,30 @@ async function pausedLoopStaysPaused() {
   state = await video();
   assert.deepEqual([state.paused, state.time, await texts(transport())], [true, 0, ['Play']], 'after a greeting cut short by a technique the stance loop is still paused');
   assert.equal(await loopStarts(), startsBefore);
+  assert.equal(await page.locator(HANDOVER_STILL).count(), 0, 'a greeting cut short hands no frame on');
 
   // Play is the player's to press: the loop moves again.
   await press(transport());
   await untilPlaying('stance', IDLE_CLIP.video);
   assert.deepEqual(await texts(transport()), ['Pause']);
+
+  // Paused again, and greeted to the end once more: the loop rests on the greeting's last frame
+  // until Play, and the frame goes as the loop moves.
+  await press(transport());
+  await page.waitForFunction((selector) => document.querySelector(selector)?.paused === true, loopVideo);
+  await holdNextGreeting();
+  await press(restartButton());
+  await greetingHeld();
+  await greetingResumed();
+  await momentStage().waitFor({ state: 'detached', timeout: 30000 });
+  await page.locator(HANDOVER_STILL).waitFor();
+  await page.waitForTimeout(600);
+  assert.deepEqual([await page.locator(HANDOVER_STILL).count(), (await video()).paused, await texts(transport())], [1, true, ['Play']], 'paused, the loop rests on the greeting\'s last frame');
+  await press(transport());
+  await untilPlaying('stance', IDLE_CLIP.video);
+  await page.locator(HANDOVER_STILL).waitFor({ state: 'detached', timeout: 15000 });
   await context.close();
-  checks.push(`${size.name}: a stance loop the player paused is greeted like any other, and is still paused when it comes back, after the greeting and after a greeting cut short by choosing a technique; it starts again only when Play is pressed.`);
+  checks.push(`${size.name}: a stance loop the player paused is greeted like any other, and is still paused when it comes back, after the greeting (resting on the frame the greeting ended on) and after a greeting cut short by choosing a technique (on its poster); it starts again only when Play is pressed, and the greeting's frame goes as it moves.`);
 }
 
 async function greetingCannotLoad() {
@@ -896,10 +993,11 @@ async function finishedWithoutMoments({ saved, techniqueName, rival, search }) {
   const result = await playToTheEnd({ techniqueName, rival, expectToggle: false });
   await pictureReady();
   await painted();
-  assert.equal(await page.locator(`${MAT} .mat-window-header, ${MAT} .mat-view-toggle, ${MAT} [data-kind="moment"]`).count(), 0, 'the release build shows no toggle and no moment');
+  assert.equal(await page.locator(`${MAT} .mat-window-header, ${MAT} .mat-view-toggle, ${MAT} [data-kind="moment"]`).count(), 0, 'the release build shows no toggle and no moment at the end of a match: neither the win nor the loss is published');
   const picture = { html: await matPicture(), box: await pictureBox() };
-  assert.deepEqual((await stages()).filter((stage) => stage.startsWith('moment:')), [], 'the release build never drew a moment stage');
-  assert.deepEqual(momentRequests, [], 'the release build asked for no match moment file');
+  // The one moment it draws is the greeting, at the start, cut short by the first technique.
+  assert.deepEqual((await stages()).filter((stage) => stage.startsWith('moment:')), [`moment:${MATCH_GREETING}`], 'the only moment the release build drew is the greeting at the start of the match');
+  assert.deepEqual(momentRequests.filter((path) => !path.startsWith(`/assets/unreal-clips/${MATCH_GREETING}/`)), [], 'the release build asked for no end-of-match file');
   await context.close();
   return { result, picture };
 }
@@ -1170,49 +1268,402 @@ async function narrowPhone() {
   checks.push(`${size.name}: at 320 pixels the greeting and the finished match's header fit with nothing scrolling sideways; "Match result" and "Final exchange" are whole and ${Math.min(...choices.map((choice) => choice.height))} pixels high.`);
 }
 
-// ---- The release build: nothing changed ----
+// ---- The release build: the published greeting ----
 
-async function releaseUnchanged() {
+const HANDOVER_STILL = `${MAT} .unreal-clip-stage[data-kind="stance"] .unreal-clip-handover`;
+const LOOP_VIDEO = `${MAT} .unreal-clip-stage[data-kind="stance"] video`;
+
+// The release build's greeting, stopped by holdNextGreeting the moment it started playing.
+async function realGreetingHeld() {
+  await momentStage(MATCH_GREETING).waitFor();
+  await page.waitForFunction(({ selector, wanted }) => {
+    const element = document.querySelector(selector);
+    return window.__moments.hold === false && window.__moments.held > 0 && Boolean(element) && new URL(element.currentSrc || element.src).pathname === wanted && element.readyState >= 2 && element.paused && !element.ended;
+  }, { selector: MOMENT_VIDEO, wanted: GREETING.video }, { timeout: 30000 });
+  await releaseTimeLimits();
+}
+
+// The greeting's stage in the release build: its words, its one control, the
+// published clip, and the still of the stance loop behind it.
+async function checkRealGreetingStage() {
+  const stage = momentStage(MATCH_GREETING);
+  const [fighterName, opponentName] = await page.locator('.arena-top .fighter-card strong').allTextContents();
+  assert.deepEqual([await stage.getAttribute('aria-label'), await stage.getAttribute('data-camera'), await stage.getAttribute('data-held')], [`${MATCH_MOMENT_TITLES[MATCH_GREETING]}, Unreal Engine clip`, 'side', 'false']);
+  assert.deepEqual(await stage.locator('.unreal-clip-heading > *').allTextContents(), ['Unreal Engine', MATCH_MOMENT_TITLES[MATCH_GREETING]]);
+  assert.equal(await stage.locator('video').getAttribute('aria-label'), `${MATCH_MOMENT_TITLES[MATCH_GREETING]}. ${fighterName} in the white gi and ${opponentName} in the navy gi, seen from the side.`);
+  checkLegend(await legendLines(page, MAT), `${size.name} release greeting`);
+  assert.deepEqual(await texts(stage.getByRole('button')), ['Skip'], 'the greeting has one control');
+  assert.ok((await stage.getByRole('button').boundingBox()).height >= 44, 'Skip is easy to tap');
+  const state = await video();
+  assert.deepEqual([state.path, state.poster, state.loop, state.muted, state.inline, state.controls], [GREETING.video, GREETING.poster, false, true, true, false], 'the published greeting, silent and inline, never looping');
+  assert.equal(await stillBehind(), IDLE_CLIP.poster, 'behind it, the still of the stance loop whose place it took');
+  assert.equal(await page.locator(`${MAT} .unreal-clip-stage`).count(), 1, 'one stage in the mat window');
+}
+
+// The stance loop that took over from a greeting that played to its end, from
+// what the page wrote down (see watchPage): it was given the frame the greeting
+// ended on, which lay over it from the moment it was put on the page and on
+// every painted frame until the browser presented a frame of the loop's own,
+// and went right after. Its own file and poster are the ones it always has.
+function checkHandover(seen, clip = IDLE_CLIP) {
+  const loop = seen.loops.at(-1);
+  const said = JSON.stringify({ ...loop, frames: loop.frames.length });
+  assert.deepEqual([loop.path, loop.poster, loop.stillAtBirth], [clip.video, clip.poster, true], `the loop that took over has its own file and poster, under the greeting's last frame (${said})`);
+  assert.ok(loop.firstFrame, `the loop presented a frame of its own (${said})`);
+  assert.deepEqual(loop.frames.filter((frame) => !frame.still), [], `the still covered every frame painted before the loop's own (${said})`);
+  // A busy machine can present a frame or two before it gets round to saying so.
+  assert.ok(loop.firstFrame.mediaTime < 0.25, `the loop starts from its beginning (${said})`);
+  assert.ok(loop.stillGone !== null && loop.stillGone >= loop.firstFrame.at - 1 && loop.stillGone - loop.firstFrame.at < 250, `the still went once the loop's own frame was there, and not later than a few frames after (${said})`);
+  return loop;
+}
+
+// Two screenshots of the same box, compared in the page where the athletes
+// stand (the middle of the box, clear of the words and buttons at its edges):
+// the mean difference (0 to 255) and the share of pixels, in percent, that
+// differ by more than 8 levels.
+async function compareShots(left, right) {
+  return page.evaluate(async ([one, two]) => {
+    const pixels = async (source) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${source}`;
+      await image.decode();
+      const canvas = Object.assign(document.createElement('canvas'), { width: image.naturalWidth, height: image.naturalHeight });
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      context.drawImage(image, 0, 0);
+      return { width: canvas.width, height: canvas.height, data: context.getImageData(0, 0, canvas.width, canvas.height).data };
+    };
+    const [a, b] = [await pixels(one), await pixels(two)];
+    if (a.width !== b.width || a.height !== b.height) return { mean: 255, changed: 100 };
+    let total = 0, changed = 0, count = 0;
+    for (let y = Math.round(a.height * 0.22); y < Math.round(a.height * 0.92); y += 1) {
+      for (let x = Math.round(a.width * 0.3); x < Math.round(a.width * 0.7); x += 1) {
+        const index = (y * a.width + x) * 4;
+        const difference = (Math.abs(a.data[index] - b.data[index]) + Math.abs(a.data[index + 1] - b.data[index + 1]) + Math.abs(a.data[index + 2] - b.data[index + 2])) / 3;
+        total += difference; count += 1;
+        if (difference > 8) changed += 1;
+      }
+    }
+    return { mean: Number((total / count).toFixed(2)), changed: Number((100 * changed / count).toFixed(2)) };
+  }, [left.toString('base64'), right.toString('base64')]);
+}
+
+// The still a stance loop was handed, kept in the page as pixels, compared with
+// frames the browser decodes on its own: the greeting's last frame, and the
+// loop's first frame and its middle one (the frame its poster shows). Full
+// size; the mean difference over the whole picture and the share of pixels
+// that differ by more than 8 levels where the athletes stand.
+const keepStill = () => page.evaluate((selector) => {
+  const canvas = Object.assign(document.createElement('canvas'), { width: 1280, height: 720 });
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  context.drawImage(document.querySelector(selector), 0, 0, 1280, 720);
+  window.__keptStill = context.getImageData(0, 0, 1280, 720).data;
+}, HANDOVER_STILL);
+const keptStillAgainstFrames = () => page.evaluate(async ({ greeting, loop }) => {
+  const full = (source) => {
+    const canvas = Object.assign(document.createElement('canvas'), { width: 1280, height: 720 });
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(source, 0, 0, 1280, 720);
+    return context.getImageData(0, 0, 1280, 720).data;
+  };
+  const frameOf = async (clip, frame) => {
+    const element = Object.assign(document.createElement('video'), { src: clip.video, muted: true, preload: 'auto' });
+    await new Promise((done, fail) => { element.addEventListener('loadeddata', done, { once: true }); element.addEventListener('error', fail, { once: true }); });
+    if (frame > 0) {
+      element.currentTime = (frame + 0.5) / clip.fps;
+      await new Promise((done) => element.addEventListener('seeked', done, { once: true }));
+    }
+    return full(element);
+  };
+  const compare = (a, b) => {
+    let total = 0, changed = 0, count = 0;
+    for (let index = 0; index < a.length; index += 4) total += (Math.abs(a[index] - b[index]) + Math.abs(a[index + 1] - b[index + 1]) + Math.abs(a[index + 2] - b[index + 2])) / 3;
+    for (let y = 160; y < 700; y += 1) {
+      for (let x = 384; x < 896; x += 1) {
+        const index = (y * 1280 + x) * 4;
+        if ((Math.abs(a[index] - b[index]) + Math.abs(a[index + 1] - b[index + 1]) + Math.abs(a[index + 2] - b[index + 2])) / 3 > 8) changed += 1;
+        count += 1;
+      }
+    }
+    return { mean: Number((total / (a.length / 4)).toFixed(3)), changed: Number((100 * changed / count).toFixed(2)) };
+  };
+  const still = window.__keptStill;
+  return {
+    greetingLast: compare(still, await frameOf(greeting, greeting.frames - 1)),
+    loopFirst: compare(still, await frameOf(loop, 0)),
+    loopMiddle: compare(still, await frameOf(loop, Math.floor(loop.frames / 2))),
+  };
+}, { greeting: { video: GREETING.video, fps: GREETING.fps, frames: GREETING.frames }, loop: { video: IDLE_CLIP.video, fps: IDLE_CLIP.fps, frames: IDLE_CLIP.frames } });
+
+// Standing Start in the release build: the real greeting plays once in the
+// stance loop's place, and the loop takes over from the frame it ended on.
+async function releaseGreetingPlaysOnce() {
   const context = await open({ release: true });
   await openArena();
-  await stanceStage().locator('video').evaluate((element) => { element.dataset.mark = 'before the start'; });
+  assert.deepEqual(await stages(), [`stance:${IDLE.moveId}`], 'before a match starts the Arena shows the stance loop and no greeting');
+  assert.deepEqual(momentRequests, [], 'no match moment file is asked for before a match starts');
   const before = await stanceBoxes();
+  // A machine that is slow to start a video is not what this check is about: the greeting's
+  // wait for its first moving frame is kept back (see watchPage) until its picture moves.
+  await holdTimeLimits();
+  const standing = button('Standing Start');
+  if (size.touch) await standing.tap(); else { await standing.focus(); await page.keyboard.press('Enter'); }
+  await momentStage(MATCH_GREETING).waitFor();
+  await hint('Select your response from standing.');
+  assert.equal(await onHeading(), true, 'Standing Start leaves focus on the technique heading while the greeting plays');
+  assert.equal(await techniquePanel().locator('.combat-moves button:not([disabled])').count() > 0, true, 'techniques can be chosen while the greeting plays');
+  await checkRealGreetingStage();
+  await page.waitForFunction((path) => window.__moments.videos.some((entry) => entry.type === 'playing' && entry.path === path), GREETING.video, { timeout: 30000 });
+  await releaseTimeLimits();
+  const during = await momentBoxes(MATCH_GREETING);
+  assert.ok(sameBox(before.stage, during.stage) && sameBox(before.picture, during.picture), `the greeting takes exactly the stance loop's place (${JSON.stringify({ before, during })})`);
+  assert.equal(await fits(), true, 'nothing scrolls sideways');
+  await momentStage().scrollIntoViewIfNeeded();
+  await capture('release-greeting');
+
+  // It ends by itself and the loop takes over, in the same boxes.
+  await momentStage().waitFor({ state: 'detached', timeout: 30000 });
+  await untilPlaying('stance', IDLE_CLIP.video);
+  const after = await stanceBoxes();
+  assert.ok(sameBox(before.stage, after.stage) && sameBox(before.picture, after.picture), `the stance loop comes back where it was (${JSON.stringify({ before, after })})`);
+  assert.deepEqual([(await video()).loop, await stanceStage().getAttribute('data-move')], [true, IDLE.moveId]);
+  // Once: it does not come back.
+  await page.waitForTimeout(Math.ceil(GREETING_SECONDS * 1000) + 700);
+  const seen = await log();
+  assert.deepEqual(seen.stages.map((entry) => entry.stage), [`stance:${IDLE.moveId}`, `moment:${MATCH_GREETING}`, `stance:${IDLE.moveId}`], 'stance loop, greeting, stance loop');
+  checkPlaySession(seen, GREETING.video);
+  const played = seen.videos.filter((entry) => entry.path === GREETING.video);
+  assert.ok(played.every((entry) => entry.loop === false && entry.muted === true));
+  const ended = played.find((entry) => entry.type === 'ended');
+  assert.ok(ended.time >= GREETING_SECONDS - 0.2, `it played to its end (${ended.time} of ${GREETING_SECONDS} seconds)`);
+  const handOver = seen.stages[2].at - ended.at;
+  assert.ok(handOver >= 0 && handOver < 500, `the loop takes over as the greeting ends (${handOver} ms)`);
+  // The loop takes over from the frame the greeting ended on, which stays until the loop's own first frame is there.
+  const loop = checkHandover(seen);
+  assert.equal(seen.shiftsWatched, true, 'this browser reports layout shifts');
+  assert.deepEqual(seen.shifts.filter((shift) => shift.at >= seen.stages[1].at - 50), [], 'no layout shift from the start of the greeting on');
+  // It asked for its own files and for nothing of the end of a match.
+  assert.deepEqual([...new Set(momentRequests)].sort(), [GREETING.poster, GREETING.video].sort(), 'the greeting asked for its video and its poster, and for no other match moment file');
+  const startedAfter = played[0].at - seen.stages[1].at;
+  layouts.push({ check: 'release greeting', size: size.name, viewport: page.viewportSize(), before, during, after, startMilliseconds: startedAfter, handOverMilliseconds: handOver, stillFrames: loop.frames.length, stillMilliseconds: loop.stillGone - loop.born });
+  await context.close();
+  const between = loop.frames.length === 0 ? 'no frame was painted before that' : `${loop.frames.length} ${loop.frames.length === 1 ? 'frame was' : 'frames were'} painted before that, all under the still`;
+  checks.push(`${size.name}, release build: Standing Start plays the published greeting (${GREETING.frames} frames, ${GREETING_SECONDS} s) once in the stance loop's place, with focus on the technique heading and techniques ready to choose (its picture started moving ${startedAfter} ms after it took the loop's place). ${handOver} ms after it ended the stance loop took over in the same boxes with the greeting's last frame laid over it; the loop presented its own frame at ${loop.firstFrame.mediaTime} s ${loop.firstFrame.at - loop.born} ms later (${between}), and the still went ${loop.stillGone - loop.firstFrame.at} ms after that. No layout shift; only the greeting's own files were asked for.`);
+}
+
+// On a slow connection the loop's own file takes a while after the greeting
+// ends. Until the loop's first frame is there the box shows the frame the
+// greeting ended on, which is the loop's first frame, and never the loop's
+// poster, a frame halfway through the loop.
+async function releaseHandoverHeldBack() {
+  const context = await open({ release: true });
+  await openArena();
+  await holdNextGreeting();
+  await press(button('Standing Start'));
+  await realGreetingHeld();
+  await momentStage().scrollIntoViewIfNeeded();
+  // From now on the loop's file is held back.
+  const heldBack = [];
+  const loopFile = `**${IDLE_CLIP.video}`;
+  await page.route(loopFile, (route) => { heldBack.push(route); });
+  await greetingResumed();
+  await page.locator(HANDOVER_STILL).waitFor({ timeout: 30000 });
+  assert.equal(await momentStage().count(), 0, 'the greeting has ended');
+  assert.deepEqual(await page.locator(LOOP_VIDEO).evaluate((element) => ({ ready: element.readyState, poster: new URL(element.getAttribute('poster'), location.href).pathname })), { ready: 0, poster: IDLE_CLIP.poster }, 'the loop has no picture of its own yet, and its poster is the one it always has');
+  assert.ok(heldBack.length >= 1, 'the loop asked for its file, which is held back');
+  // The still covers the picture box exactly, trimmed as the video is, over the video.
+  const placed = await stanceStage().locator('.unreal-clip-viewport').evaluate((box) => {
+    const [still, element] = [box.querySelector('.unreal-clip-handover'), box.querySelector('video')];
+    const [inner, outer] = [still.getBoundingClientRect(), box.getBoundingClientRect()];
+    const [style, videoStyle] = [getComputedStyle(still), getComputedStyle(element)];
+    return { covers: ['left', 'top', 'width', 'height'].every((key) => Math.abs(inner[key] - outer[key]) <= 1), fit: [style.objectFit, style.objectPosition], videoFit: [videoStyle.objectFit, videoStyle.objectPosition], shown: [style.visibility, style.opacity, style.display], size: [still.width, still.height], over: box.lastElementChild === still && element.nextElementSibling === still };
+  });
+  assert.deepEqual(placed, { covers: true, fit: ['cover', '50% 70%'], videoFit: ['cover', '50% 70%'], shown: ['visible', '1', 'block'], size: [1280, 720], over: true }, 'the still lies over the video, as big as the picture box and trimmed as the video is');
+  await keepStill();
+  // As painted: the box with the still, and what it would show without it, the loop's poster.
+  const box = stanceStage().locator('.unreal-clip-viewport');
+  await painted();
+  const withStill = await box.screenshot();
+  await page.locator(HANDOVER_STILL).evaluate((element) => { element.style.visibility = 'hidden'; });
+  let lit = 0;
+  for (let attempt = 0; attempt < 6 && lit < 12; attempt += 1) {
+    await painted();
+    lit = await middleBrightness(box);
+  }
+  assert.ok(lit >= 12, `under the still the box shows the loop's poster, a picture (brightness ${lit} of 255)`);
+  const withoutStill = await box.screenshot();
+  await page.locator(HANDOVER_STILL).evaluate((element) => { element.style.visibility = ''; });
+  await painted();
+  await capture('release-handover-loop-file-on-its-way');
+  // The file arrives: the loop presents its first frame and the still goes. The loop is paused on
+  // that frame, to be looked at.
+  await page.evaluate(() => { window.__moments.pauseLoopOnFirstFrame = true; });
+  await page.unroute(loopFile);
+  for (const route of heldBack) await route.continue().catch(() => {});
+  await page.locator(HANDOVER_STILL).waitFor({ state: 'detached', timeout: 30000 });
+  await page.waitForFunction((selector) => window.__moments.pauseLoopOnFirstFrame === false && document.querySelector(selector)?.paused === true, LOOP_VIDEO, { timeout: 30000 });
+  // The frame on screen may already be the next one (a busy machine presents a frame or two
+  // before it says so, and the clock does not tell which): look at frame 0 itself.
+  await page.locator(LOOP_VIDEO).evaluate(async (element) => {
+    element.currentTime = 0.5 / 30;
+    await new Promise((done) => element.addEventListener('seeked', done, { once: true }));
+  });
+  await painted();
+  const firstFrame = await box.screenshot();
+  const loop = checkHandover(await log());
+  // What the still showed: exactly the greeting's last frame, which is the loop's first frame, and
+  // not its middle one.
+  const frames = await keptStillAgainstFrames();
+  assert.ok(frames.greetingLast.mean < 0.5 && frames.greetingLast.changed < 0.5, `the still is the greeting's last frame (${JSON.stringify(frames)})`);
+  assert.ok(frames.loopFirst.changed < 3, `which is the loop's first frame (${JSON.stringify(frames)})`);
+  assert.ok(frames.loopMiddle.changed > 4 && frames.loopMiddle.changed > 2 * frames.loopFirst.changed, `and not its middle frame, the one its poster shows (${JSON.stringify(frames)})`);
+  // As painted: the loop's own first frame takes over from the still with no visible change; the
+  // poster it kept off the screen is another pose.
+  const kept = await compareShots(withStill, firstFrame);
+  const poster = await compareShots(withStill, withoutStill);
+  assert.ok(kept.changed < 3, `the loop's first frame takes over from the still with no visible change (${JSON.stringify({ kept, poster })})`);
+  assert.ok(poster.changed > 4 && poster.changed > 2 * kept.changed, `the poster the still kept off the screen would have shown another pose (${JSON.stringify({ kept, poster })})`);
+  // And on it plays.
+  await page.locator(LOOP_VIDEO).evaluate((element) => { element.play(); });
+  await untilPlaying('stance', IDLE_CLIP.video);
+  layouts.push({ check: 'release handover, loop file held back', size: size.name, stillAgainstFrames: frames, painted: { kept, poster }, loopFirstFrame: loop.firstFrame });
+  await context.close();
+  checks.push(`${size.name}, release build: while the loop's file was held back after the greeting, the box showed the greeting's last frame (exactly that frame: mean difference ${frames.greetingLast.mean}; against the loop's first frame ${frames.loopFirst.changed}% of the athletes' pixels differ by more than 8 levels, against its middle frame ${frames.loopMiddle.changed}%), laid over the loop's video and trimmed as it is; under it was the loop's poster. When the file arrived the loop's first frame took over (${kept.changed}% of the painted pixels changed; the poster would have changed ${poster.changed}%).`);
+}
+
+// Skip in the release build: the stance loop shows at once, with focus on the
+// technique heading. The greeting did not play to its end, so it hands no frame
+// on and the loop opens as it always does.
+async function releaseGreetingSkip() {
+  const context = await open({ release: true });
+  await openArena();
+  await holdNextGreeting();
+  await press(button('Standing Start'));
+  await realGreetingHeld();
+  await momentStage().getByRole('button', { name: 'Skip', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await stanceStage().waitFor();
+  assert.equal(await momentStage().count(), 0, 'Skip ends the greeting');
+  assert.equal(await onHeading(), true, 'after Skip focus is on the technique heading');
+  await untilPlaying('stance', IDLE_CLIP.video);
+  const seen = await log();
+  const loop = seen.loops.at(-1);
+  assert.deepEqual([loop.path, loop.stillAtBirth, loop.stillGone], [IDLE_CLIP.video, false, null], 'a skipped greeting hands no frame on');
+  assert.equal(await page.locator(HANDOVER_STILL).count(), 0);
+  checkPlaySession(seen, GREETING.video, { ends: 0 });
+  await press(firstTechnique());
+  await page.locator('.sequence-panel .order-stack').waitFor();
+  await context.close();
+  checks.push(`${size.name}, release build: Skip ends the greeting at once, the stance loop shows as it always does (no still handed on), focus goes to the technique heading, and the match goes on.`);
+}
+
+// Reduced motion in the release build: no greeting, and its files are not even
+// asked for. The stance loop stays as it was, and a start that does not move
+// focus (a browser that does not focus a button it clicks) leaves focus where it
+// was, also on the stance loop's own control: with no greeting to end, nothing
+// sends it to the technique heading.
+async function releaseGreetingReducedMotion() {
+  const context = await open({ release: true, reducedMotion: 'reduce' });
+  await page.goto(`${base}/`);
+  await press(navButton('Arena'));
+  await stanceStage().waitFor();
+  await page.waitForFunction((selector) => document.querySelector(selector)?.readyState >= 1, LOOP_VIDEO);
+  await stanceStage().locator('video').evaluate((element) => { element.dataset.mark = 'before the start'; });
   const standing = button('Standing Start');
   if (size.touch) await standing.tap(); else { await standing.focus(); await page.keyboard.press('Enter'); }
   await hint('Select your response from standing.');
   assert.equal(await onHeading(), true, 'Standing Start leaves focus on the technique heading');
-  const started = (await video()).time;
-  await page.waitForTimeout(Math.ceil(FIXTURE_SECONDS * 1000) + 600);
+  await page.waitForTimeout(900);
   const state = await video();
-  assert.deepEqual([state.mark, state.paused, state.loop, state.path], ['before the start', false, true, IDLE_CLIP.video], 'the stance loop plays on through Standing Start, in the same <video>');
-  assert.notEqual(state.time, started, 'and keeps moving');
-  assert.ok(sameBox(before.stage, (await stanceBoxes()).stage));
-  const seen = await log();
-  assert.deepEqual(seen.stages.map((entry) => entry.stage), [`stance:${IDLE.moveId}`], 'the stance loop is the only stage the mat window ever showed');
-  assert.deepEqual(seen.videos.filter((entry) => entry.type !== 'playing'), [], 'no video ended or failed');
-  assert.deepEqual(momentRequests, [], 'no match moment file is asked for');
-  assert.equal(await page.locator('[data-kind="moment"], .mat-window-header, .mat-view-toggle').count(), 0);
-  // A start that does not move focus (a browser that does not focus a button it
-  // clicks) leaves focus where it was, also on the stance loop's own controls:
-  // with no greeting to end, nothing sends it to the technique heading.
+  assert.deepEqual([state.mark, state.paused, state.time], ['before the start', true, 0], 'reduced motion: the stance loop waits on its poster, in the same <video>');
+  assert.deepEqual((await stages()).filter((stage) => stage.startsWith('moment:')), [], 'reduced motion: no greeting');
   await stanceStage().locator('.unreal-clip-play').focus();
   await page.evaluate(() => document.querySelector('.arena-page-heading button[title="Restart match"]').click());
   await page.locator('.combat-grid .sr-only[role="status"]').filter({ hasText: 'Match restarted against' }).waitFor();
   await hint('Select your response from standing.');
   await painted();
-  assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('.mat-window .unreal-clip-stage[data-kind="stance"] .unreal-clip-play')), true, 'a restart that leaves focus on the stance loop\'s Pause button leaves it there');
+  assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('.mat-window .unreal-clip-stage[data-kind="stance"] .unreal-clip-play')), true, 'a restart that leaves focus on the stance loop\'s Play button leaves it there');
   assert.equal((await video()).mark, 'before the start', 'and the stance loop is still the same <video>');
+  assert.deepEqual(momentRequests, [], 'reduced motion: no match moment file is asked for');
   await context.close();
-  checks.push(`${size.name}, release build: Standing Start leaves the stance loop playing in the same <video>, with focus on the technique heading; a restart leaves focus on the stance loop's own control; no greeting, no toggle and no request for a match moment file.`);
+  checks.push(`${size.name}, release build with reduced motion: no greeting and no request for its files; the stance loop stays paused on its poster in the same <video>; a restart leaves focus on the stance loop's own control.`);
+}
+
+// The release build greets only over the loop the greeting was rendered for:
+// the standard stance loop, from the side. Over the front view of that loop
+// (the published greeting has no front view), over a loop of the player's own
+// stance and over a loop of the rival's stance there is no greeting, its files
+// are not asked for, and the loop carries on.
+async function releaseNoGreetingOverOtherLoops() {
+  const front = findUnrealClip(IDLE.moveId, IDLE.performerSide, 'front');
+  const karate = stanceLoop('karate stance', defaultNpcs[0].stance);
+  const karateClip = findUnrealClip(karate.moveId, karate.performerSide);
+  const rival = defaultNpcs.find((npc) => stanceLoop(DEFAULT_STANCE, npc.stance).performerSide === 'opponent');
+  const rivalLoop = rival && stanceLoop(DEFAULT_STANCE, rival.stance);
+  const rivalClip = rival && findUnrealClip(rivalLoop.moveId, rivalLoop.performerSide);
+  assert.ok(front && karate.exact && karateClip && rivalClip, 'the front view of the standard loop, the karate loop and a default rival\'s own stance loop are published');
+  assert.deepEqual([findUnrealClip(MATCH_GREETING, 'fighter', 'front')], [null], 'the published greeting has no front view');
+  const cases = [
+    ['the front view of the standard loop', front, async () => {
+      await press(stanceStage().getByRole('group', { name: 'Camera view', exact: true }).getByRole('button', { name: 'Front', exact: true }));
+    }],
+    ['the karate loop of the player\'s own stance', karateClip, async () => {
+      await page.getByRole('radiogroup', { name: 'Starting stance', exact: true }).getByRole('radio', { name: 'Karate Stance', exact: true }).check();
+    }],
+    [`the ${rival.stance} loop of ${rival.name}`, rivalClip, async () => {
+      await page.getByLabel('Choose opponent', { exact: true }).selectOption(rival.id);
+    }],
+  ];
+  for (const [, clip, choose] of cases) {
+    const context = await open({ release: true });
+    await openArena();
+    await choose();
+    await untilPlaying('stance', clip.video);
+    await noGreetingOver(clip, () => press(button('Standing Start')));
+    await press(firstTechnique());
+    await page.locator('.sequence-panel .order-stack').waitFor();
+    await context.close();
+  }
+  checks.push(`${size.name}, release build: no greeting over ${cases.map(([name]) => name).join(', ')}; each loop carries on in the same <video> after Standing Start, no match moment file is asked for, and the match goes on.`);
+}
+
+// Restart match while a technique is being chosen, pressed in a way that does
+// not move focus (Safari does not focus a button it clicks), with focus on the
+// stance loop's own Pause button. The restart greets: the greeting takes the
+// loop's place, the button with it, and focus goes to the technique heading,
+// where a start puts it, while the greeting plays and after it.
+async function releaseRestartFromLoopControl() {
+  const context = await open({ release: true });
+  await openArena();
+  await press(button('Standing Start'));
+  await hint('Select your response from standing.');
+  await greetingCameAndWent();
+  const pause = stanceStage().locator('.unreal-clip-play');
+  assert.deepEqual(await texts(pause), ['Pause']);
+  await pause.focus();
+  await holdNextGreeting();
+  await page.evaluate(() => document.querySelector('.arena-page-heading button[title="Restart match"]').click());
+  await page.locator('.combat-grid .sr-only[role="status"]').filter({ hasText: 'Match restarted against' }).waitFor();
+  await realGreetingHeld();
+  assert.equal(await onHeading(), true, 'while the greeting plays, focus is on the technique heading, not on the page');
+  await greetingResumed();
+  await momentStage().waitFor({ state: 'detached', timeout: 30000 });
+  await untilPlaying('stance', IDLE_CLIP.video);
+  assert.equal(await onHeading(), true, 'after the greeting, focus is still on the technique heading');
+  if (!size.touch) {
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('aside[aria-label="Technique selection"] .combat-moves button:not([disabled])')), true, 'one Tab reaches the first technique');
+  }
+  assert.equal((await stages()).filter((stage) => stage === `moment:${MATCH_GREETING}`).length, 2, 'Standing Start and Restart match each greeted once');
+  await context.close();
+  checks.push(`${size.name}, release build: with focus on the stance loop's Pause button, a Restart match that does not move focus greets, and focus is on the technique heading while the greeting plays and after it${size.touch ? '' : ', one Tab from the first technique'}.`);
 }
 
 try {
-  // The suite is for the time before the clips are published. Once the real list has a
-  // moment, the release build greets and shows the toggle itself, and these checks need
-  // the real files instead of fixtures. Any moment file in the list stops the suite, also
-  // one the game does not show yet (a front view whose side view is still to come).
+  // The release build's checks are written for what is published: the greeting's side view,
+  // and no end-of-match moment. Any other match moment file in the real list stops the suite,
+  // also one the game does not show yet (a front view), until these checks follow it.
   const live = UNREAL_CLIPS.filter((clip) => isMatchMoment(clip.moveId)).map((clip) => `${clip.moveId}/${clip.performerSide}-${clip.camera}`);
-  assert.deepEqual(live, [], `match moment clips are published (${live.join(', ')}): check them in this suite against the real files`);
+  assert.deepEqual(live, [`${MATCH_GREETING}/fighter-side`], `the published match moment clips are not the ones this suite checks (${live.join(', ')}): check them here against the real files`);
   fixtures = MATCH_MOMENT_IDS.flatMap(fixtureClips);
   bundles = { moments: await buildBundle('moments', fixtures) };
   checks.push(`A test bundle was built with VITE_COMBAT_ENGINE=unity, relabelling the published standing-stance files as ${MATCH_MOMENT_IDS.join(', ')} (${IDLE_CLIP.frames} frames, ${FIXTURE_SECONDS} seconds, side and front).`);
@@ -1222,7 +1673,12 @@ try {
   report.browserVersion = browser.version();
 
   for (size of SIZES) {
-    await releaseUnchanged();
+    await releaseGreetingPlaysOnce();
+    await releaseHandoverHeldBack();
+    await releaseGreetingSkip();
+    await releaseGreetingReducedMotion();
+    await releaseNoGreetingOverOtherLoops();
+    await releaseRestartFromLoopControl();
     await greetingPlaysOnce();
     await greetingGivesWay();
     await greetingFollowsTheLoop();

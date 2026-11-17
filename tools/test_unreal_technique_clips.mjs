@@ -35,6 +35,9 @@
 // Arena wins from a Position Start in Open Guard From Bottom, its clip start,
 // play the player's clip. It also measures every legend at 1440x900, 390x844
 // and 320x700: each colour dot sits beside its own text.
+// The bundles keep the real match greeting, so a match that starts on the feet
+// opens with it; choosing the technique ends it, as it does for a player, and
+// the stance's picture box is measured after that.
 // Unity's build manifest answers 404 here, so a Unity stage shows without
 // starting WebGL; this suite checks which stage shows, not Unity itself.
 // Run after `node tools/build_release.mjs`: the files the bundles do not build

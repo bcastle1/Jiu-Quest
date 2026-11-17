@@ -1,8 +1,10 @@
 // Verifies the pre-rendered Unreal clips in the built site in a real browser.
 // The stance: the Arena shows the standing-stance clip while both athletes are
-// on their feet and nothing has settled, it plays, loops, pauses and changes
-// camera, people who ask for reduced motion start paused, a clip that cannot
-// load gives way to the usual picture, and the page fits phones.
+// on their feet and nothing has settled (a match that starts on the feet first
+// plays the match greeting in its place, and the clip is back after it), it
+// plays, loops, pauses and changes camera, people who ask for reduced motion
+// start paused, a clip that cannot load gives way to the usual picture, and the
+// page fits phones.
 // Techniques switch themselves on: every curriculum technique that has a
 // published clip for every performer it needs (techniqueClipReady: both, or the
 // fighter alone for a technique the rival never performs from its clip start)
@@ -207,7 +209,14 @@ try {
   await nav('Arena');
   await playing(SIDE, 'position snapshots renderer');
   await page.getByRole('button', { name: 'Standing Start', exact: true }).click();
-  await stage().waitFor();
+  // A match that starts on the feet opens with the published match greeting in the stance
+  // clip's place (tools/test_match_moments.mjs checks it). The player watches it to its end,
+  // and the stance clip is back, playing as before.
+  const greeting = page.locator('.mat-window .unreal-clip-stage[data-kind="moment"][data-move="match_greeting"]');
+  await greeting.waitFor();
+  assert.equal(await stage().count(), 0, 'the greeting is in the stance clip\'s place');
+  await greeting.waitFor({ state: 'detached', timeout: 30000 });
+  await playing(SIDE, 'after the match greeting');
   await page.locator('.combat-moves .combat-group').first().locator('button:not([disabled])').first().click();
   await page.locator('.sequence-panel .order-stack').waitFor();
   assert.equal(await stage().count(), 1, 'the stance stays while the sequence is arranged');
@@ -224,7 +233,7 @@ try {
   await page.getByRole('button', { name: 'Position Start', exact: true }).click();
   assert.equal(await stage().count(), 0);
   assert.equal(await page.locator('.mat-window .grappling-snapshot-stage').count(), 1);
-  checks.push('The stance stays through the first sequence, then gives way to the settled position; a start off the feet never shows it.');
+  checks.push('A standing start opens with the match greeting, after which the stance clip plays again; the stance stays through the first sequence, then gives way to the settled position; a start off the feet never shows it.');
   await match.close();
 
   // ---- Reduced motion: paused until asked ----

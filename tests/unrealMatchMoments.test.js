@@ -134,12 +134,15 @@ test('with the real clip list the finder says what the list says', (t) => {
   }
 });
 
-test('the browser suite stops as soon as the clip list holds any match moment file, shown or not', () => {
-  // Its release-build checks expect no moment at all. A front view on its own is
-  // not shown (see the finder above), so the guard looks at the list, not at the finder.
+test('the browser suite stops as soon as the clip list holds a match moment file other than the greeting\'s side view, shown or not', () => {
+  // Its release-build checks are written for the one moment file published: the greeting's
+  // side view. A front view on its own is not shown (see the finder above), so the guard
+  // looks at the list, not at the finder.
   const suite = source('tools/test_match_moments.mjs');
-  assert.match(suite, /const live = UNREAL_CLIPS\.filter\(\(clip\) => isMatchMoment\(clip\.moveId\)\)\.map\(\(clip\) => `\$\{clip\.moveId\}\/\$\{clip\.performerSide\}-\$\{clip\.camera\}`\);\r?\n\s+assert\.deepEqual\(live, \[\], /);
+  assert.match(suite, /const live = UNREAL_CLIPS\.filter\(\(clip\) => isMatchMoment\(clip\.moveId\)\)\.map\(\(clip\) => `\$\{clip\.moveId\}\/\$\{clip\.performerSide\}-\$\{clip\.camera\}`\);\r?\n\s+assert\.deepEqual\(live, \[`\$\{MATCH_GREETING\}\/fighter-side`\], /);
   assert.doesNotMatch(suite, /MATCH_MOMENT_IDS\.filter\(\(id\) => findMatchMoment\(id\)\)/);
+  // That is what is published today.
+  assert.deepEqual(UNREAL_CLIPS.filter((clip) => isMatchMoment(clip.moveId)).map((clip) => `${clip.moveId}/${clip.performerSide}-${clip.camera}`), ['match_greeting/fighter-side']);
 });
 
 test('a finished match ends on the win or the loss, by who won the match', () => {
@@ -292,8 +295,15 @@ test('the Arena asks the stage for the greeting only at the idle standing start,
   // The greeting never holds a technique back: what can be chosen does not look at it.
   assert.match(arena, /const canChoose = combat\.active && combat\.phase === "selecting";/);
   assert.match(arena, /disabled=\{!available \|\| !canChoose\}/);
-  // Focus after a start is decided by the phase alone, as before.
+  // Focus after a start is decided by the phase, as before.
   assert.match(arena, /if \(combat\.phase === "selecting" && previousPhase !== "selecting"\) \{\r?\n\s+const focused = document\.activeElement;\r?\n\s+if \(!focused \|\| focused === document\.body\) chooseRef\.current\?\.focus\(\{ preventScroll: true \}\);\r?\n\s+\}\r?\n {2}\}, \[combat\.phase\]\);/);
+  // One exception, for Restart match while a technique is being chosen, which keeps the phase: when
+  // that restart greets, focus the greeting took from the stance loop's own controls (a browser that
+  // does not focus a clicked button leaves it there) goes to the technique heading. Restart notes
+  // where focus is just before the start, and the greeting's arrival uses the note once.
+  assert.match(arena, /\/\/ Whether focus is on the stance loop's own controls, which a greeting would take away\.\r?\n {4}stanceFocusRef\.current = Boolean\(matRef\.current\?\.querySelector\('\.unreal-clip-stage\[data-kind="stance"\]'\)\?\.contains\(document\.activeElement\)\);\r?\n {4}const startPosition = createArenaState\(combat\.startPosition\)\.position;/);
+  assert.match(arena, /useEffect\(\(\) => \{\r?\n {4}const lost = stanceFocusRef\.current;\r?\n {4}stanceFocusRef\.current = false;\r?\n {4}const focused = document\.activeElement;\r?\n {4}if \(greeting && lost && \(!focused \|\| focused === document\.body\)\) chooseRef\.current\?\.focus\(\{ preventScroll: true \}\);\r?\n {2}\}, \[greeting\]\);/);
+  assert.equal(arena.match(/\bstanceFocusRef\b/g).length, 4, 'declared, noted by Restart match, and read and cleared by the greeting\'s arrival: nothing else');
 });
 
 test('a finished match offers its match moment and the final exchange, starting on the final exchange under reduced motion', () => {
@@ -519,6 +529,112 @@ test('the greeting gives way at once when it is skipped, cannot load, is refused
     await new Promise((resolve) => setImmediate(resolve));
     assert.deepEqual(told, refused ? once : [], name);
     assert.equal(render() === FALLBACK, refused, name);
+  }
+});
+
+test('a greeting that plays to its end hands on a still of its last frame just before it tells its parent; one that is skipped, fails, is refused or runs out of time does not, and the end of a match never does', async (t) => {
+  // A browser that makes canvases. Each records how big it was made and what was drawn into it.
+  const made = [];
+  const makeCanvas = (name) => {
+    assert.equal(name, 'canvas');
+    const canvas = { width: 0, height: 0, drawn: [] };
+    canvas.getContext = (type) => (type === '2d' ? { drawImage: (...args) => canvas.drawn.push(args) } : null);
+    made.push(canvas);
+    return canvas;
+  };
+  useGlobals(t, { document: { hidden: false, addEventListener() {}, removeEventListener() {}, createElement: makeCanvas }, window: undefined, __hookRunner: undefined, __clipViews: undefined });
+  const { default: UnrealClipStage } = await loadClipStage();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  globalThis.__clipViews = viewsOf({ match_greeting: { fighter: ['side', 'front'] }, match_win: { fighter: ['side', 'front'] } });
+  // A moment with a stand-in <video> (its second ref) that tells the test, in order, of the still
+  // it hands on and of its end.
+  const mount = (props = {}, { refuse = false } = {}) => {
+    const runner = globalThis.__hookRunner = createHookRunner();
+    const told = [];
+    const video = { muted: false, pause() {}, play: () => (refuse ? Promise.reject(Object.assign(new Error('refused'), { name: 'NotAllowedError' })) : Promise.resolve()) };
+    const useRef = runner.useRef;
+    let refs = 0;
+    runner.useRef = (current) => { const slot = useRef(current); refs += 1; if (refs === 2) slot.current = video; return slot; };
+    const element = UnrealClipStage({ kind: 'moment', moveId: 'match_greeting', moveLabel: 'Match greeting', fallback: FALLBACK, onDone: (...args) => told.push(['done', ...args]), onLastFrame: (still, ...rest) => told.push(['last frame', still, rest.length]), ...props });
+    return { told, video, render: () => runner.render(element.type, element.props) };
+  };
+
+  // It plays to its end. Its last frame is on screen, and the stage hands it on whole, drawn into
+  // a canvas of the clip's size, then says the greeting is over: the still is there before what
+  // follows is drawn.
+  {
+    const { told, video, render } = mount();
+    const greeting = videoOf(render());
+    assert.deepEqual([told, made], [[], []], 'nothing is drawn while it plays');
+    greeting.props.onEnded();
+    assert.deepEqual(told.map(([what]) => what), ['last frame', 'done']);
+    const [[, still, extra], [, id]] = told;
+    assert.deepEqual([made.length, still === made[0], extra, id], [1, true, 0, 'match_greeting']);
+    assert.deepEqual([still.width, still.height, still.drawn], [1280, 720, [[video, 0, 0, 1280, 720]]]);
+    assert.equal(render(), FALLBACK);
+    // An end that comes late hands nothing more on.
+    greeting.props.onEnded();
+    assert.equal(told.length, 2);
+    made.length = 0;
+  }
+  // The front view hands on its own last frame, at its own size.
+  {
+    const { told, video, render } = mount({ camera: 'front' });
+    const greeting = videoOf(render());
+    assert.equal(greeting.props.src, '/assets/unreal-clips/match_greeting/fighter-front.mp4');
+    greeting.props.onEnded();
+    assert.deepEqual([told[0][1].drawn, told.map(([what]) => what)], [[[video, 0, 0, 1280, 720]], ['last frame', 'done']]);
+    made.length = 0;
+  }
+  // Every other way a greeting leaves is a cut, not its last frame: nothing is drawn or handed on.
+  const once = [['done', 'match_greeting']];
+  for (const [name, leave] of [['Skip', (tree) => buttons(tree)[0].props.onClick()], ['a file that cannot play', (tree) => videoOf(tree).props.onError()]]) {
+    const { told, render } = mount();
+    const tree = render();
+    leave(tree);
+    assert.deepEqual(told, once, name);
+    // An end after that hands nothing on either.
+    videoOf(tree).props.onEnded();
+    assert.deepEqual([told, made], [once, []], name);
+  }
+  {
+    const { told, render } = mount();
+    const greeting = videoOf(render());
+    t.mock.timers.tick(PASSING_MOMENT_PATIENCE.start);
+    assert.deepEqual(told, once, 'a greeting that did not start in time');
+    greeting.props.onEnded();
+    assert.deepEqual([told, made], [once, []]);
+  }
+  {
+    const { told, render } = mount({}, { refuse: true });
+    const greeting = videoOf(render());
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(told, once, 'a browser that refuses to start it');
+    greeting.props.onEnded();
+    assert.deepEqual([told, made], [once, []]);
+  }
+  // Asked for no still, it ends as before and draws nothing.
+  {
+    const { told, render } = mount({ onLastFrame: undefined });
+    videoOf(render()).props.onEnded();
+    assert.deepEqual([told, made], [once, []]);
+  }
+  // Where nothing can be drawn (no canvas in this browser, or no 2D drawing), there is no still to
+  // hand on, and the greeting still ends.
+  for (const [name, document] of [['no canvas', { hidden: false, addEventListener() {}, removeEventListener() {} }], ['no 2D drawing', { hidden: false, addEventListener() {}, removeEventListener() {}, createElement: () => ({ getContext: () => null }) }]]) {
+    const before = globalThis.document;
+    globalThis.document = document;
+    const { told, render } = mount();
+    videoOf(render()).props.onEnded();
+    assert.deepEqual(told, once, name);
+    globalThis.document = before;
+  }
+  // The end of a match holds its last frame on its own picture: it never hands it on.
+  {
+    const { told, render } = mount({ moveId: 'match_win', moveLabel: 'Match won', holdLastFrame: true });
+    videoOf(render()).props.onEnded();
+    assert.deepEqual([told, made], [[], []]);
+    assert.equal(render().props['data-ended'], 'true');
   }
 });
 
@@ -752,6 +868,158 @@ test('the stance loop lets its parent hold Play and Pause, as it lets it hold th
   assert.match(stage, /const \[ownPlay, setOwnPlay\] = useState\(\(\) => !reducedMotionQuery\(\)\?\.matches\);\r?\n {2}const wantsPlay = chosenPlay \?\? ownPlay;\r?\n {2}const setWantsPlay = \(value\) => \{ setOwnPlay\(value\); onWantsPlayChange\?\.\(value\); \};/);
 });
 
+test('a stance loop handed the greeting\'s last frame lays it over its video until the video shows a frame of its own while it plays, and is otherwise the loop it always was', async (t) => {
+  useGlobals(t, { document: { hidden: false, addEventListener() {}, removeEventListener() {} }, window: undefined, __hookRunner: undefined, __clipViews: undefined });
+  const { default: UnrealClipStage } = await loadClipStage();
+  globalThis.__clipViews = viewsOf({ standing_stance: { fighter: ['side', 'front'] } });
+  // What the greeting hands on: a canvas with its last frame in it.
+  const still = Object.freeze({ width: 1280, height: 720, what: 'the greeting\'s last frame' });
+  // A stance loop with a stand-in <video> (its first ref). With `frames` the browser can say when it
+  // presents a frame (requestVideoFrameCallback); without, the stage has the clock to go by.
+  const mount = (props = {}, { frames = true } = {}) => {
+    const runner = globalThis.__hookRunner = createHookRunner();
+    const calls = [];
+    const waiting = [];
+    const listeners = {};
+    const video = {
+      muted: false, currentTime: 0,
+      pause: () => calls.push('pause'), play: () => { calls.push('play'); return Promise.resolve(); },
+      addEventListener: (type, listener) => { (listeners[type] ??= []).push(listener); },
+      removeEventListener: (type, listener) => { listeners[type] = (listeners[type] ?? []).filter((item) => item !== listener); },
+    };
+    if (frames) {
+      video.requestVideoFrameCallback = (callback) => { waiting.push(callback); return waiting.length; };
+      video.cancelVideoFrameCallback = (handle) => { calls.push(`cancel ${handle}`); waiting[handle - 1] = null; };
+    }
+    const useRef = runner.useRef;
+    let refs = 0;
+    runner.useRef = (current) => { const slot = useRef(current); refs += 1; if (refs === 1) slot.current = video; return slot; };
+    const element = UnrealClipStage({ moveId: 'standing_stance', moveLabel: 'Standing stance', fallback: FALLBACK, opening: still, ...props });
+    assert.equal(element.type.name, 'StanceClip');
+    // Each stage renders with its own hooks, so two can be compared side by side.
+    return { calls, waiting, listeners, video, render: (extra = {}) => { globalThis.__hookRunner = runner; return runner.render(element.type, { ...element.props, ...extra }); } };
+  };
+  const cover = (tree) => findElement(tree, (node) => node.type === 'canvas');
+  const viewportOf = (tree) => findElement(tree, (node) => node.props?.className === 'unreal-clip-viewport');
+  // A drawn tree with its handlers and refs named rather than compared: two stages never share those.
+  const shape = (tree) => JSON.parse(JSON.stringify(tree, (key, value) => (key === 'ref' ? 'a ref' : typeof value === 'function' ? `function ${value.name}` : value)));
+  // The loop as it is drawn without a still, for comparison.
+  const plain = shape(mount({ opening: undefined }).render());
+
+  // It plays. Over its video, in the picture box, lies a canvas the clip's size with the still in it.
+  // The video is exactly the one a loop always has: the same file, poster and settings.
+  {
+    const { calls, waiting, video, render } = mount();
+    let tree = render();
+    const [first, second, ...more] = [].concat(viewportOf(tree).props.children).filter(Boolean);
+    assert.deepEqual([first.type, second?.type, more.length], ['video', 'canvas', 0], 'the still lies over the video');
+    assert.deepEqual(shape(first), shape(videoOf(plain)), 'the video is the one the loop always has');
+    assert.equal(first.props.poster, '/assets/unreal-clips/standing_stance/fighter-side.webp', 'its poster too, under the still');
+    const canvas = cover(tree);
+    assert.deepEqual([canvas.props.className, canvas.props.width, canvas.props.height, canvas.props['aria-hidden']], ['unreal-clip-handover', 1280, 720, 'true']);
+    // Put on the page, the canvas has the still drawn into it whole, in the same step.
+    const drawn = [];
+    canvas.props.ref({ width: 1280, height: 720, getContext: (type) => (type === '2d' ? { drawImage: (...args) => drawn.push(args) } : null) });
+    assert.deepEqual(drawn, [[still, 0, 0, 1280, 720]]);
+    canvas.props.ref(null);
+    // The same drawing hand from render to render, so it is not drawn again each time.
+    assert.equal(cover(render()).props.ref, canvas.props.ref);
+    // It started playing, and waits for the browser to present one of its frames.
+    assert.deepEqual([calls, waiting.length], [['play'], 1]);
+    // Until then the still stays, however often the loop is drawn.
+    for (let index = 0; index < 3; index += 1) assert.ok(cover(render()));
+    assert.equal(waiting.length, 1, 'one wait');
+    // A frame of its own is on screen: the still goes, and the loop is the loop alone. The wait is
+    // over and called off.
+    const presented = waiting[0];
+    presented();
+    tree = render();
+    assert.equal(cover(tree), null);
+    assert.deepEqual(shape(tree), plain, 'then it is drawn exactly as a loop without a still');
+    assert.deepEqual([calls, waiting], [['play', 'cancel 1'], [null]]);
+    // A callback that comes late anyway brings nothing back, and nothing waits again.
+    presented();
+    assert.equal(cover(render()), null);
+    assert.deepEqual([calls, waiting.length, video.muted], [['play', 'cancel 1'], 1, true]);
+  }
+  // The player paused the loop before the greeting: it rests on the still, which is the frame the
+  // loop starts from, and waits for no frame. Play starts the wait; the first frame ends it.
+  {
+    const { calls, waiting, render } = mount({ wantsPlay: false });
+    assert.ok(cover(render()));
+    assert.deepEqual([calls, waiting.length], [['pause'], 0]);
+    for (let index = 0; index < 3; index += 1) assert.ok(cover(render({ wantsPlay: false })));
+    assert.equal(waiting.length, 0);
+    assert.ok(cover(render({ wantsPlay: true })));
+    assert.deepEqual([calls, waiting.length], [['pause', 'play'], 1]);
+    // Paused again before a frame came: the wait is called off, and the still stays.
+    assert.ok(cover(render({ wantsPlay: false })));
+    assert.deepEqual(calls, ['pause', 'play', 'pause', 'cancel 1']);
+    assert.ok(cover(render({ wantsPlay: true })));
+    waiting[1]();
+    assert.equal(cover(render({ wantsPlay: true })), null);
+  }
+  // Without frame callbacks: the still goes the first time the clock has moved.
+  {
+    const { listeners, video, render } = mount({}, { frames: false });
+    assert.ok(cover(render()));
+    assert.equal(listeners.timeupdate.length, 1);
+    listeners.timeupdate[0]();
+    assert.ok(cover(render()), 'a clock still at 0 has shown no frame of its own');
+    video.currentTime = 0.04;
+    listeners.timeupdate[0]();
+    assert.equal(cover(render()), null);
+    assert.equal(listeners.timeupdate.length, 0, 'and it stops listening');
+  }
+  // Another view is another picture: the still goes with the view it was taken for, and does not
+  // come back with it.
+  {
+    const { render } = mount();
+    const tree = render();
+    assert.ok(cover(tree));
+    buttons(tree).find((button) => text(button) === 'Front').props.onClick();
+    assert.deepEqual([videoOf(render()).props.src, cover(render())], ['/assets/unreal-clips/standing_stance/fighter-front.mp4', null]);
+    buttons(render()).find((button) => text(button) === 'Side').props.onClick();
+    assert.deepEqual([videoOf(render()).props.src, cover(render())], ['/assets/unreal-clips/standing_stance/fighter-side.mp4', null]);
+  }
+  // So is another stance's loop. A new starting stance is the same stage drawing another file (the
+  // mat window keys every stance loop alike), here while the loop is paused and so rests on the still:
+  // the still never lies over the other file, and it goes for good, so it does not come back with
+  // the standard stance either.
+  {
+    globalThis.__clipViews = viewsOf({ standing_stance: { fighter: ['side', 'front'] }, stance_karate: { fighter: ['side'] } });
+    const { render } = mount({ wantsPlay: false });
+    assert.ok(cover(render({ wantsPlay: false })));
+    const tree = render({ moveId: 'stance_karate', wantsPlay: false });
+    assert.deepEqual([videoOf(tree).props.src, cover(tree)], ['/assets/unreal-clips/stance_karate/fighter-side.mp4', null]);
+    const back = render({ moveId: 'standing_stance', wantsPlay: false });
+    assert.deepEqual([videoOf(back).props.src, cover(back)], ['/assets/unreal-clips/standing_stance/fighter-side.mp4', null]);
+    globalThis.__clipViews = viewsOf({ standing_stance: { fighter: ['side', 'front'] } });
+  }
+  // The still is taken when the loop mounts: one handed over later is not shown, and one taken
+  // stays though the parent no longer has it.
+  {
+    const { render } = mount({ opening: null });
+    assert.equal(cover(render()), null);
+    assert.equal(cover(render({ opening: still })), null);
+    const taken = mount();
+    assert.ok(cover(taken.render()));
+    assert.ok(cover(taken.render({ opening: null })));
+  }
+  // A file that cannot play still gives way to the fallback, still and all.
+  {
+    const { render } = mount();
+    videoOf(render()).props.onError();
+    assert.equal(render(), FALLBACK);
+  }
+  // Without a still nothing changes: no canvas, and no wait for a frame.
+  {
+    const { calls, waiting, render } = mount({ opening: undefined });
+    assert.equal(cover(render()), null);
+    assert.deepEqual([calls, waiting.length], [['play'], 0]);
+  }
+});
+
 test('the end of a match plays once and holds its last frame, with Replay and the other view, and waits for Play under reduced motion', async (t) => {
   useGlobals(t, { document: { hidden: false, addEventListener() {}, removeEventListener() {} }, window: undefined, __hookRunner: undefined, __clipViews: undefined });
   const { default: UnrealClipStage } = await loadClipStage();
@@ -939,23 +1207,35 @@ test('GrapplingStage plays the greeting in the stance loop\'s place, on the loop
   assert.equal(moment.props.backdrop, '/assets/unreal-clips/standing_stance/fighter-front.webp');
   tree = runner.render(GrapplingStage, idleProps({ onMomentDone }));
   assert.deepEqual([clips(tree)[0].props.key, clips(tree)[0].props.camera], ['stance', 'front']);
-  // A greeting with a side view only opens on the side view; the loop still comes back on the chosen one.
+  // A greeting with a side view only is not shown over the loop's front view: from the front loop
+  // to the side and back, the camera would flip twice. The loop stays exactly as it was, and the
+  // Arena is told once, so it stops asking.
   globalThis.__published = [...STANCE_VIEWS, 'match_greeting/fighter-side'];
+  const onTheFront = clips(runner.render(GrapplingStage, idleProps({ onMomentDone })))[0];
   tree = runner.render(GrapplingStage, idleProps({ momentId: 'match_greeting', onMomentDone }));
-  [moment] = clips(tree);
-  assert.deepEqual([moment.props.camera, moment.props.fallback.props.camera], ['side', 'front']);
-  assert.equal(moment.props.backdrop, '/assets/unreal-clips/standing_stance/fighter-front.webp', 'the still is still the one that was on screen');
-  // A loop with a side view only, of the player's own stance, shows from the side whatever view
-  // was chosen for another loop before. The greeting opens on the view this loop is showing, the
-  // side, with this loop's still behind it: one camera from the still through the greeting to the loop.
+  [stance, ...more] = clips(tree);
+  assert.deepEqual([stance.props.key, stance.props.kind, stance.props.camera, more.length], ['stance', undefined, 'front', 0]);
+  assert.deepEqual(stance.props, onTheFront.props, 'the front loop with exactly the props it had');
+  assert.deepEqual(told, [{ args: ['match_greeting'], whileRendering: false }]);
+  told.length = 0;
+  // A loop of the player's own stance is not the loop the greeting was rendered for: into the
+  // greeting and out of it the white athlete would snap from his stance into the crouch and back.
+  // No greeting over it either, in whatever view it shows (the karate loop has a side view only,
+  // so it shows from the side whatever view was chosen for another loop before).
   globalThis.__published = [...STANCE_VIEWS, 'stance_karate/fighter-side', ...GREETING_VIEWS];
-  tree = runner.render(GrapplingStage, idleProps({ fighter: { name: 'Clipper', stance: 'karate stance' }, momentId: 'match_greeting', onMomentDone }));
-  [moment] = clips(tree);
-  assert.deepEqual([moment.props.fallback.props.moveId, moment.props.camera, moment.props.backdrop], ['stance_karate', 'side', '/assets/unreal-clips/stance_karate/fighter-side.webp']);
-  // The choice itself is kept: back on the standard loop, which has a front view, the greeting opens on the front again.
+  const karate = idleProps({ fighter: { name: 'Clipper', stance: 'karate stance' }, onMomentDone });
+  const karateLoop = clips(runner.render(GrapplingStage, karate))[0];
+  tree = runner.render(GrapplingStage, { ...karate, momentId: 'match_greeting' });
+  [stance, ...more] = clips(tree);
+  assert.deepEqual([stance.props.key, stance.props.kind, stance.props.moveId, more.length], ['stance', undefined, 'stance_karate', 0]);
+  assert.deepEqual(stance.props, karateLoop.props, 'the karate loop with exactly the props it had');
+  assert.deepEqual(told, [{ args: ['match_greeting'], whileRendering: false }]);
+  told.length = 0;
+  // The choice itself is kept: back on the standard loop, which has a front view, and with a
+  // greeting that has one too, the greeting opens on the front again, over the front still.
   tree = runner.render(GrapplingStage, idleProps({ momentId: 'match_greeting', onMomentDone }));
   [moment] = clips(tree);
-  assert.deepEqual([moment.props.fallback.props.moveId, moment.props.camera, moment.props.backdrop], ['standing_stance', 'front', '/assets/unreal-clips/standing_stance/fighter-front.webp']);
+  assert.deepEqual([moment.props.kind, moment.props.fallback.props.moveId, moment.props.camera, moment.props.backdrop], ['moment', 'standing_stance', 'front', '/assets/unreal-clips/standing_stance/fighter-front.webp']);
   assert.deepEqual(told, []);
   // A greeting published with its front view alone is not shown, also to someone whose loop is on
   // the front view: a moment needs its side view. The loop stays, and the Arena is told once.
@@ -1028,6 +1308,77 @@ test('GrapplingStage holds the stance loop\'s Play and Pause beside its view, so
   assert.deepEqual(told, []);
 });
 
+test('GrapplingStage hands the greeting\'s last frame to the stance loop that follows when the greeting ends on that loop\'s first frame, for one render, and to no other loop', async (t) => {
+  useGlobals(t, { window: undefined, __hookRunner: undefined, __published: undefined, __componentEnv: undefined });
+  const { default: GrapplingStage } = await loadGrapplingStage();
+  release();
+  const runner = globalThis.__hookRunner = createHookRunner();
+  const told = [];
+  const onMomentDone = (...args) => told.push(args);
+  const loop = (tree) => findElement(tree, (node) => node.props?.key === 'stance');
+  const momentOf = (tree) => findElement(tree, (node) => node.props?.kind === 'moment');
+  // Each pass of one render, in order: the first is what React commits, the ones after follow its effects.
+  const passes = [];
+  const render = (props) => { passes.length = 0; runner.render((given) => { const tree = GrapplingStage(given); passes.push(tree); return tree; }, props); return passes.at(-1); };
+  const still = Object.freeze({ what: 'the greeting\'s last frame' });
+
+  // The standard loop, on the side, and a greeting with a side view: the greeting is rendered to
+  // end on that loop's first frame, so it is asked for its last frame.
+  globalThis.__published = [...STANCE_VIEWS, 'match_greeting/fighter-side'];
+  let tree = render(idleProps({ onMomentDone }));
+  assert.equal(loop(tree).props.opening, null, 'a loop with nothing to take');
+  tree = render(idleProps({ momentId: 'match_greeting', onMomentDone }));
+  let moment = momentOf(tree);
+  assert.deepEqual([moment.props.camera, typeof moment.props.onLastFrame, moment.props.onDone], ['side', 'function', onMomentDone]);
+  assert.equal(moment.props.fallback.props.opening, null, 'the loop under a greeting that has not ended has nothing to take');
+  // It plays to its end: it hands its last frame on, then says it is over, and the Arena stops
+  // asking for it, all in one step. The loop that mounts in its place is given the still...
+  moment.props.onLastFrame(still);
+  tree = render(idleProps({ onMomentDone }));
+  assert.equal(momentOf(passes[0]), null);
+  assert.deepEqual([loop(passes[0]).props.moveId, loop(passes[0]).props.camera, loop(passes[0]).props.opening], ['standing_stance', null, still]);
+  // ...for that render alone, so no later loop is: the still is not kept here.
+  assert.deepEqual([passes.length, loop(tree).props.opening], [2, null]);
+  assert.equal(loop(render(idleProps({ onMomentDone }))).props.opening, null);
+  // A greeting that is skipped or gives way early hands nothing on, so the loop after it opens on its poster.
+  tree = render(idleProps({ momentId: 'match_greeting', onMomentDone }));
+  assert.equal(typeof momentOf(tree).props.onLastFrame, 'function');
+  tree = render(idleProps({ onMomentDone }));
+  assert.equal(loop(tree).props.opening, null);
+  assert.ok(passes.every((pass) => loop(pass).props.opening === null));
+  // Front chosen for the loop, and a greeting with a front view as well: the front greeting ends on
+  // the front loop's first frame.
+  loop(tree).props.onCameraChange('front');
+  globalThis.__published = [...STANCE_VIEWS, ...GREETING_VIEWS];
+  moment = momentOf(render(idleProps({ momentId: 'match_greeting', onMomentDone })));
+  assert.deepEqual([moment.props.camera, typeof moment.props.onLastFrame], ['front', 'function']);
+  moment.props.onLastFrame(still);
+  render(idleProps({ onMomentDone }));
+  assert.deepEqual([loop(passes[0]).props.camera, loop(passes[0]).props.opening], ['front', still]);
+
+  // Over every other loop there is no greeting at all (see the next test), so no other loop is ever
+  // handed the greeting's last frame: each stays as it was, and the Arena is told the greeting is over.
+  const others = {
+    'the loop shows its front view and the greeting has a side view only': { published: [...STANCE_VIEWS, 'match_greeting/fighter-side'], props: {} },
+    'the player\'s own stance has a loop of its own': { published: [...STANCE_VIEWS, 'stance_karate/fighter-side', ...GREETING_VIEWS], props: { fighter: { name: 'Clipper', stance: 'karate stance' } } },
+    'the rival\'s stance has a loop of its own': { published: [...STANCE_VIEWS, 'stance_sumo/opponent-side', ...GREETING_VIEWS], props: { opponent: { name: 'Luana Rocha', stance: 'sumo base' } } },
+  };
+  for (const [name, { published: list, props }] of Object.entries(others)) {
+    globalThis.__published = list;
+    render(idleProps({ onMomentDone, ...props }));
+    tree = render(idleProps({ momentId: 'match_greeting', onMomentDone, ...props }));
+    assert.deepEqual([momentOf(tree), loop(tree)?.props.opening, told], [null, null, [['match_greeting']]], name);
+    told.length = 0;
+  }
+  // The end of a match holds its last frame on its own picture and hands nothing on.
+  for (const momentId of ['match_win', 'match_loss']) {
+    globalThis.__published = [...STANCE_VIEWS, `${momentId}/fighter-side`];
+    moment = momentOf(render(finishedProps({ clipMoveId: null, clipPerformerSide: undefined, momentId, onMomentDone })));
+    assert.deepEqual([moment.props.moveId, moment.props.holdLastFrame, moment.props.onLastFrame], [momentId, true, undefined]);
+  }
+  assert.deepEqual(told, []);
+});
+
 test('GrapplingStage shows no greeting where it cannot or should not play, keeps the stance loop mounted, and says so once', async (t) => {
   useGlobals(t, { window: undefined, __hookRunner: undefined, __published: undefined, __componentEnv: undefined });
   const { default: GrapplingStage } = await loadGrapplingStage();
@@ -1039,8 +1390,15 @@ test('GrapplingStage shows no greeting where it cannot or should not play, keeps
     'the athletes are not on their feet': { published: [...STANCE_VIEWS, ...GREETING_VIEWS], props: finishedProps({ clipMoveId: null, clipPerformerSide: undefined }), shows: 'UnityGrapplingStage' },
     'the stance loop itself is not published': { published: GREETING_VIEWS, shows: 'UnityGrapplingStage' },
     'the local live preview draws the stance': { published: [...STANCE_VIEWS, ...GREETING_VIEWS], env: { DEV: true }, href: 'http://127.0.0.1:5178/?engine=unreal', shows: 'UnrealGrapplingStage' },
+    // The greeting is rendered to rise out of the standard loop and settle back into its first
+    // frame, in one view. Over any other loop the cuts into it and out of it would show: an athlete
+    // snapping between two stances, or the camera flipping to the side and back.
+    'the loop shows its front view and the greeting has a side view only': { published: [...STANCE_VIEWS, 'match_greeting/fighter-side'], camera: 'front', shows: 'stance' },
+    'the player\'s own stance has a loop of its own': { published: [...STANCE_VIEWS, 'stance_karate/fighter-side', ...GREETING_VIEWS], props: idleProps({ fighter: { name: 'Clipper', stance: 'karate stance' } }), shows: 'stance' },
+    'the player\'s own stance has a loop of its own, seen from the front as the greeting can be': { published: [...STANCE_VIEWS, 'stance_sumo/fighter-side', 'stance_sumo/fighter-front', ...GREETING_VIEWS], props: idleProps({ fighter: { name: 'Clipper', stance: 'sumo base' } }), camera: 'front', shows: 'stance' },
+    'the rival\'s stance has a loop of its own': { published: [...STANCE_VIEWS, 'stance_sumo/opponent-side', ...GREETING_VIEWS], props: idleProps({ opponent: { name: 'Luana Rocha', stance: 'sumo base' } }), shows: 'stance' },
   };
-  for (const [name, { published: list, reduce = false, props = idleProps(), env, href, shows }] of Object.entries(cases)) {
+  for (const [name, { published: list, reduce = false, props = idleProps(), camera, env, href, shows }] of Object.entries(cases)) {
     release();
     if (href) { const url = new URL(href); globalThis.window.location = { href: url.href, search: url.search }; }
     if (env) globalThis.__componentEnv = env;
@@ -1049,6 +1407,11 @@ test('GrapplingStage shows no greeting where it cannot or should not play, keeps
     const runner = globalThis.__hookRunner = createHookRunner();
     const told = [];
     const onMomentDone = (...args) => told.push({ args, whileRendering: runner.rendering });
+    // The view the player chose for the stance loop, where the case has one.
+    if (camera) {
+      findElement(runner.render(GrapplingStage, { ...props, onMomentDone }), (node) => node.props?.key === 'stance').props.onCameraChange(camera);
+      assert.equal(findElement(runner.render(GrapplingStage, { ...props, onMomentDone }), (node) => node.props?.key === 'stance').props.camera, camera, name);
+    }
     // Without the greeting asked for, and with it: the same picture.
     const before = runner.render(GrapplingStage, { ...props, onMomentDone });
     assert.deepEqual(told, [], name);
@@ -1161,11 +1524,19 @@ test('GrapplingStage draws a match moment by these lines, and Training asks for 
   // The view the loop is showing is worked out once: the chosen view where this loop has it, else
   // its side view. The greeting opens on that view, and the end of a match on its own.
   assert.match(stage, /const loopView = idleClip \? \(stanceCamera && findUnrealClip\(idle\.moveId, idle\.performerSide, stanceCamera\)\) \|\| idleClip : null;/);
-  assert.match(stage, /const moment = momentFits \? findMatchMoment\(momentId, greeting \? loopView\.camera : undefined\) : null;/);
+  assert.match(stage, /const published = momentFits \? findMatchMoment\(momentId, greeting \? loopView\.camera : undefined\) : null;/);
   assert.equal(stage.match(/\bstanceCamera\b/g).length, 5, 'declared, tested for the reset, read twice for the loop\'s view and handed to the loop: the greeting never reads the choice itself');
+  // The greeting shows only where it ends on the first frame of the loop that follows: over the
+  // standard loop of the greeting's own athlete, in the greeting's own view. Anywhere else there is
+  // no greeting at all (the end of a match is not a greeting, and shows wherever it is published).
+  assert.match(stage, /const endsOnLoop = greeting && Boolean\(published\) && idle\.moveId === IDLE_CLIP\.moveId && idle\.performerSide === published\.performerSide && loopView\.camera === published\.camera;\r?\n {2}const moment = greeting && !endsOnLoop \? null : published;\r?\n/);
   // The greeting passes; the end of a match holds its last frame. Only the greeting gets a still
-  // behind it: the stance loop's poster, in the view the loop is showing.
-  assert.match(stage, /kind="moment" moveId=\{moment\.moveId\} moveLabel=\{MATCH_MOMENT_TITLES\[moment\.moveId\]\} holdLastFrame=\{!greeting\} camera=\{greeting \? moment\.camera : undefined\} backdrop=\{greeting \? loopView\.poster : undefined\} fighter=\{props\.fighter\} opponent=\{props\.opponent\} onDone=\{onMomentDone\} fallback=\{usual\} \/>/);
+  // behind it: the stance loop's poster, in the view the loop is showing. The greeting, which
+  // shows only where it ends on the loop that follows, is asked for its last frame.
+  assert.match(stage, /kind="moment" moveId=\{moment\.moveId\} moveLabel=\{MATCH_MOMENT_TITLES\[moment\.moveId\]\} holdLastFrame=\{!greeting\} camera=\{greeting \? moment\.camera : undefined\} backdrop=\{greeting \? loopView\.poster : undefined\} fighter=\{props\.fighter\} opponent=\{props\.opponent\} onDone=\{onMomentDone\} onLastFrame=\{endsOnLoop \? setHandover : undefined\} fallback=\{usual\} \/>/);
+  // That frame is handed to the loop that mounts in the greeting's place, and held here for that render only.
+  assert.match(stage, /const \[handover, setHandover\] = useState\(null\);\r?\n {2}useEffect\(\(\) => \{\r?\n {4}if \(handover !== null\) setHandover\(null\);\r?\n {2}\}, \[handover\]\);/);
+  assert.equal(stage.match(/\bhandover\b/g).length, 4, 'declared, forgotten by that effect (read twice there), and handed to the stance loop alone');
   // The still is trimmed as the video is, and only a match moment's box can have one.
   const css = source('src/components/UnrealClipStage.css');
   assert.match(css, /\.unreal-clip-stage\.is-moment \.unreal-clip-viewport \{\s+background-position: 50% 70%;\s+background-repeat: no-repeat;\s+background-size: cover;\s+\}/);
@@ -1173,12 +1544,16 @@ test('GrapplingStage draws a match moment by these lines, and Training asks for 
   assert.equal(css.match(/background-size:/g).length, 1);
   assert.match(source('src/components/UnrealClipStage.jsx'), /<div ref=\{viewportRef\} className="unreal-clip-viewport" style=\{\{ '--clip-ratio': `\$\{clip\.width\} \/ \$\{clip\.height\}`, backgroundImage: backdrop \? `url\("\$\{backdrop\}"\)` : undefined \}\}>/);
   assert.equal(source('src/components/UnrealClipStage.jsx').match(/backgroundImage/g).length, 1, 'the stance loop and the technique clip have no still behind them');
+  // The greeting's last frame lies over a stance loop's video instead, in a canvas trimmed as
+  // the video is, and only the stance loop draws one.
+  assert.match(css, /\.unreal-clip-viewport \.unreal-clip-handover \{\s+position: absolute;\s+inset: 0;\s+display: block;\s+width: 100%;\s+height: 100%;\s+object-fit: cover;\s+object-position: 50% 70%;\s+pointer-events: none;\s+\}/);
+  assert.equal(source('src/components/UnrealClipStage.jsx').match(/unreal-clip-handover/g).length, 1);
   // A moment that cannot be shown is reported after the render.
   assert.match(stage, /const momentMissing = Boolean\(momentId\) && !moment;\r?\n {2}useEffect\(\(\) => \{\r?\n {4}if \(momentMissing\) onMomentDone\?\.\(momentId\);\r?\n {2}\}, \[momentMissing, momentId\]\);/);
   // The stance loop's view, and whether it was paused, are kept only while the loop, or the
   // greeting in its place, shows.
   assert.match(stage, /if \(!idleClip && stanceCamera !== null\) setStanceCamera\(null\);\r?\n {2}if \(!idleClip && stancePlays !== null\) setStancePlays\(null\);/);
-  assert.match(stage, /<UnrealClipStage key="stance" [^>]* camera=\{stanceCamera\} onCameraChange=\{setStanceCamera\} wantsPlay=\{stancePlays\} onWantsPlayChange=\{setStancePlays\} [^>]*\/>/);
+  assert.match(stage, /<UnrealClipStage key="stance" [^>]* camera=\{stanceCamera\} onCameraChange=\{setStanceCamera\} wantsPlay=\{stancePlays\} onWantsPlayChange=\{setStancePlays\} opening=\{handover\} [^>]*\/>/);
   // Training shows techniques, not matches.
   const training = source('src/App.jsx').split(/\r?\n/).find((line) => line.includes('<GrapplingStage '));
   assert.doesNotMatch(training, /moment/i);
@@ -1349,5 +1724,91 @@ test('the picture chosen for a finished match is kept with the match: it still s
     tree = draw();
     assert.deepEqual([header(tree), asked(tree), match.combat.resultView], [null, null, null], name);
     assert.equal(match.combat, combat, `${name}: the match is left as it is`);
+  }
+});
+
+test('a restart that greets sends focus the greeting took from the stance loop\'s own controls to the technique heading, and leaves every other focus where it is', async (t) => {
+  useGlobals(t, { window: undefined, document: undefined, __hookRunner: undefined, __published: undefined });
+  const { default: CombatArenaView } = await loadArena();
+  globalThis.__published = [...STANCE_VIEWS, 'match_greeting/fighter-side'];
+  // The page, as far as focus goes: the page itself, the stance loop's Pause button (inside the
+  // loop's stage), Restart match (outside the mat window) and the technique heading.
+  const body = { name: 'the page' };
+  const pause = { name: 'the stance loop\'s Pause button' };
+  const restartButton = { name: 'Restart match' };
+  const heading = { name: 'the technique heading' };
+  // A match on the feet while a technique is being chosen, its greeting over (the flag is cleared).
+  const choosing = (startPosition) => ({
+    npc: RIVAL, active: true, phase: 'selecting', ...createArenaState(startPosition), round: 1, startPosition, selectedMoveId: null, order: [], secondsLeft: 10,
+    playerExchanges: 0, npcExchanges: 0, playerPoints: 0, npcPoints: 0, bestPlayer: null, bestNpc: null, result: null, greeting: false, resultView: null, log: [],
+  });
+  // The Arena over that match, with focus on `focus`. Restart match is confirmed, as a player would.
+  const open = ({ focus, reduce = false }) => {
+    globalThis.window = { confirm: () => true, matchMedia: motionWindow(reduce).window.matchMedia };
+    globalThis.document = { body, activeElement: focus };
+    const page = { combat: choosing('standing'), focused: [], loopShows: true };
+    const props = {
+      fighter: { name: 'Clipper', giTop: '#ffffff', giPants: '#ffffff', stance: 'wrestling stance' }, beltStatus: { belt: 'white', stripes: 0 },
+      setCombat: (update) => { page.combat = typeof update === 'function' ? update(page.combat) : update; },
+      npcs: [RIVAL], unlockedMoves: [], chooseCombatMove() {}, resolveCombatTurn() {}, notify() {}, onTrain() {}, onStanceChange() {},
+      // As App's startCombat: a new match, and on the feet it asks for the greeting.
+      startCombat: (npc, startPosition) => { page.combat = { ...choosing(startPosition), npc, greeting: createArenaState(startPosition).position === 'standing' }; },
+    };
+    const runner = createHookRunner();
+    page.draw = () => { globalThis.__hookRunner = runner; return runner.render(CombatArenaView, { ...props, combat: page.combat }); };
+    const tree = page.draw();
+    // What the page puts in the refs: the mat window, which holds the stance loop's stage while the
+    // loop shows, and the technique heading, which takes focus.
+    findElement(tree, (node) => node.type === 'div' && String(node.props?.className).startsWith('mat-window')).props.ref.current = {
+      querySelector: (selector) => (selector === '.unreal-clip-stage[data-kind="stance"]' && page.loopShows ? { contains: (element) => element === pause } : null),
+    };
+    findElement(tree, (node) => node.props?.className === 'section-heading' && node.props.tabIndex === -1).props.ref.current = {
+      focus: (options) => { page.focused.push(options); globalThis.document.activeElement = heading; },
+    };
+    page.restart = () => findElement(page.draw(), (node) => node.type === 'button' && node.props.title === 'Restart match').props.onClick();
+    return page;
+  };
+
+  // Focus on the loop's Pause button, and a press on Restart match that does not move it (Safari).
+  // The restart greets: the greeting takes the loop's place, the button goes with it, and the
+  // browser leaves focus on the page. It goes to the technique heading, without scrolling.
+  {
+    const page = open({ focus: pause });
+    page.restart();
+    assert.deepEqual([page.combat.phase, page.combat.greeting], ['selecting', true], 'the phase stays, and the restart asks for the greeting');
+    page.loopShows = false;
+    globalThis.document.activeElement = body;
+    page.draw();
+    assert.deepEqual([page.focused, globalThis.document.activeElement], [[{ preventScroll: true }], heading]);
+    // Once: the next render, and the loop coming back after the greeting, leave focus alone.
+    page.draw();
+    page.combat = { ...page.combat, greeting: false };
+    page.loopShows = true;
+    page.draw();
+    assert.equal(page.focused.length, 1);
+  }
+  // A press that moved focus to Restart match (most browsers): focus stays there.
+  {
+    const page = open({ focus: restartButton });
+    page.restart();
+    page.loopShows = false;
+    page.draw();
+    assert.deepEqual([page.focused, globalThis.document.activeElement], [[], restartButton]);
+  }
+  // Focus that was not on the loop's controls is not the greeting's to move, also on the page itself.
+  {
+    const page = open({ focus: body });
+    page.restart();
+    page.loopShows = false;
+    page.draw();
+    assert.deepEqual([page.focused, globalThis.document.activeElement], [[], body]);
+  }
+  // Reduced motion: no greeting, so the loop stays, and focus on its button stays with it.
+  {
+    const page = open({ focus: pause, reduce: true });
+    page.restart();
+    assert.equal(page.combat.greeting, true, 'the flag is set; the stage shows no greeting and says so');
+    page.draw();
+    assert.deepEqual([page.focused, globalThis.document.activeElement], [[], pause]);
   }
 });

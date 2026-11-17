@@ -22,11 +22,32 @@ export default function UnrealClipStage({ kind = 'stance', ...props }) {
   return kind === 'technique' ? <TechniqueClip {...props} /> : <StanceClip {...props} />;
 }
 
-function StanceClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opponent, compact = false, fallback = null, camera: chosenCamera, onCameraChange, wantsPlay: chosenPlay, onWantsPlayChange }) {
+// A still of the frame a video shows now, drawn into a canvas of the clip's
+// size. Null where nothing can be drawn: no video element, or no canvas here.
+function frameStill(video, clip) {
+  if (!video || typeof document === 'undefined' || typeof document.createElement !== 'function') return null;
+  try {
+    const still = document.createElement('canvas');
+    still.width = clip.width;
+    still.height = clip.height;
+    const context = still.getContext('2d');
+    if (!context) return null;
+    context.drawImage(video, 0, 0, clip.width, clip.height);
+    return still;
+  } catch {
+    return null;
+  }
+}
+
+// `opening` is a still of the frame the loop starts on, from the greeting that
+// played to its end there (see MomentClip's onLastFrame). The loop takes it
+// when it mounts, for the file it opens on.
+function StanceClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opponent, compact = false, fallback = null, camera: chosenCamera, onCameraChange, wantsPlay: chosenPlay, onWantsPlayChange, opening = null }) {
   const views = unrealClipViews(moveId, performerSide);
   const [ownCamera, setOwnCamera] = useState(null);
   const camera = chosenCamera ?? ownCamera;
-  const setCamera = (value) => { setOwnCamera(value); onCameraChange?.(value); };
+  // Another view is another picture: the greeting's last frame (below) goes.
+  const setCamera = (value) => { setOwnCamera(value); setHandover(null); onCameraChange?.(value); };
   const clip = views.find((view) => view.camera === camera) ?? views[0] ?? null;
   const videoRef = useRef(null);
   // What the person wants. People who ask for reduced motion start paused.
@@ -39,6 +60,19 @@ function StanceClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opp
   // The file that could not play, if one did. Another move or camera is another
   // file and gets its own try.
   const [failedVideo, setFailedVideo] = useState(null);
+  // The greeting's last frame, laid over the file it was taken for (with what
+  // draws it into the canvas on the page), until that file shows a frame of
+  // its own while playing. The file's poster, a frame halfway through the
+  // loop, then never shows between the greeting and the loop. A loop the
+  // player paused shows the still until Play is pressed.
+  const [handover, setHandover] = useState(() => (opening && clip ? {
+    video: clip.video,
+    draw: (canvas) => { canvas?.getContext('2d')?.drawImage(opening, 0, 0, canvas.width, canvas.height); },
+  } : null));
+  const covered = handover !== null && handover.video === clip?.video;
+  // Another file (another stance's loop, say: a new stance is the same stage)
+  // is another picture. The still never lies over it, and goes for good.
+  if (handover !== null && !covered) setHandover(null);
 
   useEffect(() => {
     const query = reducedMotionQuery();
@@ -58,6 +92,23 @@ function StanceClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opp
     // Other rejections (the element was replaced or removed) are not refusals.
     video.play()?.catch((error) => { if (error?.name === 'NotAllowedError') setWantsPlay(false); });
   }, [wantsPlay, clip?.video]);
+
+  // The still goes once the file has shown a frame of its own while it plays:
+  // the first frame the browser presents, or where it cannot say so, the first
+  // time the clock has moved.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !covered || !wantsPlay) return undefined;
+    let stopped = false;
+    const shown = () => { if (!stopped) setHandover(null); };
+    if (typeof video.requestVideoFrameCallback === 'function') {
+      const handle = video.requestVideoFrameCallback(shown);
+      return () => { stopped = true; video.cancelVideoFrameCallback?.(handle); };
+    }
+    const moved = () => { if (video.currentTime > 0) shown(); };
+    video.addEventListener('timeupdate', moved);
+    return () => { stopped = true; video.removeEventListener('timeupdate', moved); };
+  }, [covered, wantsPlay, clip?.video]);
 
   if (!clip || failedVideo === clip.video) return fallback;
 
@@ -86,6 +137,7 @@ function StanceClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opp
           aria-label={`${title}. ${fighterName} in the white gi and ${opponentName} in the navy gi, seen from the ${clip.camera}.`}
           onError={() => setFailedVideo(clip.video)}
         />
+        {covered && <canvas ref={handover.draw} className="unreal-clip-handover" width={clip.width} height={clip.height} aria-hidden="true" />}
       </div>
       <div className="unreal-clip-controls">
         <button type="button" className="unreal-clip-play" onClick={() => setWantsPlay(!wantsPlay)}>
@@ -356,7 +408,12 @@ function TechniqueClip({ moveId, performerSide = 'fighter', moveLabel, fighter, 
 //                  stance loop's poster, for the greeting). It fills the box
 //                  until the moment's own first frame is there, so the box is
 //                  not black while the files arrive.
-function MomentClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opponent, holdLastFrame = false, fallback = null, backdrop, camera: chosenCamera, onCameraChange, onDone }) {
+//   onLastFrame    for a passing moment that ends on the first frame of what
+//                  follows it: told a still of its last frame (a canvas) when
+//                  it plays to its end, just before onDone, so what follows
+//                  can show that frame until its own first frame is there.
+//                  Not told when the moment is skipped or gives way early.
+function MomentClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opponent, holdLastFrame = false, fallback = null, backdrop, camera: chosenCamera, onCameraChange, onDone, onLastFrame }) {
   const id = useId();
   const viewportRef = useRef(null);
   const videoRef = useRef(null);
@@ -505,8 +562,13 @@ function MomentClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opp
     resumeFrame.current = null;
   };
   const ended = () => {
-    if (holdLastFrame) dispatch({ type: 'ended', lastFrame });
-    else pass();
+    if (holdLastFrame) { dispatch({ type: 'ended', lastFrame }); return; }
+    // Played to its end: its last frame is on screen, for what follows to keep.
+    if (!toldDone.current && onLastFrame) {
+      const still = frameStill(videoRef.current, clip);
+      if (still) onLastFrame(still);
+    }
+    pass();
   };
   // A view that cannot play. A moment that holds tries its other view, then
   // hands over to the fallback; a passing one hands over at once.
