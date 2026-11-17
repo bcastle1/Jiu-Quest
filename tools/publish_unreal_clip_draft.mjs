@@ -26,6 +26,8 @@ import { OWNER_PUBLISHED_DRAFT, isOwnerPublishedDraft } from '../src/unreal/tech
 import { renderDataFile } from './import_unreal_clips.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+// Where this working copy publishes its clips.
+const PUBLISHED_CLIPS = join(ROOT, 'public/assets/unreal-clips');
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 // What the approved take is, besides the bytes OWNER_PUBLISHED_DRAFT pins.
 const TAKE = Object.freeze({ file: 'double_leg/fighter-side.mp4', poster: 'double_leg/fighter-side.webp', width: 1280, height: 720, fps: 30, frames: 126, durationSeconds: 4.2 });
@@ -56,7 +58,11 @@ export function draftPublicationRow(entry, video, poster) {
 // under `out` first. Returns how many other rows were kept.
 function writeRow(row, { rows, out, copies }) {
   // Fail rather than pairing a new draft with any historical camera/performer.
-  for (const clip of rows.filter(clip => clip.moveId === row.moveId)) assert.ok(isOwnerPublishedDraft(clip), 'Another take is already published for this move');
+  // The refusal names the row and both ways it comes about: the previous draft
+  // still in the list under new pins, or an accepted take an import brought.
+  for (const clip of rows.filter(clip => clip.moveId === row.moveId)) {
+    assert.ok(isOwnerPublishedDraft(clip), `Another take is already published for this move: ${clip.performerSide}-${clip.camera}${clip.draft === true ? ' (a draft, but not the approved one)' : ''}. The draft is published only while the list has no other row of the move. If that row is the previous draft, run the importer first: it leaves every draft out. If it is an accepted take, the draft's row stays out (docs/unreal-integration.md, "Owner-published double-leg draft").`);
+  }
   for (const clip of rows) for (const [path, hash] of [[clip.video, clip.sha256], [clip.poster, clip.posterSha256]]) {
     assert.equal(digest(readFileSync(join(ROOT, 'public', path))), hash, `Existing media changed: ${path}`);
   }
@@ -92,17 +98,23 @@ export function publishDraft({ source, ffbin, out = ROOT, rows = published }) {
 
 // The same row, from the approved pair this working copy already publishes.
 // `rows` is the list to start from: by default the one in this working copy,
-// which after a normal import no longer has the draft's row.
-export function restoreDraft({ out = ROOT, rows = published } = {}) {
+// which after a normal import no longer has the draft's row. `folder` is where
+// the pair is read from; only the tests name another one.
+export function restoreDraft({ out = ROOT, rows = published, folder = PUBLISHED_CLIPS } = {}) {
   const pin = OWNER_PUBLISHED_DRAFT;
-  const folder = join(ROOT, 'public/assets/unreal-clips');
   const videoPath = join(folder, TAKE.file), posterPath = join(folder, TAKE.poster);
-  assert.ok(existsSync(videoPath) && existsSync(posterPath), `The approved pair is no longer under public/assets/unreal-clips/double_leg. Take it from the commit that published it: git checkout <commit> -- public/assets/unreal-clips/double_leg`);
+  const read = file => (existsSync(file) ? readFileSync(file) : null);
+  const video = read(videoPath), poster = read(posterPath);
+  // Checked here, before the row's own checks, so that the refusal names the
+  // way out instead of two sizes or two hashes.
+  assert.ok(video && poster && digest(video) === pin.sha256 && digest(poster) === pin.posterSha256,
+    'The approved pair is no longer under public/assets/unreal-clips/double_leg: a file is missing, or has other bytes than OWNER_PUBLISHED_DRAFT pins. Take the pair from the commit that published it: git checkout <commit> -- public/assets/unreal-clips/double_leg. A newly approved take is published from its pack instead: <pack/clips> <ffmpeg bin>.');
   const entry = { moveId: pin.moveId, performerSide: pin.performerSide, camera: pin.camera, bytes: pin.bytes, sha256: pin.sha256, ...TAKE, loops: false, choreographyReviewed: false, draft: true };
-  const row = draftPublicationRow(entry, readFileSync(videoPath), readFileSync(posterPath));
+  const row = draftPublicationRow(entry, video, poster);
   // In place the pair is already where it belongs; a rehearsal gets a copy.
-  const preservedRows = writeRow(row, { rows, out, copies: out === ROOT ? [] : [[videoPath, row.video], [posterPath, row.poster]] });
-  return { row, preservedRows, restoredFrom: 'public/assets/unreal-clips/double_leg', sourcePackModified: false, choreographyAccepted: false };
+  const inPlace = out === ROOT && folder === PUBLISHED_CLIPS;
+  const preservedRows = writeRow(row, { rows, out, copies: inPlace ? [] : [[videoPath, row.video], [posterPath, row.poster]] });
+  return { row, preservedRows, restoredFrom: folder === PUBLISHED_CLIPS ? 'public/assets/unreal-clips/double_leg' : join(folder, 'double_leg'), sourcePackModified: false, choreographyAccepted: false };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

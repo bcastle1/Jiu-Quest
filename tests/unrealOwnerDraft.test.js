@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { OWNER_PUBLISHED_DRAFT, isOwnerPublishedDraft, chooseTechniquePicture, techniqueClipReady } from '../src/unreal/techniquePicture.js';
@@ -93,11 +93,36 @@ test('after a normal import has dropped the row, the publisher puts it back from
   // With the row already there it writes the same list again.
   restoreDraft({ out, rows: UNREAL_CLIPS });
   assert.equal(list(), committed);
-  // Beside any other take of the move it refuses, and leaves the list as it was.
+  // Beside any other take of the move it refuses, and leaves the list as it was. That is also how
+  // it answers after an import that brought an accepted take of the move, the rival's included,
+  // so the refusal names the row and where the rule is written down.
   const front = { ...row, camera: 'front', video: '/assets/unreal-clips/double_leg/fighter-front.mp4', poster: '/assets/unreal-clips/double_leg/fighter-front.webp', sha256: 'c'.repeat(64) };
+  const rival = { ...front, performerSide: 'opponent', camera: 'side', draft: false, choreographyReviewed: true };
+  const refusedBeside = name => error => error.message.startsWith(`Another take is already published for this move: ${name}`) && error.message.includes('"Owner-published double-leg draft"');
   writeFileSync(path.join(out, 'src/unreal/techniqueClips.data.js'), 'untouched');
-  assert.throws(() => restoreDraft({ out, rows: [...afterImport, front] }), /Another take is already published for this move/);
+  assert.throws(() => restoreDraft({ out, rows: [...afterImport, front] }), refusedBeside('fighter-front (a draft, but not the approved one)'));
+  assert.throws(() => restoreDraft({ out, rows: [...afterImport, rival] }), refusedBeside('opponent-side.'));
   assert.equal(list(), 'untouched');
+  // When the pair in the working copy is no longer the approved one, it says so and names the way
+  // out, instead of two sizes. The pair is read from a copy here: the test changes no published file.
+  const folder = path.join(out, 'pair');
+  mkdirSync(path.join(folder, 'double_leg'), { recursive: true });
+  const video = readFileSync(new URL(`../public${row.video}`, import.meta.url));
+  const poster = readFileSync(new URL(`../public${row.poster}`, import.meta.url));
+  const namesTheWayOut = error => error.message.startsWith('The approved pair is no longer under public/assets/unreal-clips/double_leg') && error.message.includes('git checkout');
+  writeFileSync(path.join(folder, 'double_leg/fighter-side.webp'), poster);
+  assert.throws(() => restoreDraft({ out, rows: afterImport, folder }), namesTheWayOut, 'the video is missing');
+  writeFileSync(path.join(folder, 'double_leg/fighter-side.mp4'), video.subarray(0, video.length - 1));
+  assert.throws(() => restoreDraft({ out, rows: afterImport, folder }), namesTheWayOut, 'the video has another size');
+  const oneByteChanged = Buffer.from(poster); oneByteChanged[oneByteChanged.length - 1] ^= 1;
+  writeFileSync(path.join(folder, 'double_leg/fighter-side.mp4'), video);
+  writeFileSync(path.join(folder, 'double_leg/fighter-side.webp'), oneByteChanged);
+  assert.throws(() => restoreDraft({ out, rows: afterImport, folder }), namesTheWayOut, 'the poster has one other byte');
+  assert.equal(list(), 'untouched');
+  // And from an exact copy of the pair it restores as from the working copy.
+  writeFileSync(path.join(folder, 'double_leg/fighter-side.webp'), poster);
+  assert.deepEqual(restoreDraft({ out, rows: afterImport, folder }).row, { ...row });
+  assert.equal(list(), committed);
 });
 
 test('the importer can tell which published files its new list leaves without a row', (t) => {
