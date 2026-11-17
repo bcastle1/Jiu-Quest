@@ -562,7 +562,8 @@ test('every curriculum technique plays its own clips in Training and in the Aren
 // performer it needs has clips (techniqueClipPerformers): both, or the fighter
 // alone for a technique the rival never performs from its clip start. Clips of
 // fewer performers are allowed in the files (an import in progress) but change
-// nothing on screen.
+// nothing on screen, except the one exact owner-published draft, which plays
+// for its own performer (tests/unrealOwnerDraft.test.js).
 test('coverage: which curriculum techniques have Unreal clips for each performer', (t) => {
   const counts = { playing: 0, waiting: 0, none: 0 };
   for (const move of allMoves) {
@@ -593,8 +594,9 @@ test('coverage: which curriculum techniques have Unreal clips for each performer
     for (const actorIsPlayer of [true, false]) {
       const performerSide = actorIsPlayer ? 'fighter' : 'opponent';
       const settled = stagePicture(arenaProps({ move, actorIsPlayer, animationSucceeded: true, startedFrom: move.starts[0] }), 'unity', '', unrealClipViews);
-      // The winner's own clip once the technique is ready. A rival with no clip
-      // of its own (a fighter-only technique) gets what it got before.
+      // The winner's own clip once the technique is ready, or the exact
+      // owner-published draft for its own performer. A rival with no clip of
+      // its own (a fighter-only technique, or that draft) gets what it got before.
       const plays = ready && cameras[performerSide].length > 0 || ownerDraft && performerSide === 'fighter';
       assert.equal(settled.kind, plays ? 'clip' : 'engine', `${clipMoveId} in the Arena on the release default`);
       if (plays) assert.deepEqual([settled.moveId, settled.performerSide], [clipMoveId, performerSide]);

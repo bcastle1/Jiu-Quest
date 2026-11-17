@@ -7,8 +7,10 @@
 // published clip for every performer it needs (techniqueClipReady: both, or the
 // fighter alone for a technique the rival never performs from its clip start)
 // is checked in Training and in a player's Arena win against the real files,
-// with its poster compared to frame 0. Each
-// one that has not shows what it showed before on the release default: the
+// with its poster compared to frame 0. The one owner-published draft is checked
+// apart: Training and the player's Arena win play it, with no Front view and
+// its poster not compared to frame 0, and a rival's win shows the Unity stage.
+// Every other technique shows what it showed before on the release default: the
 // Unity stage where Unity animates it, the position picture otherwise, in
 // Training, or in the Arena for the white-belt starters Training does not list.
 // It checks video files played by the browser. It does not run Unreal or any

@@ -58,8 +58,10 @@ export default function GrapplingStage({ idleStanding = false, onRendererChange,
   // this view, and its box shows this view's still until the greeting's own
   // first frame is there.
   const loopView = idleClip ? (stanceCamera && findUnrealClip(idle.moveId, idle.performerSide, stanceCamera)) || idleClip : null;
-  // A technique plays its Unreal clips once every performer it needs has one;
-  // until then, and if every view fails, `stage` plays as it does today.
+  // A technique plays its Unreal clips once every performer it needs has one,
+  // or where it is the one owner-published draft, for that draft's own
+  // performer only (src/unreal/techniquePicture.js); until then, and if every
+  // view fails, `stage` plays as it does today.
   const picture = !idleStanding && chooseTechniquePicture({ moveId: props.moveId, clipMoveId: clipMoveId === undefined ? props.moveId : clipMoveId, performerSide: clipPerformerSide ?? props.performerSide, engine, search: window.location.search, views: unrealClipViews });
   // The picture without a match moment: exactly what showed before moments.
   const usual = idleClip
