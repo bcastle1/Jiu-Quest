@@ -1,10 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { OWNER_PUBLISHED_DRAFT, isOwnerPublishedDraft, chooseTechniquePicture, techniqueClipReady } from '../src/unreal/techniquePicture.js';
 import { UNREAL_CLIPS, unrealClipViews } from '../src/unreal/techniqueClips.js';
-import { draftPublicationRow } from '../tools/publish_unreal_clip_draft.mjs';
-import { selectEntries } from '../tools/import_unreal_clips.mjs';
+import { draftPublicationRow, restoreDraft } from '../tools/publish_unreal_clip_draft.mjs';
+import { filesWithoutRow, renderDataFile, selectEntries } from '../tools/import_unreal_clips.mjs';
 
 const row = UNREAL_CLIPS.find(clip => clip.moveId === 'double_leg');
 const entry = clip => ({ ...clip, file: `${clip.moveId}/${clip.performerSide}-${clip.camera}.mp4`, poster: `${clip.moveId}/${clip.performerSide}-${clip.camera}.webp` });
@@ -44,7 +47,9 @@ test('the exact fighter draft plays in Training and player wins only; old camera
 });
 
 test('changing a pinned field cannot inherit the owner publication exception', () => {
-  for (const change of [{ sha256: 'a'.repeat(64) }, { posterSha256: 'b'.repeat(64) }, { camera: 'front' }, { performerSide: 'opponent' }, { moveId: 'triangle_choke' }, { ownerDraftPublishedOn: '2026-11-15' }, { draft: false }, { choreographyReviewed: true }, { draftNotice: '' }]) {
+  for (const change of [{ sha256: 'a'.repeat(64) }, { posterSha256: 'b'.repeat(64) }, { camera: 'front' }, { performerSide: 'opponent' }, { moveId: 'triangle_choke' }, { ownerDraftPublishedOn: '2026-11-15' }, { draft: false }, { choreographyReviewed: true }, { draftNotice: '' },
+    // Nor the same bytes under another published path, or another size.
+    { video: '/assets/unreal-clips/double_leg/fighter-front.mp4' }, { poster: '/assets/unreal-clips/double_leg/fighter-front.webp' }, { bytes: row.bytes + 1 }, { posterBytes: row.posterBytes + 1 }]) {
     assert.equal(isOwnerPublishedDraft({ ...row, ...change }), false, JSON.stringify(change));
   }
   const video = readFileSync(new URL(`../public${row.video}`, import.meta.url));
@@ -52,9 +57,62 @@ test('changing a pinned field cannot inherit the owner publication exception', (
   for (const change of [{ sha256: 'a'.repeat(64) }, { draft: false }, { choreographyReviewed: true }, { frames: 120 }, { loops: true }, { camera: 'front' }]) {
     assert.throws(() => draftPublicationRow(entry({ ...row, ...change }), video, poster));
   }
-  assert.throws(() => draftPublicationRow(entry(row), Buffer.from('changed video'), poster));
-  assert.throws(() => draftPublicationRow(entry(row), video, Buffer.from('changed poster')));
+  // The files themselves. One changed byte in a file of the right size is caught by its hash
+  // (a file of another size never gets that far), and an entry that names other bytes or
+  // another file is refused.
+  const oneByteChanged = bytes => { const copy = Buffer.from(bytes); copy[copy.length - 1] ^= 1; return copy; };
+  assert.throws(() => draftPublicationRow(entry(row), oneByteChanged(video), poster), error => error.expected === OWNER_PUBLISHED_DRAFT.sha256);
+  assert.throws(() => draftPublicationRow(entry(row), video, oneByteChanged(poster)), error => error.expected === OWNER_PUBLISHED_DRAFT.posterSha256);
+  assert.throws(() => draftPublicationRow(entry(row), Buffer.from('changed video'), poster), error => error.expected === OWNER_PUBLISHED_DRAFT.bytes);
+  assert.throws(() => draftPublicationRow(entry(row), video, Buffer.from('changed poster')), error => error.expected === OWNER_PUBLISHED_DRAFT.posterBytes);
+  assert.throws(() => draftPublicationRow({ ...entry(row), bytes: row.bytes + 1 }, video, poster), error => error.message.startsWith('bytes: this is not the approved take') && error.message.includes('--restore'));
+  assert.throws(() => draftPublicationRow({ ...entry(row), file: 'double_leg/fighter-front.mp4' }, video, poster), error => error.expected === 'double_leg/fighter-side.mp4');
+  assert.throws(() => draftPublicationRow({ ...entry(row), poster: 'double_leg/fighter-front.webp' }, video, poster), error => error.expected === 'double_leg/fighter-side.webp');
   assert.ok(Object.isFrozen(OWNER_PUBLISHED_DRAFT));
+});
+
+test('after a normal import has dropped the row, the publisher puts it back from the approved pair in this working copy', (t) => {
+  const out = mkdtempSync(path.join(os.tmpdir(), 'jiuquest-owner-draft-'));
+  t.after(() => rmSync(out, { recursive: true, force: true }));
+  const list = () => readFileSync(path.join(out, 'src/unreal/techniqueClips.data.js'), 'utf8');
+  const committed = readFileSync(new URL('../src/unreal/techniqueClips.data.js', import.meta.url), 'utf8');
+  // What a normal import leaves behind: every other row, no draft row, and the draft's two files
+  // still under public/. The pack is not asked: its take may have been rendered again by then.
+  const afterImport = UNREAL_CLIPS.filter(clip => clip.moveId !== 'double_leg');
+  assert.equal(afterImport.length, UNREAL_CLIPS.length - 1);
+  const result = restoreDraft({ out, rows: afterImport });
+  assert.deepEqual(result.row, { ...row });
+  assert.deepEqual([result.preservedRows, result.choreographyAccepted, result.sourcePackModified], [afterImport.length, false, false]);
+  // The list it writes is the committed one, byte for byte, and a rehearsal folder gets the pinned pair.
+  assert.equal(list(), committed);
+  for (const [file, hash] of [[row.video, row.sha256], [row.poster, row.posterSha256]]) {
+    assert.equal(createHash('sha256').update(readFileSync(path.join(out, 'public', file))).digest('hex'), hash, file);
+  }
+  // With the row already there it writes the same list again.
+  restoreDraft({ out, rows: UNREAL_CLIPS });
+  assert.equal(list(), committed);
+  // Beside any other take of the move it refuses, and leaves the list as it was.
+  const front = { ...row, camera: 'front', video: '/assets/unreal-clips/double_leg/fighter-front.mp4', poster: '/assets/unreal-clips/double_leg/fighter-front.webp', sha256: 'c'.repeat(64) };
+  writeFileSync(path.join(out, 'src/unreal/techniqueClips.data.js'), 'untouched');
+  assert.throws(() => restoreDraft({ out, rows: [...afterImport, front] }), /Another take is already published for this move/);
+  assert.equal(list(), 'untouched');
+});
+
+test('the importer can tell which published files its new list leaves without a row', (t) => {
+  const out = mkdtempSync(path.join(os.tmpdir(), 'jiuquest-owner-draft-'));
+  t.after(() => rmSync(out, { recursive: true, force: true }));
+  assert.deepEqual(filesWithoutRow(out), [], 'nothing published there yet');
+  // The state after a normal import: the draft's two files on disk, and a list with no row for them.
+  const afterImport = UNREAL_CLIPS.filter(clip => clip.moveId !== 'double_leg');
+  restoreDraft({ out, rows: afterImport });
+  assert.deepEqual(filesWithoutRow(out), []);
+  writeFileSync(path.join(out, 'src/unreal/techniqueClips.data.js'), renderDataFile(afterImport));
+  assert.deepEqual(filesWithoutRow(out), ['/assets/unreal-clips/double_leg/fighter-side.mp4', '/assets/unreal-clips/double_leg/fighter-side.webp']);
+  // The publisher's restore puts that right.
+  restoreDraft({ out, rows: afterImport });
+  assert.deepEqual(filesWithoutRow(out), []);
+  // In this working copy every published file has its row.
+  assert.deepEqual(filesWithoutRow(), []);
 });
 
 test('a draft is never a view a technique switches over with, and no draft but the pinned one is shown', () => {

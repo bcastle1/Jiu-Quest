@@ -34,6 +34,8 @@ The seven pictures in the pickers are illustrations of the Unreal athlete, not U
 
 Stance clips arrive in the Unreal render pack's `clips/technique-clips.json` like any other clip, and `node tools/import_unreal_clips.mjs` imports them, with no acceptance line needed. The importer leaves out any entry marked `"draft": true` and lists what it left out. A stance loop must have `"loops": true` and an `enter_<id>` clip `"loops": false`.
 
+The importer writes the whole clip list anew, so an import drops the row of the owner-published double-leg draft (its two files stay). Run `node tools/publish_unreal_clip_draft.mjs --restore` straight after it to put that row back; the importer says so when it leaves files without a row, and the unit tests fail until it is done (see [Owner-published double-leg draft](unreal-integration.md#owner-published-double-leg-draft-2026-11-16)).
+
 Every published stance clip is listed in the pack manifest. The first sambo and sumo loops went on the site on November 13, 2026 a few hours before the pack listed them; the pack's own files replaced them the same day (the sambo take was corrected so the rear heel is off the mat, the sumo take is the same file).
 
 After an import that adds a stance:
