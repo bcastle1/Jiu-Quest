@@ -75,7 +75,9 @@ test('after a normal import has dropped the row, the publisher puts it back from
   const out = mkdtempSync(path.join(os.tmpdir(), 'jiuquest-owner-draft-'));
   t.after(() => rmSync(out, { recursive: true, force: true }));
   const list = () => readFileSync(path.join(out, 'src/unreal/techniqueClips.data.js'), 'utf8');
-  const committed = readFileSync(new URL('../src/unreal/techniqueClips.data.js', import.meta.url), 'utf8');
+  // The tools write plain line ends. A Windows checkout holds the committed list with CRLF, so the
+  // two are compared line for line.
+  const committed = readFileSync(new URL('../src/unreal/techniqueClips.data.js', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
   // What a normal import leaves behind: every other row, no draft row, and the draft's two files
   // still under public/. The pack is not asked: its take may have been rendered again by then.
   const afterImport = UNREAL_CLIPS.filter(clip => clip.moveId !== 'double_leg');
@@ -83,7 +85,7 @@ test('after a normal import has dropped the row, the publisher puts it back from
   const result = restoreDraft({ out, rows: afterImport });
   assert.deepEqual(result.row, { ...row });
   assert.deepEqual([result.preservedRows, result.choreographyAccepted, result.sourcePackModified], [afterImport.length, false, false]);
-  // The list it writes is the committed one, byte for byte, and a rehearsal folder gets the pinned pair.
+  // The list it writes is the committed one, line for line, and a rehearsal folder gets the pinned pair.
   assert.equal(list(), committed);
   for (const [file, hash] of [[row.video, row.sha256], [row.poster, row.posterSha256]]) {
     assert.equal(createHash('sha256').update(readFileSync(path.join(out, 'public', file))).digest('hex'), hash, file);
