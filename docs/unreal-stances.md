@@ -24,7 +24,7 @@ Published so far: `standing_stance` (both athletes, side and front views). For t
 
 It also reports `exact`: whether the clip shows the player in the stance they chose. When it does not, the Arena says so in one line under the picker and keeps the choice. Nothing is substituted silently.
 
-`stanceEntry(fighterStance, camera)` returns the entry clip for a stance when one is published. Nothing calls it yet. No entry clip and no technique clip is published. When a technique clip is published for both performers, the stage cuts from the stance loop to the technique clip in the same picture box, with no entry clip and no dissolve; an entry clip between them is still to be built.
+`stanceEntry(fighterStance, camera)` returns the entry clip for a stance when one is published. Nothing calls it yet, and no entry clip is published. No technique clip is accepted either. The one technique clip on the site that starts on the feet is the owner-published double-leg draft (see [Owner-published double-leg draft](unreal-integration.md#owner-published-double-leg-draft-2026-11-16)): after the player's own double leg from a standing start, the stage cuts from the stance loop to that clip in the same picture box, with no entry clip and no dissolve. An accepted technique clip will follow the loop the same way once it is published for every performer it needs; an entry clip between them is still to be built.
 
 ## The pictures
 
@@ -33,6 +33,8 @@ The seven pictures in the pickers are illustrations of the Unreal athlete, not U
 ## Bringing in new stance clips
 
 Stance clips arrive in the Unreal render pack's `clips/technique-clips.json` like any other clip, and `node tools/import_unreal_clips.mjs` imports them, with no acceptance line needed. The importer leaves out any entry marked `"draft": true` and lists what it left out. A stance loop must have `"loops": true` and an `enter_<id>` clip `"loops": false`.
+
+The importer writes the whole clip list anew, so an import drops the row of the owner-published double-leg draft (its two files stay). Run `node tools/publish_unreal_clip_draft.mjs --restore` straight after it to put that row back; the importer says so when it leaves files without a row, and the unit tests fail until it is done (see [Owner-published double-leg draft](unreal-integration.md#owner-published-double-leg-draft-2026-11-16)).
 
 Every published stance clip is listed in the pack manifest. The first sambo and sumo loops went on the site on November 13, 2026 a few hours before the pack listed them; the pack's own files replaced them the same day (the sambo take was corrected so the rear heel is off the mat, the sumo take is the same file).
 

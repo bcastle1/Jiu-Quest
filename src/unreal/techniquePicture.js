@@ -23,6 +23,10 @@
 // both performers, or the fighter alone for a technique the rival never
 // performs from its clip start. Clips never borrow another move's or the other
 // performer's file, and are never mirrored.
+//
+// One exception: the exact owner-published draft (OWNER_PUBLISHED_DRAFT below)
+// plays for its own performer before the technique has switched over; the
+// other performer keeps the engine picture.
 
 export const TECHNIQUE_PERFORMERS = Object.freeze(['fighter', 'opponent']);
 
@@ -60,6 +64,10 @@ const ENGINE = Object.freeze({ kind: 'engine' });
 // The owner explicitly approved publishing this exact draft as-is on 2026-11-16.
 // This is permission to show one unfinished take, not choreography acceptance.
 // A new render or another performer/camera needs its own publication decision.
+// The exception ends when the technique switches over by the normal rule, which
+// needs an accepted view of every performer it needs: an accepted fighter take
+// imported on its own takes this draft's place without making the technique
+// ready (docs/unreal-integration.md, "Owner-published double-leg draft").
 export const OWNER_PUBLISHED_DRAFT = Object.freeze({
   moveId: 'double_leg', performerSide: 'fighter', camera: 'side',
   sha256: '3872c9e491ab556290577986968626ff7dd53e894f455164915063cf596efc0f',

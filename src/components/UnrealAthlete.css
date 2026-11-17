@@ -139,6 +139,52 @@
   z-index: 2;
 }
 
+/* The mat under the athlete: a tatami floor rendered as his camera sees it, lit
+   by one lamp, on black (src/unreal/athleteFloor.js). It is added to the black
+   stage, so it only adds light, and his outline is cut out of it, so the mat
+   lies behind him whatever gi he wears. Both pictures scale with the athlete
+   and are centred where he stands: the floor covers the lowest share of his
+   height, the outline all of it. */
+.app-shell .unreal-athlete-floor {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+  background-repeat: no-repeat;
+  background-position: 50% 100%;
+  background-size: auto var(--athlete-floor-share);
+  mix-blend-mode: screen;
+  mix-blend-mode: plus-lighter;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: 50% 100%, 0 0;
+  mask-position: 50% 100%, 0 0;
+  -webkit-mask-size: auto 100%, 100% 100%;
+  mask-size: auto 100%, 100% 100%;
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* It appears with the athlete, never before him: his outline cut out of an
+   empty floor would show as a hole. */
+.app-shell .unreal-athlete-stage-figure.is-ready ~ .unreal-athlete-floor {
+  opacity: 1;
+}
+
+/* On the mat the studio's white pool of floor light would read as a lamp lying
+   on the straw. The aura alone stays, lower and wider. */
+.app-shell .profile-art.unreal-athlete-stage.has-floor::before {
+  background: radial-gradient(80% 13% at 50% 100%, color-mix(in srgb, var(--athlete-aura) 24%, transparent), transparent 76%);
+}
+
+/* A browser that cannot cut the outline out keeps the black studio. */
+@supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+  .app-shell .unreal-athlete-floor {
+    display: none;
+  }
+}
+
 /* Beside the Fighter Creator the stage is as tall as the window allows, so the
    athlete reads at full height without pushing the name card off screen. */
 @media (min-width: 981px) {

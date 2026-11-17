@@ -80,7 +80,7 @@ test('clips name real moves, performers and cameras, with no repeats and no stra
   assert.deepEqual(published.sort(), UNREAL_CLIPS.flatMap((clip) => [clip.video, clip.poster]).sort());
 });
 
-test('a looping clip is a stance held on the feet, and a clip that plays once is a technique, a stance entry or a match moment that opens on frame 0', () => {
+test('a looping clip is a stance held on the feet, and a clip that plays once is a technique, a stance entry or a match moment whose poster is frame 0, except the owner-published draft\'s canonical frame 63', () => {
   const stanceLoops = new Set(UNREAL_STANCES.map((stance) => stance.loopMoveId));
   // Any curriculum technique, by its clip id (src/unreal/techniqueIds.js). The
   // four Unity animates keep Unity's ids.

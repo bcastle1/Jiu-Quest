@@ -91,7 +91,8 @@ export default function CombatArenaView({
   const unityPlayback = resolveArenaUnityPlayback(combat.result);
   // The Unreal clip the settled exchange asks for. Every technique has a clip
   // id, also one Unity cannot animate. Nothing plays until every performer the
-  // technique needs has published clips (techniqueClipPerformers), and only
+  // technique needs has published clips (techniqueClipPerformers), except the
+  // one owner-published draft, for its own performer, and only
   // after an exchange that started from the technique's clip start. Without one
   // the stage is told null, so it plays no clip at all.
   const clipPlayback = resolveArenaClipPlayback(combat.result);

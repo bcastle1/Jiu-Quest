@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { beltColors } from '../data/curriculum.js';
 import { FIGHTER_LOOKS, UNREAL_ATHLETE, unrealAthleteColors } from '../unreal/athlete.js';
+import { UNREAL_ATHLETE_FLOOR, UNREAL_ATHLETE_FLOOR_STYLE } from '../unreal/athleteFloor.js';
 import { PUBLISHED_ATHLETE_PICTURE as PUBLISHED_PICTURE, athleteHeadPicture } from '../unreal/athleteHeads.js';
 import './UnrealAthlete.css';
 
@@ -129,11 +130,28 @@ export default function UnrealAthlete({ fighter, belt = 'white', className = '',
   );
 }
 
-// The large stage used by the Fighter Creator and the rank path.
+// The large stage used by the Fighter Creator and the rank path. The athlete
+// stands on a tatami mat (src/unreal/athleteFloor.js): the lit floor, and the
+// athlete's outline that keeps it behind him. Both files stay in the page, and
+// the floor is painted only once both have loaded there: without the outline it
+// would lie over his legs. If either fails, the stage is the black studio.
 export function UnrealAthleteStage({ fighter, beltStatus, className = '', auraColor = '#8a5cff' }) {
+  const [inPage, setInPage] = useState({ picture: false, silhouette: false });
+  const settle = (part) => (event) => {
+    const loaded = event.type === 'load';
+    setInPage((current) => (current[part] === loaded ? current : { ...current, [part]: loaded }));
+  };
+  const onMat = inPage.picture && inPage.silhouette;
   return (
-    <div className={`profile-art unreal-athlete-stage ${className}`.trim()} style={{ '--athlete-aura': auraColor }}>
+    <div className={`profile-art unreal-athlete-stage ${onMat ? 'has-floor' : ''} ${className}`.replace(/\s+/g, ' ').trim()} style={{ '--athlete-aura': auraColor }}>
       <UnrealAthlete fighter={fighter} belt={beltStatus.belt} className="unreal-athlete-stage-figure" />
+      <span className="unreal-athlete-floor-files" hidden>
+        <img src={UNREAL_ATHLETE_FLOOR.picture.url} alt="" onLoad={settle('picture')} onError={settle('picture')} />
+        <img src={UNREAL_ATHLETE_FLOOR.silhouette.url} alt="" onLoad={settle('silhouette')} onError={settle('silhouette')} />
+      </span>
+      {onMat && (
+        <span className="unreal-athlete-floor" data-floor={UNREAL_ATHLETE_FLOOR.surface.id} style={UNREAL_ATHLETE_FLOOR_STYLE} aria-hidden="true" />
+      )}
     </div>
   );
 }

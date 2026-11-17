@@ -9,6 +9,7 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 import { UNREAL_ATHLETE } from '../src/unreal/athlete.js';
+import { UNREAL_ATHLETE_FLOOR } from '../src/unreal/athleteFloor.js';
 import unrealStancePictures from '../src/unreal/stancePictures.data.js';
 import { beltColors, moves } from '../src/data/curriculum.js';
 
@@ -23,7 +24,9 @@ const STORAGE_KEY = 'jiuquest:v1';
 const NAVY = '#112a58', BLACK = '#151922';
 const ASPECT = UNREAL_ATHLETE.width / UNREAL_ATHLETE.height;
 // Places on the figure, as fractions of its width and height.
-const POINTS = { face: [0.478, 0.08], chest: [0.48, 0.25], belt: [0.58, 0.43], thigh: [0.33, 0.63] };
+const POINTS = { face: [0.478, 0.08], chest: [0.48, 0.25], belt: [0.58, 0.43], thigh: [0.33, 0.63], shin: [0.67, 0.86] };
+// A place on the mat beside the athlete's rear foot, as fractions of the figure's box.
+const MAT = [0.06, 0.93];
 let browser, server, page;
 
 async function staticSite() {
@@ -142,6 +145,55 @@ async function painted(figure, label) {
   return colors;
 }
 
+// The athlete stands on the tatami mat: the floor is in the stage once he shows,
+// it is added to the stage with his outline cut out, and it lights the ground
+// beside his feet. That none of it lies on him is what the thigh and shin
+// colors show, above all in black pants.
+async function onTheMat(label) {
+  const floor = stage().locator('.unreal-athlete-floor');
+  await floor.waitFor({ state: 'attached' });
+  await page.waitForFunction((element) => getComputedStyle(element).opacity === '1', await floor.elementHandle());
+  const state = await floor.evaluate(async (element) => {
+    const style = getComputedStyle(element);
+    const picture = new Image();
+    picture.src = style.backgroundImage.replace(/^url\(["']?|["']?\)$/g, '');
+    await picture.decode();
+    return {
+      surface: element.dataset.floor,
+      hidden: element.getAttribute('aria-hidden'),
+      blend: style.mixBlendMode,
+      picture: [new URL(picture.src).pathname, picture.naturalWidth, picture.naturalHeight],
+      cutOut: style.maskImage || style.webkitMaskImage,
+      afterAthlete: Boolean(element.previousElementSibling?.previousElementSibling?.classList.contains('unreal-athlete-stage-figure')),
+      onStage: element.parentElement.classList.contains('has-floor'),
+    };
+  });
+  assert.equal(state.surface, UNREAL_ATHLETE_FLOOR.surface.id);
+  assert.equal(state.hidden, 'true', 'the mat is decoration: the athlete keeps the text alternative');
+  assert.equal(state.blend, 'plus-lighter', 'the mat only adds light to the black stage');
+  assert.deepEqual(state.picture, [UNREAL_ATHLETE_FLOOR.picture.url, UNREAL_ATHLETE_FLOOR.picture.width, UNREAL_ATHLETE_FLOOR.picture.height]);
+  assert.ok(state.cutOut.includes(UNREAL_ATHLETE_FLOOR.silhouette.url), `the athlete's outline is cut out of the mat (${state.cutOut})`);
+  assert.ok(state.afterAthlete && state.onStage);
+  const [outer, inner] = [await stage().boundingBox(), await stageFigure().boundingBox()];
+  const data = (await stage().screenshot()).toString('base64');
+  const mat = await page.evaluate(async ({ data, x, y }) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${data}`;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(Math.round(x) - 4, Math.round(y) - 4, 9, 9).data;
+    const sum = [0, 0, 0];
+    for (let index = 0; index < pixels.length; index += 4) for (let channel = 0; channel < 3; channel += 1) sum[channel] += pixels[index + channel];
+    return sum.map((value) => Math.round(value / (pixels.length / 4)));
+  }, { data, x: inner.x - outer.x + inner.width * MAT[0], y: inner.y - outer.y + inner.height * MAT[1] });
+  samples.push({ label, mat });
+  assert.ok(mat[0] >= 50 && mat[0] - mat[2] >= 15, `${label}: the mat beside the athlete's feet is lit, and warm (${mat})`);
+  return mat;
+}
+
 const near = (a, b, tolerance) => a.every((value, index) => Math.abs(value - b[index]) <= tolerance);
 const bright = (color, floor) => color.every((value) => value >= floor);
 const dark = (color, ceiling) => color.every((value) => value <= ceiling);
@@ -241,6 +293,9 @@ try {
 
   const white = await painted(stageFigure(), 'white gi, white belt');
   assert.ok(bright(white.chest, 180) && bright(white.thigh, 150) && bright(white.belt, 180), `a white gi and belt paint white (${JSON.stringify(white)})`);
+  const whiteMat = await onTheMat('desktop, white gi');
+  assert.ok(bright(white.shin, 150), `the pants stay white down to the shin, in front of the mat (${white.shin})`);
+  checks.push('The athlete stands on the tatami mat: the pinned floor picture is added to the stage after him, with his outline cut out, and lights the ground beside his feet.');
   // White layers at sizes that land between whole pixels are where a seam would show.
   for (const viewport of [{ width: 1440, height: 1000 }, { width: 1280, height: 933 }, { width: 1440, height: 1000 }]) {
     await page.setViewportSize(viewport);
@@ -253,6 +308,8 @@ try {
   await swatch('Gi Pants', BLACK).click();
   const black = await painted(stageFigure(), 'navy jacket, black pants');
   assert.ok(dark(black.thigh, 80), `the pants turn black (${black.thigh})`);
+  assert.ok(dark(black.shin, 80), `black pants stay black in front of the mat: none of it shows through (${black.shin})`);
+  assert.ok(near(await onTheMat('desktop, black pants'), whiteMat, 6), 'the gi colors never tint the mat');
   assert.ok(near(black.chest, navy.chest, 6) && near(black.belt, white.belt, 6), 'the pants color leaves the jacket and belt alone');
   assert.ok(near(black.face, white.face, 4) && near(navy.face, white.face, 4), 'gi colors never tint the face');
   assert.equal(await swatch('Gi Jacket', NAVY).getAttribute('aria-pressed'), 'true');

@@ -1,5 +1,7 @@
 // Verifies the technique kind of the pre-rendered Unreal clip stage in a real
-// browser, before any technique clip is published. It builds two test bundles
+// browser with fixture clips, whatever is published (real entries of the
+// fixture moves, the owner-published double_leg draft among them, are left out
+// of the test bundles). It builds two test bundles
 // into tmp/ whose clip list is the real one plus fixture entries for three
 // techniques: published standing-stance files relabelled as a technique that
 // plays once (no new video, and none of the held drafts). The bundles are never
