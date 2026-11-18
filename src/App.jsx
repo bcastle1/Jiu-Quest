@@ -1310,7 +1310,7 @@ function Dashboard({
           )}
           <div className="hero-content">
             <span className="dashboard-kicker">JiuQuest Platform</span>
-            <h1>Training center</h1>
+            <h1>JIUQUEST JIU-JITSU</h1>
             <p>
               Manage fighters, structure skill development, and bring tested techniques into scenario-based rounds.
             </p>
