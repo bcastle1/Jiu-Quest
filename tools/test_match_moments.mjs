@@ -14,8 +14,9 @@
 // leaves focus where it was, also on the stance loop's own control), that there
 // is no greeting over any loop but the one it was rendered for (none over the
 // front view of the standard loop, over the karate loop of the player's own
-// stance, or over the sumo loop of the rival who holds sumo base) and none of
-// its files is asked for there, that a Restart match which does not move focus
+// stance, over the front view of the boxing loop of the player's own stance,
+// or over the sumo loop of the rival who holds sumo base) and none of its
+// files is asked for there, that a Restart match which does not move focus
 // from the stance loop's Pause button greets with focus on the technique
 // heading, during the greeting and after it, and that a finished match has no
 // "Match result" header, because neither end-of-match moment is published,
@@ -1591,16 +1592,20 @@ async function releaseGreetingReducedMotion() {
 // The release build greets only over the loop the greeting was rendered for:
 // the standard stance loop, from the side. Over the front view of that loop
 // (the published greeting has no front view), over a loop of the player's own
-// stance and over a loop of the rival's stance there is no greeting, its files
-// are not asked for, and the loop carries on.
+// stance (the karate loop from the side, and the motion-captured boxing loop
+// from the front) and over a loop of the rival's stance there is no greeting,
+// its files are not asked for, and the loop carries on.
 async function releaseNoGreetingOverOtherLoops() {
   const front = findUnrealClip(IDLE.moveId, IDLE.performerSide, 'front');
   const karate = stanceLoop('karate stance', defaultNpcs[0].stance);
   const karateClip = findUnrealClip(karate.moveId, karate.performerSide);
+  const boxing = stanceLoop('boxer shell', defaultNpcs[0].stance);
+  const boxingFront = findUnrealClip(boxing.moveId, boxing.performerSide, 'front');
   const rival = defaultNpcs.find((npc) => stanceLoop(DEFAULT_STANCE, npc.stance).performerSide === 'opponent');
   const rivalLoop = rival && stanceLoop(DEFAULT_STANCE, rival.stance);
   const rivalClip = rival && findUnrealClip(rivalLoop.moveId, rivalLoop.performerSide);
   assert.ok(front && karate.exact && karateClip && rivalClip, 'the front view of the standard loop, the karate loop and a default rival\'s own stance loop are published');
+  assert.ok(boxing.exact && boxingFront, 'the boxing loop of the player\'s own stance is published with a front view');
   assert.deepEqual([findUnrealClip(MATCH_GREETING, 'fighter', 'front')], [null], 'the published greeting has no front view');
   const cases = [
     ['the front view of the standard loop', front, async () => {
@@ -1608,6 +1613,11 @@ async function releaseNoGreetingOverOtherLoops() {
     }],
     ['the karate loop of the player\'s own stance', karateClip, async () => {
       await page.getByRole('radiogroup', { name: 'Starting stance', exact: true }).getByRole('radio', { name: 'Karate Stance', exact: true }).check();
+    }],
+    ['the boxing loop of the player\'s own stance, seen from the front', boxingFront, async () => {
+      await page.getByRole('radiogroup', { name: 'Starting stance', exact: true }).getByRole('radio', { name: 'Boxer Shell', exact: true }).check();
+      await untilPlaying('stance', findUnrealClip(boxing.moveId, boxing.performerSide, 'side').video);
+      await press(stanceStage().getByRole('group', { name: 'Camera view', exact: true }).getByRole('button', { name: 'Front', exact: true }));
     }],
     [`the ${rival.stance} loop of ${rival.name}`, rivalClip, async () => {
       await page.getByLabel('Choose opponent', { exact: true }).selectOption(rival.id);

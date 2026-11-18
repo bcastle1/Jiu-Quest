@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_STANCE, STANDARD_STANCE_MOVE, UNREAL_STANCES, findStance, stanceCopy, stanceEntry, stanceLoop } from '../src/unreal/stances.js';
 import { createFighter, customizationOptions, defaultNpcs } from '../src/storage.js';
-import { findUnrealClip } from '../src/unreal/techniqueClips.js';
+import { findUnrealClip, unrealClipViews } from '../src/unreal/techniqueClips.js';
 
 const source = (path) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8');
 // A stand-in for the published clip list: these clips exist, nothing else does.
@@ -78,6 +78,27 @@ test('whatever stance is chosen, the clip it leads to is one that is published',
       assert.equal(choice.stance, mine);
     }
   }
+});
+
+// The loops are not all one length any more (the boxer shell's motion-captured
+// loop is longer than the others), so a stance whose views were imported at
+// different times could show one take from the side and another from the front.
+test('every view of one stance loop shows the same loop: the same frames, the same length, and it loops', () => {
+  let stancesWithViews = 0;
+  for (const stance of UNREAL_STANCES) {
+    for (const performerSide of ['fighter', 'opponent']) {
+      const views = unrealClipViews(stance.loopMoveId, performerSide);
+      if (!views.length) continue;
+      stancesWithViews += 1;
+      const [first] = views;
+      for (const view of views) {
+        const name = `${view.moveId}/${view.performerSide}-${view.camera}`;
+        assert.equal(view.loops, true, `${name} loops`);
+        assert.deepEqual([view.frames, view.fps, view.durationSeconds], [first.frames, first.fps, first.durationSeconds], `${name} is as long as ${first.moveId}/${first.performerSide}-${first.camera}`);
+      }
+    }
+  }
+  assert.ok(stancesWithViews > 0, 'stance loops are published');
 });
 
 test('an entry clip is offered only for a stance other than the standard one, and only when it exists', () => {

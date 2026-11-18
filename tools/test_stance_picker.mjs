@@ -3,9 +3,12 @@
 // their feet (also while the match greeting plays, which a new stance ends),
 // choosing one changes the fighter's stance and is remembered, the clip above
 // is the one that stance leads to (with a plain note when Unreal has not
-// rendered that stance yet), the keyboard works, the picker leaves once an
-// exchange settles, and the page fits phones. It checks the page. It does not
-// run Unreal or any stream.
+// rendered that stance yet) and offers camera buttons exactly when that clip
+// has more than one view, the boxer shell's motion-captured loop plays in both
+// of its views and starts again at its end (on a wide stage its front view is
+// trimmed from the top, so the near foot is whole), the keyboard works, the picker
+// leaves once an exchange settles, and the page fits phones. It checks the
+// page. It does not run Unreal or any stream.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
@@ -13,7 +16,7 @@ import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 import { defaultNpcs } from '../src/storage.js';
 import { UNREAL_STANCES, findStance, stanceLoop } from '../src/unreal/stances.js';
-import { findUnrealClip } from '../src/unreal/techniqueClips.js';
+import { findUnrealClip, unrealClipViews } from '../src/unreal/techniqueClips.js';
 
 const root = resolve('dist');
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'stance-picker');
@@ -58,6 +61,10 @@ const picker = () => page.locator('.arena-panel .stance-picker');
 const group = () => page.getByRole('radiogroup', { name: 'Starting stance', exact: true });
 const radio = (label) => group().getByRole('radio', { name: label, exact: true });
 const stage = () => page.locator('.mat-window .unreal-clip-stage');
+// The stance loop's own stage, and its camera buttons when the loop has more than one view.
+const loopStage = () => page.locator('.mat-window .unreal-clip-stage[data-kind="stance"]');
+const cameras = () => loopStage().getByRole('group', { name: 'Camera view', exact: true });
+const CAMERA_LABELS = { side: 'Side', front: 'Front' };
 const box = async (locator) => { const found = await locator.boundingBox(); return { x: found.x, y: found.y, width: found.width, height: found.height, right: found.x + found.width, bottom: found.y + found.height }; };
 const chosen = () => group().getByRole('radio', { checked: true }).getAttribute('aria-label');
 const notReady = (stance) => `The ${findStance(stance).label} animation is not ready yet, so standing animations start from the standard wrestling stance for now. Your choice is saved.`;
@@ -90,8 +97,55 @@ async function shows(stance, label) {
     assert.equal(await note.innerText(), notReady(stance));
     assert.equal(await note.getAttribute('role'), null, 'the note is plain text; the change is announced once, by the Arena');
   }
+  // Camera buttons are there exactly when the loop has more than one published view, in view order.
+  const views = unrealClipViews(choice.moveId, choice.performerSide);
+  if (views.length > 1) {
+    assert.deepEqual(await cameras().getByRole('button').allInnerTexts(), views.map((view) => CAMERA_LABELS[view.camera]), `${label}: a button for each view of ${choice.moveId}`);
+  } else {
+    assert.equal(await cameras().count(), 0, `${label}: ${choice.moveId} has one view, so there are no camera buttons`);
+  }
   return choice;
 }
+
+// The stance loop's stage plays this file.
+const untilPlaying = (path) => page.waitForFunction((wanted) => {
+  const element = document.querySelector('.mat-window .unreal-clip-stage[data-kind="stance"] video');
+  return element && new URL(element.currentSrc || element.src).pathname === wanted && element.readyState >= 2 && !element.paused && element.currentTime > 0.05;
+}, path, { timeout: 30000 });
+
+// The loop on the stage is this file, set to loop, as long as its clip says,
+// and it plays to its end and starts again: its clock passes the last half
+// second of the loop, then goes back by more than half the loop.
+async function playsThrough(clip, label) {
+  const seen = await page.waitForFunction(({ path, seconds }) => {
+    const element = document.querySelector('.mat-window .unreal-clip-stage[data-kind="stance"] video');
+    if (!element || new URL(element.currentSrc || element.src).pathname !== path || element.paused) return false;
+    const watched = window.__loopWatch?.path === path ? window.__loopWatch : (window.__loopWatch = { path, peak: 0 });
+    watched.peak = Math.max(watched.peak, element.currentTime);
+    return watched.peak > seconds - 0.5 && element.currentTime < watched.peak - seconds / 2
+      ? { peak: watched.peak, after: element.currentTime, duration: element.duration, loop: element.loop, size: [element.videoWidth, element.videoHeight] }
+      : false;
+  }, { path: clip.video, seconds: clip.durationSeconds }, { timeout: 20000 + clip.durationSeconds * 2000, polling: 40 });
+  const state = await seen.jsonValue();
+  await page.evaluate(() => { delete window.__loopWatch; });
+  assert.equal(state.loop, true, `${label}: the stance clip loops`);
+  assert.ok(Math.abs(state.duration - clip.durationSeconds) < 0.1, `${label}: the browser plays the ${clip.frames}-frame file (${state.duration} s)`);
+  assert.deepEqual(state.size, [clip.width, clip.height], `${label}: decoded at its real size`);
+  return state;
+}
+
+// The rows of the clip that the stance loop's picture box shows, worked out from the video's box
+// and its computed style: object-fit: cover fills the box, a box flatter than the picture trims
+// rows, and the second value of object-position says how much of the trim comes off the top.
+const shownRows = () => loopStage().locator('.unreal-clip-viewport video').evaluate((element) => {
+  const style = getComputedStyle(element);
+  const { width, height } = element.getBoundingClientRect();
+  const scale = Math.max(width / element.videoWidth, height / element.videoHeight);
+  const y = style.objectPosition.split(' ')[1] ?? '';
+  const first = (element.videoHeight - height / scale) * (parseFloat(y) / 100);
+  const tenth = (value) => Math.round(value * 10) / 10;
+  return { fit: style.objectFit, position: style.objectPosition, percent: y.endsWith('%'), first: tenth(first), last: tenth(first + height / scale) };
+});
 
 try {
   const base = process.env.JIUQUEST_PREVIEW_URL?.replace(/\/$/, '') || await staticSite();
@@ -148,6 +202,37 @@ try {
   assert.equal(await chosen(), 'Boxer Shell');
   await shows('boxer shell', 'boxer chosen by keyboard');
   checks.push('Arrow keys move the choice from stance to stance.');
+
+  // The boxer shell's loop is a motion-capture take, longer than the other loops, with a side and
+  // a front view: the stage offers both cameras, each view plays to the end of its loop and starts
+  // again, and Side brings the side view back.
+  const boxing = stanceLoop('boxer shell', RIVAL_STANCE);
+  const boxingViews = unrealClipViews(boxing.moveId, boxing.performerSide);
+  assert.deepEqual([boxing.exact, boxingViews.map((view) => view.camera)], [true, ['side', 'front']], 'the boxer shell loop is published in the side and front views');
+  const boxingSeen = [];
+  for (const [view, step] of [[boxingViews[0], 'opens on'], [boxingViews[1], 'Front plays'], [boxingViews[0], 'Side brings back']]) {
+    const pressed = cameras().getByRole('button', { name: CAMERA_LABELS[view.camera], exact: true });
+    if (step !== 'opens on') await pressed.click();
+    await untilPlaying(view.video);
+    assert.deepEqual([await loopStage().getAttribute('data-move'), await loopStage().getAttribute('data-camera'), await pressed.getAttribute('aria-pressed')], [boxing.moveId, view.camera, 'true'], `boxer shell: ${step} the ${view.camera} view`);
+    // On this wide stage the picture box is two to one, so 640 of the clip's 720 rows show. In
+    // the front view the near foot reaches row 706 and the athletes' heads start at row 110
+    // (measured on every frame of the take published on November 18, 2026), so that view takes
+    // the whole trim from the top; the side view keeps the usual trim (UnrealClipStage.css).
+    const rows = await shownRows();
+    assert.deepEqual([rows.fit, rows.percent], ['cover', true], `boxer shell, ${view.camera}: the picture covers the box (${rows.position})`);
+    assert.ok(Math.abs(rows.last - rows.first - 640) < 2, `boxer shell, ${view.camera}: the wide stage trims the picture to two to one (rows ${rows.first} to ${rows.last})`);
+    if (view.camera === 'front') {
+      assert.ok(rows.first <= 100 && rows.last >= 712, `boxer shell, front: the box shows rows ${rows.first} to ${rows.last}, so the near foot (down to row 706) and both heads (from row 110) are whole`);
+    } else {
+      assert.equal(rows.position, '50% 70%', `boxer shell, ${view.camera}: the usual trim`);
+    }
+    const through = await playsThrough(view, `boxer shell, ${view.camera}`);
+    boxingSeen.push({ step, video: view.video, frames: view.frames, rows, ...through });
+    if (step === 'Front plays') await capture('desktop-boxing-front');
+  }
+  layouts.push({ boxing: boxingSeen });
+  checks.push(`The Boxer Shell loop (${boxingViews.map((view) => `${view.camera} ${view.frames} frames, ${view.durationSeconds} s`).join('; ')}) shows the Side and Front buttons; each view plays to the end of its loop and starts again, and Side brings the side view back. At 1440 by 900 the front view shows rows ${boxingSeen[1].rows.first} to ${boxingSeen[1].rows.last} of 720, the whole near foot, and the side view the usual rows ${boxingSeen[0].rows.first} to ${boxingSeen[0].rows.last}.`);
   await desktop.close();
 
   // ---- A match: the picker stays through the first sequence, then leaves ----

@@ -214,6 +214,17 @@
   .unreal-clip-legend small {
     flex-basis: auto;
   }
+
+  /* Two to one trims 80 of a clip's 720 rows, and the usual trim above shows
+     rows 56 to 696. The boxer shell's front view is the one loop whose feet
+     reach lower: the near foot's sole is at row 706. It takes the whole trim
+     from the empty top instead (rows 80 to 720; the athletes' heads start at
+     row 110). The handover still is trimmed as the video is. Measured on the
+     take published on November 18, 2026: a new take needs measuring again. */
+  .unreal-clip-stage[data-kind="stance"][data-move="stance_boxing"][data-camera="front"] .unreal-clip-viewport video,
+  .unreal-clip-stage[data-kind="stance"][data-move="stance_boxing"][data-camera="front"] .unreal-clip-viewport .unreal-clip-handover {
+    object-position: 50% 100%;
+  }
 }
 
 /* A technique clip: plays once and rests on its last frame. Every rule below is
