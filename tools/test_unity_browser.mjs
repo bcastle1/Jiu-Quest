@@ -8,10 +8,12 @@ import { chromium } from 'playwright';
 import { moves as curriculumMoves } from '../src/data/curriculum.js';
 import { installUnityStartupTelemetry } from './unity_startup_telemetry.mjs';
 import { serveBrowserAsset, prepareBrowserAssets, createBrowserAssetTrace } from './browser_asset_response.mjs';
+import { runnerNetwork } from './runner_network.mjs';
 
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser');
 await mkdir(artifacts, { recursive: true });
 const checks = [], images = [], moves = [], errors = [], consoleErrors = [], expectedConsoleErrors = [], renderQualityLogs = [], assetFailures = [], dimensions = [], pauses = [];
+const runner = runnerNetwork('unity-browser');
 const startedAtUtc = new Date().toISOString(), startedAt = Date.now(), checkpoints = [];
 const pageContexts = new WeakMap();
 const serverAssetTrace = createBrowserAssetTrace();
@@ -58,7 +60,7 @@ async function bounded(promise, timeoutMs, label) {
 function evidence(extra = {}) {
   return { startedAtUtc, checkedAtUtc: new Date().toISOString(), elapsedMs: Date.now() - startedAt, manifest, checkpoints,
     checks, moves, images, dimensions, pauses, trainingLifecycle, speedMeasurement, networkMeasurement, serverAssetTrace: serverAssetTrace.evidence,
-    pageErrors: errors, consoleErrors, expectedConsoleErrors, renderQualityLogs, assetFailures, environment, ...extra };
+    pageErrors: errors, consoleErrors, runnerErrors: runner.errors, expectedConsoleErrors, renderQualityLogs, assetFailures, environment, ...extra };
 }
 
 async function checkpoint(stage, detail = {}) {
@@ -110,6 +112,7 @@ async function staticSite() {
     } catch (error) { trace.row.error = String(error.message); trace.mark('headers'); response.writeHead(404); response.end('Not found'); }
   });
   await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+  runner.serving(server);
   return `http://127.0.0.1:${server.address().port}`;
 }
 
@@ -167,6 +170,7 @@ async function context(options = {}) {
     // Recording a profile does not select it or alter the rendered-ready gate.
     if (qualityDiagnostic) renderQualityLogs.push(entry);
     if (message.type() !== 'error') return;
+    if (runner.take(entry)) return;
     // Only the explicit unavailable-build test may log its manifest's 404.
     // Unity runtime errors can be console messages rather than pageerror events.
     if (expectedMissingManifest && entry.location.url.endsWith('/unity/build-manifest.json')
@@ -291,7 +295,7 @@ let report;
 try {
   await checkpoint('starting');
   const base = process.env.JIUQUEST_PREVIEW_URL?.replace(/\/$/, '') || await staticSite();
-  browser = await chromium.launch(browserOptions);
+  browser = runner.closingIdleFirst(await chromium.launch(browserOptions));
   environment.browserVersions.push({ phase: 'inventory', version: browser.version() });
   // Inventory is deliberately paused, including on slow CI software rendering.
   // Separate transport checks below start and stop the actual playing runtime.
@@ -533,7 +537,7 @@ try {
   browser = undefined; page = undefined;
   await checkpoint('cold-network:browser-closed');
   await checkpoint('cold-network:browser-launching');
-  browser = await chromium.launch(browserOptions);
+  browser = runner.closingIdleFirst(await chromium.launch(browserOptions));
   environment.browserVersions.push({ phase: 'cold-network', version: browser.version() });
   await checkpoint('cold-network:browser-launched');
   await checkpoint('cold-network:starting');

@@ -52,6 +52,7 @@ import { resolveUnityMove } from '../src/unity/bridge.js';
 import { UNREAL_CLIPS, findUnrealClip } from '../src/unreal/techniqueClips.js';
 import { FIGHTER_ONLY_CLIP_IDS, TECHNIQUE_PERFORMERS, techniqueClipPerformers } from '../src/unreal/techniquePicture.js';
 import { CARD, MAT, arenaStart, checkArenaWin, checkLegend, checkTraining, checkTrainingPhone, checkTrainingReducedMotion, clipState, curriculumMove, inTraining, legendLines, openTrainingTechnique, playArena, techniqueStage, watchUnity } from './unreal_technique_checks.mjs';
+import { runnerNetwork } from './runner_network.mjs';
 
 const MOVE = 'double_leg';
 // A technique Unity does not animate, which starts standing like the double leg.
@@ -76,6 +77,7 @@ const work = resolve('tmp/unreal-technique-clips');
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'unreal-technique-clips');
 await mkdir(artifacts, { recursive: true });
 const checks = [], images = [], errors = [], consoleErrors = [], expectedConsoleErrors = [], failedResponses = [], layouts = [], arena = {};
+const runner = runnerNetwork('unreal-technique-clips');
 const browserOptions = { headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) };
 const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.mp4': 'video/mp4', '.wasm': 'application/wasm', '.data': 'application/octet-stream', '.glb': 'model/gltf-binary' };
 const report = { startedAtUtc: new Date().toISOString(), status: 'running', scope: 'Fixture technique clips (relabelled stance files) in a test bundle, desktop Chromium with phone viewport emulation. No Unreal runtime, no WebGL.' };
@@ -168,6 +170,7 @@ async function staticSite() {
     } catch { response.writeHead(500); response.end(); }
   });
   await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+  runner.serving(server);
   return `http://127.0.0.1:${server.address().port}`;
 }
 
@@ -192,6 +195,7 @@ async function open(options = {}, { saved = null, seeded = false, blocked = [] }
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
     const entry = { text: message.text(), location: message.location() };
+    if (runner.take(entry)) return;
     // Unity's missing manifest and the blocked clips are expected; anything else is not.
     const expected = /unity|build-manifest/i.test(`${entry.text} ${entry.location?.url ?? ''}`) || (blocked.length > 0 && /unreal-clips|ERR_FAILED|media/i.test(`${entry.text} ${entry.location?.url ?? ''}`));
     (expected ? expectedConsoleErrors : consoleErrors).push(entry);
@@ -251,7 +255,7 @@ try {
   checks.push(`Two test bundles were built with VITE_COMBAT_ENGINE=unity, relabelling published stance files: ${FIXTURE_MOVES.join(', ')} for both performers, and ${SERVED_FIXTURES.join(', ')} for the fighter only.`);
   bundle = bundles.both;
   const base = await staticSite();
-  browser = await chromium.launch(browserOptions);
+  browser = runner.closingIdleFirst(await chromium.launch(browserOptions));
   report.browserVersion = browser.version();
 
   // ---- Training, desktop ----
@@ -554,7 +558,7 @@ try {
   if (page && !page.isClosed()) await page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }).catch(() => {});
   console.error(error); process.exitCode = 1;
 } finally {
-  Object.assign(report, { checkedAtUtc: new Date().toISOString(), checks, layouts, arena, images, pageErrors: errors, consoleErrors, expectedConsoleErrors, failedResponses });
+  Object.assign(report, { checkedAtUtc: new Date().toISOString(), checks, layouts, arena, images, pageErrors: errors, consoleErrors, runnerErrors: runner.errors, expectedConsoleErrors, failedResponses });
   await writeFile(resolve(artifacts, 'report.json'), JSON.stringify(report, null, 2));
   if (browser) await browser.close().catch(() => {});
   if (server) { server.closeAllConnections(); await new Promise((resolveClose) => server.close(resolveClose)); }

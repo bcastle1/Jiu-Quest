@@ -7,11 +7,13 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 import showcaseCards from '../src/showcaseCards.data.js';
+import { runnerNetwork } from './runner_network.mjs';
 
 const root = resolve('dist');
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'showcase-cards');
 await mkdir(artifacts, { recursive: true });
 const checks = [], images = [], errors = [], consoleErrors = [], failedResponses = [], layouts = [];
+const runner = runnerNetwork('showcase-cards');
 const browserOptions = { headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) };
 const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.mp4': 'video/mp4' };
 const report = { startedAtUtc: new Date().toISOString(), status: 'running', scope: 'Still pictures in desktop Chromium, with phone viewport emulation. No physical device.' };
@@ -30,6 +32,7 @@ async function staticSite() {
     } catch { response.writeHead(404); response.end('Not found'); }
   });
   await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+  runner.serving(server);
   return `http://127.0.0.1:${server.address().port}`;
 }
 
@@ -37,7 +40,7 @@ async function open(options) {
   const context = await browser.newContext({ reducedMotion: 'reduce', deviceScaleFactor: 1, ...options });
   page = await context.newPage();
   page.on('pageerror', (error) => errors.push(error.message));
-  page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push({ text: message.text(), location: message.location() }); });
+  page.on('console', (message) => { if (message.type() !== 'error') return; const entry = { text: message.text(), location: message.location() }; if (!runner.take(entry)) consoleErrors.push(entry); });
   page.on('response', (response) => { if (response.status() >= 400) failedResponses.push({ url: response.url(), status: response.status() }); });
   return context;
 }
@@ -66,7 +69,7 @@ async function strip() {
 
 try {
   const base = process.env.JIUQUEST_PREVIEW_URL?.replace(/\/$/, '') || await staticSite();
-  browser = await chromium.launch(browserOptions);
+  browser = runner.closingIdleFirst(await chromium.launch(browserOptions));
   report.browserVersion = browser.version();
 
   for (const viewport of [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }]) {
@@ -114,7 +117,7 @@ try {
   if (page && !page.isClosed()) await page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }).catch(() => {});
   console.error(error); process.exitCode = 1;
 } finally {
-  Object.assign(report, { checkedAtUtc: new Date().toISOString(), checks, layouts, images, pageErrors: errors, consoleErrors, failedResponses });
+  Object.assign(report, { checkedAtUtc: new Date().toISOString(), checks, layouts, images, pageErrors: errors, consoleErrors, runnerErrors: runner.errors, failedResponses });
   await writeFile(resolve(artifacts, 'report.json'), JSON.stringify(report, null, 2));
   if (browser) await browser.close().catch(() => {});
   if (server) { server.closeAllConnections(); await new Promise((resolveClose) => server.close(resolveClose)); }

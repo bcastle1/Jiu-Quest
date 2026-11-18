@@ -12,11 +12,13 @@ import { UNREAL_ATHLETE } from '../src/unreal/athlete.js';
 import { UNREAL_ATHLETE_FLOOR } from '../src/unreal/athleteFloor.js';
 import unrealStancePictures from '../src/unreal/stancePictures.data.js';
 import { beltColors, moves } from '../src/data/curriculum.js';
+import { runnerNetwork } from './runner_network.mjs';
 
 const root = resolve('dist');
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'unreal-athlete');
 await mkdir(artifacts, { recursive: true });
 const checks = [], images = [], errors = [], consoleErrors = [], failedResponses = [], layouts = [], samples = [];
+const runner = runnerNetwork('unreal-athlete');
 const browserOptions = { headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) };
 const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2' };
 const report = { startedAtUtc: new Date().toISOString(), status: 'running', scope: 'Still layers composited in desktop Chromium, with phone viewport emulation. No Unreal runtime, stream or physical device.' };
@@ -42,6 +44,7 @@ async function staticSite() {
     } catch { response.writeHead(404); response.end('Not found'); }
   });
   await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+  runner.serving(server);
   return `http://127.0.0.1:${server.address().port}`;
 }
 
@@ -57,7 +60,7 @@ async function open(options, saved) {
   }
   page = await context.newPage();
   page.on('pageerror', (error) => errors.push(error.message));
-  page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push({ text: message.text(), location: message.location() }); });
+  page.on('console', (message) => { if (message.type() !== 'error') return; const entry = { text: message.text(), location: message.location() }; if (!runner.take(entry)) consoleErrors.push(entry); });
   page.on('response', (response) => { if (response.status() >= 400) failedResponses.push({ url: response.url(), status: response.status() }); });
   return context;
 }
@@ -238,7 +241,7 @@ async function noHairline(label) {
 
 try {
   const base = process.env.JIUQUEST_PREVIEW_URL?.replace(/\/$/, '') || await staticSite();
-  browser = await chromium.launch(browserOptions);
+  browser = runner.closingIdleFirst(await chromium.launch(browserOptions));
   report.browserVersion = browser.version();
 
   // ---- A first visit on a desktop ----
@@ -474,7 +477,7 @@ try {
   if (page && !page.isClosed()) await page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }).catch(() => {});
   console.error(error); process.exitCode = 1;
 } finally {
-  Object.assign(report, { checkedAtUtc: new Date().toISOString(), checks, layouts, samples, images, pageErrors: errors, consoleErrors, failedResponses });
+  Object.assign(report, { checkedAtUtc: new Date().toISOString(), checks, layouts, samples, images, pageErrors: errors, consoleErrors, runnerErrors: runner.errors, failedResponses });
   await writeFile(resolve(artifacts, 'report.json'), JSON.stringify(report, null, 2));
   if (browser) await browser.close().catch(() => {});
   if (server) { server.closeAllConnections(); await new Promise((resolveClose) => server.close(resolveClose)); }

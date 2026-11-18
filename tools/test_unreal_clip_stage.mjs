@@ -26,11 +26,13 @@ import { resolveUnityMove } from '../src/unity/bridge.js';
 import { findUnrealClip, unrealClipViews } from '../src/unreal/techniqueClips.js';
 import { isOwnerPublishedDraft, techniqueClipReady } from '../src/unreal/techniquePicture.js';
 import { CARD, MAT, TECHNIQUE_IDS, arenaStart, checkArenaWin, checkTraining, curriculumMove, inTraining, openTrainingTechnique, playArena, techniqueStage, watchUnity } from './unreal_technique_checks.mjs';
+import { runnerNetwork } from './runner_network.mjs';
 
 const root = resolve('dist');
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'unreal-clip-stage');
 await mkdir(artifacts, { recursive: true });
 const checks = [], images = [], errors = [], consoleErrors = [], expectedConsoleErrors = [], failedResponses = [], layouts = [], playback = [];
+const runner = runnerNetwork('unreal-clip-stage');
 const browserOptions = { headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) };
 const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.mp4': 'video/mp4' };
 const report = { startedAtUtc: new Date().toISOString(), status: 'running', scope: 'Pre-rendered video files (stance loops, and any published technique clips) played in desktop Chromium, with phone viewport emulation. No Unreal runtime, stream or physical device.' };
@@ -63,6 +65,7 @@ async function staticSite() {
     } catch { response.writeHead(404); response.end('Not found'); }
   });
   await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+  runner.serving(server);
   return `http://127.0.0.1:${server.address().port}`;
 }
 
@@ -79,6 +82,7 @@ async function open(options) {
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
     const entry = { text: message.text(), location: message.location() };
+    if (runner.take(entry)) return;
     (blockClips || (unityOff && /unity|build-manifest/i.test(`${entry.text} ${entry.location?.url ?? ''}`)) ? expectedConsoleErrors : consoleErrors).push(entry);
   });
   page.on('response', (response) => {
@@ -140,7 +144,7 @@ async function playing(clip, label) {
 
 try {
   const base = process.env.JIUQUEST_PREVIEW_URL?.replace(/\/$/, '') || await staticSite();
-  browser = await chromium.launch(browserOptions);
+  browser = runner.closingIdleFirst(await chromium.launch(browserOptions));
   report.browserVersion = browser.version();
 
   // ---- Desktop, default renderer ----
@@ -443,7 +447,7 @@ try {
   if (page && !page.isClosed()) await page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }).catch(() => {});
   console.error(error); process.exitCode = 1;
 } finally {
-  Object.assign(report, { checkedAtUtc: new Date().toISOString(), checks, layouts, playback, images, pageErrors: errors, consoleErrors, expectedConsoleErrors, failedResponses });
+  Object.assign(report, { checkedAtUtc: new Date().toISOString(), checks, layouts, playback, images, pageErrors: errors, consoleErrors, runnerErrors: runner.errors, expectedConsoleErrors, failedResponses });
   await writeFile(resolve(artifacts, 'report.json'), JSON.stringify(report, null, 2));
   if (browser) await browser.close().catch(() => {});
   if (server) { server.closeAllConnections(); await new Promise((resolveClose) => server.close(resolveClose)); }

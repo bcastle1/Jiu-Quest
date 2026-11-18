@@ -19,11 +19,13 @@ import { encodeMusicPack } from '../src/audio/musicPack.js';
 import { MUSIC_FADE_SECONDS, SONG_FADE_OUT_SECONDS } from '../src/audio/musicEngine.js';
 import { licensedTracksFrom, pageMusic, SOUNDTRACK_TITLE } from '../src/audio/musicLibrary.js';
 import { defaultMusicTracks } from '../src/storage.js';
+import { runnerNetwork } from './runner_network.mjs';
 
 const root = resolve('dist');
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'music-engine');
 await mkdir(artifacts, { recursive: true });
 const checks = [], errors = [], consoleErrors = [], failedResponses = [], measurements = [];
+const runner = runnerNetwork('music-engine');
 // --disable-audio-output gives the browser a stand-in sound device, so the audio clock runs on
 // a build server that has no sound hardware, and nothing is heard on a computer that has.
 const browserOptions = { headless: true, args: ['--enable-unsafe-swiftshader', '--mute-audio', '--disable-audio-output'],...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) };
@@ -88,6 +90,7 @@ async function staticSite() {
     } catch { response.writeHead(404); response.end('Not found'); }
   });
   await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+  runner.serving(server);
   return `http://127.0.0.1:${server.address().port}`;
 }
 
@@ -146,7 +149,7 @@ async function open(licensed, { expectMissing = [], size = DESKTOP } = {}) {
   page = await context.newPage();
   const expected = (url) => expectMissing.some((name) => url.includes(name));
   page.on('pageerror', (error) => errors.push(error.message));
-  page.on('console', (message) => { if (message.type() === 'error' && !expected(message.location().url || '')) consoleErrors.push({ text: message.text(), location: message.location() }); });
+  page.on('console', (message) => { if (message.type() !== 'error') return; const entry = { text: message.text(), location: message.location() }; if (!runner.take(entry) && !expected(entry.location.url || '')) consoleErrors.push(entry); });
   page.on('response', (response) => { if (response.status() >= 400 && !expected(response.url())) failedResponses.push({ url: response.url(), status: response.status() }); });
   await page.goto(base, { waitUntil: 'domcontentloaded' });
   await navButton('Overview').waitFor();
@@ -484,7 +487,7 @@ async function shippedSongsLoad() {
 
 try {
   base = process.env.JIUQUEST_PREVIEW_URL?.replace(/\/$/, '') || await staticSite();
-  browser = await chromium.launch(browserOptions);
+  browser = runner.closingIdleFirst(await chromium.launch(browserOptions));
   report.browserVersion = browser.version();
 
   await savedTrackKeepsPlaying();
@@ -514,7 +517,7 @@ try {
   if (page && !page.isClosed()) await page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }).catch(() => {});
   console.error(error); process.exitCode = 1;
 } finally {
-  Object.assign(report, { checkedAtUtc: new Date().toISOString(), checks, measurements, pageErrors: errors, consoleErrors, failedResponses });
+  Object.assign(report, { checkedAtUtc: new Date().toISOString(), checks, measurements, pageErrors: errors, consoleErrors, runnerErrors: runner.errors, failedResponses });
   await writeFile(resolve(artifacts, 'report.json'), JSON.stringify(report, null, 2));
   if (browser) await browser.close().catch(() => {});
   if (server) { server.closeAllConnections(); await new Promise((resolveClose) => server.close(resolveClose)); }

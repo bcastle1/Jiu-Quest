@@ -5,15 +5,17 @@ import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 import { serveBrowserAsset, prepareBrowserAssets, createBrowserAssetTrace } from './browser_asset_response.mjs';
 import { installUnityStartupTelemetry } from './unity_startup_telemetry.mjs';
+import { runnerNetwork } from './runner_network.mjs';
 
 const root = resolve('dist');
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'startup-unmount');
 await mkdir(artifacts, { recursive: true });
 const errors = [], consoleErrors = [];
+const runner = runnerNetwork('unity-canvas-lifecycle');
 const serverAssetTrace = createBrowserAssetTrace();
 let browser, context, server, page, releaseDownload;
 let evidence = { startedAtUtc: new Date().toISOString(), status: 'running' };
-const save = () => writeFile(resolve(artifacts, 'report.json'), JSON.stringify({ ...evidence, serverAssetTrace: serverAssetTrace.evidence, errors, consoleErrors }, null, 2));
+const save = () => writeFile(resolve(artifacts, 'report.json'), JSON.stringify({ ...evidence, serverAssetTrace: serverAssetTrace.evidence, errors, consoleErrors, runnerErrors: runner.errors }, null, 2));
 try {
   await readFile(resolve(root, 'index.html'));
   const manifest = JSON.parse(await readFile(resolve(root, 'unity/build-manifest.json'), 'utf8'));
@@ -39,9 +41,10 @@ try {
     } catch (error) { trace.row.error = String(error.message); trace.mark('headers'); response.writeHead(404); response.end('Not found'); }
   });
   await new Promise(resolveListen => server.listen(0, '127.0.0.1', resolveListen));
-  browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'],
+  runner.serving(server);
+  browser = runner.closingIdleFirst(await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'],
     ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}),
-    ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) });
+    ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) }));
   context = await browser.newContext({ reducedMotion: 'reduce' });
   await context.addInitScript(installUnityStartupTelemetry, { moveId: 'rear_naked_choke' });
   await context.addInitScript(() => {
@@ -68,7 +71,7 @@ try {
   });
   page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+  page.on('console', message => { if (message.type() === 'error' && !runner.take({ text: message.text(), location: message.location() })) consoleErrors.push(message.text()); });
   // Explicit, so Unity keeps these techniques once they have Unreal clips.
   await page.goto(`http://127.0.0.1:${server.address().port}/?engine=unity`);
   await page.getByRole('button', { name: 'Training', exact: true }).click();

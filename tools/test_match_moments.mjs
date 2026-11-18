@@ -61,12 +61,14 @@ import { DEFAULT_STANCE, stanceLoop } from '../src/unreal/stances.js';
 import { UNREAL_CLIPS, findUnrealClip } from '../src/unreal/techniqueClips.js';
 import { MATCH_MOMENT_CLIP } from './import_unreal_clips.mjs';
 import { checkLegend, legendLines } from './unreal_technique_checks.mjs';
+import { runnerNetwork } from './runner_network.mjs';
 
 const dist = resolve('dist');
 const work = resolve('tmp/match-moments');
 const artifacts = resolve(process.env.JIUQUEST_BROWSER_ARTIFACTS || 'tmp/browser', 'match-moments');
 await mkdir(artifacts, { recursive: true });
 const checks = [], images = [], errors = [], consoleErrors = [], expectedConsoleErrors = [], failedResponses = [], layouts = [];
+const runner = runnerNetwork('match-moments');
 const browserOptions = { headless: true, args: ['--enable-unsafe-swiftshader'], ...(process.env.JIUQUEST_BROWSER_CHANNEL ? { channel: process.env.JIUQUEST_BROWSER_CHANNEL } : {}), ...(process.env.JIUQUEST_BROWSER_EXECUTABLE ? { executablePath: process.env.JIUQUEST_BROWSER_EXECUTABLE } : {}) };
 const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.mp4': 'video/mp4', '.wasm': 'application/wasm', '.data': 'application/octet-stream', '.glb': 'model/gltf-binary' };
 const report = { startedAtUtc: new Date().toISOString(), status: 'running', scope: 'The release build with its published match greeting, and fixture match moment clips (relabelled stance files) in a test bundle, in desktop Chromium with phone viewport and touch emulation. No Unreal runtime, no WebGL, no physical device.' };
@@ -187,6 +189,7 @@ async function staticSite() {
     } catch { response.writeHead(500); response.end(); }
   });
   await new Promise((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+  runner.serving(server);
   return `http://127.0.0.1:${server.address().port}`;
 }
 
@@ -337,6 +340,7 @@ async function open({ saved = null, blocked = [], reducedMotion = 'no-preference
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
     const entry = { text: message.text(), location: message.location() };
+    if (runner.take(entry)) return;
     // Unity's missing manifest and the blocked clips are expected; anything else is not.
     const where = `${entry.text} ${entry.location?.url ?? ''}`;
     const expected = /unity|build-manifest/i.test(where) || (blocked.length > 0 && /unreal-clips|ERR_FAILED|media/i.test(where));
@@ -1687,7 +1691,7 @@ try {
   checks.push(`A test bundle was built with VITE_COMBAT_ENGINE=unity, relabelling the published standing-stance files as ${MATCH_MOMENT_IDS.join(', ')} (${IDLE_CLIP.frames} frames, ${FIXTURE_SECONDS} seconds, side and front).`);
   bundle = bundles.moments;
   base = await staticSite();
-  browser = await chromium.launch(browserOptions);
+  browser = runner.closingIdleFirst(await chromium.launch(browserOptions));
   report.browserVersion = browser.version();
 
   for (size of SIZES) {
@@ -1729,7 +1733,7 @@ try {
   if (page && !page.isClosed()) await page.screenshot({ path: resolve(artifacts, 'failure.png'), fullPage: true, timeout: 10000 }).catch(() => {});
   console.error(error); process.exitCode = 1;
 } finally {
-  Object.assign(report, { checkedAtUtc: new Date().toISOString(), checks, layouts, images, pageErrors: errors, consoleErrors, expectedConsoleErrors, failedResponses });
+  Object.assign(report, { checkedAtUtc: new Date().toISOString(), checks, layouts, images, pageErrors: errors, consoleErrors, runnerErrors: runner.errors, expectedConsoleErrors, failedResponses });
   await writeFile(resolve(artifacts, 'report.json'), JSON.stringify(report, null, 2));
   if (browser) await browser.close().catch(() => {});
   if (server) { server.closeAllConnections(); await new Promise((resolveClose) => server.close(resolveClose)); }
