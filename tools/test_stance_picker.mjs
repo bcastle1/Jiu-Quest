@@ -89,8 +89,8 @@ const MEASURED_ROWS = Object.freeze({
   'stance_sumo/fighter-front': { sha256: 'bf3bf3e1dd91df49567c5fb13bcee6e1937d6181ba6a80735d932efb2381424c', head: 181, foot: 657 },
   'stance_boxing/fighter-side': { sha256: '389d5779676214e2c650c7431ae70d28111244be7bdffa44b7608434a85771dc', head: 139, foot: 626 },
   'stance_boxing/fighter-front': { sha256: '352d116e2752eb5e59b21193a3e4978b6f666297ec1f33edfa01448c4680e386', head: 108, foot: 708 },
-  'stance_muay_thai/fighter-side': { sha256: '5df72fc76c76dd0659c5376fbf7f18fcb564ad02e945831592e1f49d03d9f48b', head: 138, foot: 626 },
-  'stance_muay_thai/fighter-front': { sha256: '763b91807f3f30bc0e7e927f288cfd8d236aa294be2468efca109f0cfb9aeeb3', head: 105, foot: 709 },
+  'stance_muay_thai/fighter-side': { sha256: '79f8d4be8f9e268bd85c8e1c35f905c0b13c199be72ca45622f2249285583106', head: 133, foot: 626 },
+  'stance_muay_thai/fighter-front': { sha256: '1f2de2d5263faab6677447ec82c25c437248fad53557f88026abcdca1760dfa6', head: 100, foot: 709 },
   'stance_sambo/fighter-side': { sha256: 'b6c0bf6aafc2106c907504d5c149657ce5b57d57aa166a8df32a6cfba6610f17', head: 172, foot: 626 },
   'stance_sambo/fighter-front': { sha256: 'f7e4f37e3a30bf55c76c633d5ce0b33ba5717452fcd0633dc6c75cb4ed6660e6', head: 181, foot: 636 },
 });
