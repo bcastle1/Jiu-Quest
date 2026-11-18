@@ -167,12 +167,11 @@ test('the head pictures belong to the published layers they were built on', () =
     assert.equal(pins.layers[url], digest, rebuild);
     assert.equal(createHash('sha256').update(repoFile(`public${url}`)).digest('hex'), digest, rebuild);
   }
-  // The tool reads published layers in one place, which records them.
+  // Output redirection does not select body inputs. The checked reader uses the
+  // explicit input root (or this checkout's public) and records the bytes it read.
   const tool = repoFile('tools/build_unreal_athlete_heads.mjs').toString('utf8');
-  assert.deepEqual(tool.match(/^.*'public'.*$/gm).map((line) => line.trim()), [
-    "const publicDir = resolve(publicOption ?? join(ROOT, 'public'));",
-    "const data = readFileSync(join(ROOT, 'public', url));",
-  ]);
+  assert.match(tool, /createLayerInput\(layerInputOption \?\? join\(ROOT, 'public'\)\)/);
+  assert.match(tool, /function publishedLayer\(url\) \{\s+const data = layerInput\.read\(url\);\s+layersRead\[url\] = layerInput\.files\[url\]\.sha256;/);
   // Dean's standing jacket layers are the published ones with his own collar light, at their WebP quality.
   const layerTool = repoFile('tools/build_unreal_position_layers.mjs').toString('utf8');
   assert.equal(Number(tool.match(/jacketQuality: (\d+),/)[1]), Number(layerTool.match(/let POSITIONS = \{\s+standing: \{[\s\S]*?\n\s+quality: (\d+),/)[1]));

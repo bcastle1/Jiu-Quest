@@ -88,10 +88,7 @@ test('a still replaces the classic picture only where it is at least as exact', 
 });
 
 test('the crouched standing still is shown with the dojo renders of the ready-hand passes', () => {
-  // These five Unreal passes are Claude's renders of November 17, 2026 in the set
-  // "dojo_tatami" (a straw tatami floor under four rectangular lights) of Codex's
-  // ready-hand passes: the same frame, camera, body pose, hands, garments, colors and
-  // lead belt-tail repair, and only the floor and the lights differ.
+  // These five Athletic V2 reference passes preserve the recorded ready-hand pose and dojo camera.
   // To hold a still back again, list it in HELD_UNREAL_POSITION_STILLS and change this test with it.
   assert.deepEqual(HELD_UNREAL_POSITION_STILLS, []);
   assert.throws(() => { HELD_UNREAL_POSITION_STILLS.push('standing'); }, TypeError);
@@ -106,11 +103,11 @@ test('the crouched standing still is shown with the dojo renders of the ready-ha
   // The still is frame 0 of the crouched standing_stance clip, built from the dojo renders of the ready-hand passes.
   assert.deepEqual([standing.sourceClip, standing.sourceFrame], ['standing_stance/fighter-side.mp4', 0]);
   assert.deepEqual({ ...standing.sources }, {
-    'base.png': '60d096e3f3b0b1ed050219e97553cacafeaf0bd28fc6f53cd5f07b85aac0958f',
-    'lead-gi-white.png': 'e339b7d5daae2fbc4f62c7d2650141ab7eb2e668634dcf3192963102ae0b1ba6',
-    'other-gi-white.png': 'd36b5e89b3d6aed7607fe001ba5444f37b96528fe81b105748f168be8570ad5d',
-    'lead-belt-white.png': '1bd1e5a96f0e65eee7aecfad6561c0df20a7d3679a6de075ace5a4df29db07c3',
-    'other-belt-white.png': '3562269a7afebb661697ff9ca9e42ae53b4b5240cd9ff8fe97da5db804404127',
+    'base.png': '0126176670b6afa8e7b84fb85ff3664ed5723ecb1eaa62bc5560580c4ec5d0ca',
+    'lead-gi-white.png': '5a70156bbaf5234a3b8873e4a1d2b5a2f1a51b857b8d68080550a2974461b912',
+    'other-gi-white.png': '687cefcc81fca89f8103666d6e874f7dff281c9c4e13f0d09eeb34fbe937197e',
+    'lead-belt-white.png': '126fd047db7dce4de44d3ee90d376a2b8dff66dd8443bf8d9806c0a0e80ad7d8',
+    'other-belt-white.png': 'adbcb21447d26638ff8dc002a171d1faf5e90a12ac054bb87c5b62f59a90776c',
   });
 });
 

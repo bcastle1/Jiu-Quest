@@ -35,17 +35,16 @@ export const UNREAL_ATHLETE = Object.freeze({
   portrait: Object.freeze({ left: 280, top: 18, size: 300 }),
   // The published layer files. A re-encode or a swapped file fails the tests.
   files: Object.freeze({
-    base: Object.freeze({ bytes: 57290, sha256: '548aa77231b2e102488bc1b3f1a451e21fbd05827b823a84eb1ec32855bd37d1' }),
-    jacket: Object.freeze({ bytes: 20658, sha256: '6c9401f330bb21b4e1f591b3d46b16c12f560f916efc23227ac05315a835f5e7' }),
-    pants: Object.freeze({ bytes: 35636, sha256: '9f682459c573f2a0d3b0eb4adfee3938e90edf0af6934eadb7ce3cdd3ce39d10' }),
-    belt: Object.freeze({ bytes: 6876, sha256: '168f7d13fd8ea0f3ca19809915e1c86c8e66b8188c0378fc4c07a289f41267f0' }),
+    base: Object.freeze({ bytes: 35790, sha256: '6a9e772bc6f11c03917bbae8ffe1380dc7360b976deeeeb8d252d46ad9e7b9c4' }),
+    jacket: Object.freeze({ bytes: 16748, sha256: '48b5f1e960723166ffdcff4b5992578a97e487f19f8863b7930c3cf991434269' }),
+    pants: Object.freeze({ bytes: 19040, sha256: 'f733d2eef8902f5d2edfddb058d7a0c3cd394018351606a08bfdcb9d7a47895c' }),
+    belt: Object.freeze({ bytes: 6614, sha256: '205694e9c4640181278f274710b221de8b5669a7a96038eab79f5163cecb289a' }),
   }),
-  // The Unreal renders the layers were derived from: Unreal-render-pack,
-  // athlete-01/front, the hip-belt variant of the purchased-gi character.
+  // The three Athletic V2 original-face front reference renders used by the layer builder.
   sources: Object.freeze({
-    'gi-white.png': '5204d085df4aa17ba8828c77fc03cdd57b2c0ccbf8bf1ed041e207abf208a8f3',
-    'gi-black.png': '86300d214f158de9ab9812e5213710165572993791d3ff7759a278c3bd73f65b',
-    'belt-white.png': 'c6e5b37046c4ae52bd23fa066820d407d001eb9056edd16c4cff15801ee955f2',
+    'gi-white.png': '0d313620a258884d4a3e527bd93d217993696df3ed876ba61215b7fa45435887',
+    'gi-black.png': '25b27b4777c62fc5554ed2619f64b2d8ee9c50ababc2bea285b4f649e6056570',
+    'belt-white.png': 'cfcd6f89f2dd4ebd8952e06c474af890ec98ff00419a9d609ba97ab5e172bd09',
   }),
 });
 

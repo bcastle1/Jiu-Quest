@@ -22,15 +22,20 @@
 //
 // Usage:
 //   node tools/build_unreal_athlete_floor.mjs --base <BaseColor image> --normal <Normal image> --ffmpeg <ffmpeg bin dir> [--out <dir>]
+//   node tools/build_unreal_athlete_floor.mjs --silhouette-only [--out <dir>]
+// The latter reads all four body layers under the output tree's public folder
+// and updates its derived outline and data module using the existing mat pins.
 //
 // The two images are the surface's BaseColor and Normal maps, at any size.
 // Needs ffmpeg and ffprobe (with libwebp) in the given folder. Node only.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { UNREAL_ATHLETE } from '../src/unreal/athlete.js';
+import floorData from '../src/unreal/athleteFloor.data.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FOLDER = 'public/assets/unreal-athlete/athlete-01/floor';
@@ -230,6 +235,34 @@ export function athleteSilhouette(layers) {
 
 const encode = (ffbin, input, size, format, options, file) => execFileSync(tool(ffbin, 'ffmpeg'), ['-loglevel', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', format, '-s', size, '-i', '-', '-frames:v', '1', '-c:v', 'libwebp', ...options, file], { input });
 
+function outlineRgba(layers) {
+  const alpha = athleteSilhouette(layers);
+  const rgba = Buffer.alloc(alpha.length * 4);
+  for (let i = 0; i < alpha.length; i++) rgba[i * 4 + 3] = alpha[i];
+  return rgba;
+}
+
+async function updateSilhouette(out) {
+  const require = createRequire(import.meta.url);
+  const sharp = require(require.resolve('sharp', { paths: [ROOT, path.join(ROOT, 'node_modules/.pnpm/node_modules')] }));
+  const layers = await Promise.all(Object.values(UNREAL_ATHLETE.layers).map(async (url) => {
+    const { data, info } = await sharp(path.join(out, 'public', url)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    if (info.width !== PICTURE.width || info.height !== PICTURE.height || info.channels !== 3) {
+      throw new Error(`Unexpected front layer dimensions or channels: ${url}`);
+    }
+    return { data };
+  }));
+  const bytes = await sharp(outlineRgba(layers), { raw: { ...PICTURE, channels: 4 } }).webp({ lossless: true, effort: 6 }).toBuffer();
+  const silhouette = { ...floorData.silhouette, bytes: bytes.length, sha256: sha256(bytes) };
+  const imageFile = path.join(out, 'public', silhouette.url);
+  const moduleFile = path.join(out, DATA);
+  mkdirSync(path.dirname(imageFile), { recursive: true });
+  mkdirSync(path.dirname(moduleFile), { recursive: true });
+  writeFileSync(imageFile, bytes);
+  writeFileSync(moduleFile, renderDataFile({ ...floorData, silhouette }));
+  return silhouette;
+}
+
 export function renderDataFile({ picture, silhouette, sources, floor = FLOOR }) {
   const row = (entry) => `Object.freeze(${JSON.stringify(entry)})`;
   return [
@@ -258,10 +291,7 @@ export function buildFloor({ base, normal, ffbin, out = ROOT }) {
   const pictureFile = path.join(folder, 'tatami.webp'), silhouetteFile = path.join(folder, 'front-silhouette.webp');
   encode(ffbin, renderFloor(baseColor, normalMap), `${FLOOR.width}x${FLOOR.rows}`, 'rgb24', ['-quality', '80', '-compression_level', '6', '-preset', 'photo'], pictureFile);
   const layers = Object.values(UNREAL_ATHLETE.layers).map((url) => readRgb(ffbin, path.join(ROOT, 'public', url)));
-  const alpha = athleteSilhouette(layers);
-  const rgba = Buffer.alloc(alpha.length * 4);
-  for (let i = 0; i < alpha.length; i++) rgba[i * 4 + 3] = alpha[i];
-  encode(ffbin, rgba, `${PICTURE.width}x${PICTURE.height}`, 'rgba', ['-lossless', '1', '-compression_level', '6'], silhouetteFile);
+  encode(ffbin, outlineRgba(layers), `${PICTURE.width}x${PICTURE.height}`, 'rgba', ['-lossless', '1', '-compression_level', '6'], silhouetteFile);
   const pin = (file, url, width, height) => { const bytes = readFileSync(file); return { url, width, height, bytes: bytes.length, sha256: sha256(bytes) }; };
   const result = {
     picture: pin(pictureFile, '/assets/unreal-athlete/athlete-01/floor/tatami.webp', FLOOR.width, FLOOR.rows),
@@ -277,9 +307,12 @@ export function buildFloor({ base, normal, ffbin, out = ROOT }) {
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const args = process.argv.slice(2), value = (name) => { const at = args.indexOf(name); return at < 0 ? undefined : args[at + 1]; };
   const [base, normal, ffbin, out] = ['--base', '--normal', '--ffmpeg', '--out'].map(value);
-  if (!base || !normal || !ffbin) {
+  if (args.includes('--silhouette-only')) {
+    console.log(JSON.stringify(await updateSilhouette(out ? path.resolve(out) : ROOT), null, 2));
+  } else if (!base || !normal || !ffbin) {
     console.error('usage: node tools/build_unreal_athlete_floor.mjs --base <BaseColor image> --normal <Normal image> --ffmpeg <ffmpeg bin dir> [--out <dir>]');
     process.exit(2);
+  } else {
+    console.log(JSON.stringify(buildFloor({ base, normal, ffbin, out: out ? path.resolve(out) : ROOT }), null, 2));
   }
-  console.log(JSON.stringify(buildFloor({ base, normal, ffbin, out: out ? path.resolve(out) : ROOT }), null, 2));
 }

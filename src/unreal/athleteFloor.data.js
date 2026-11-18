@@ -5,7 +5,7 @@ export default Object.freeze({
   // The lit floor on black: added to the stage, centred under the athlete.
   picture: Object.freeze({"url":"/assets/unreal-athlete/athlete-01/floor/tatami.webp","width":2600,"height":740,"bytes":47390,"sha256":"3868d4758f74e506cd1d6d9400fe2599dd3ca7fe43d506ce1ae57515a36ac7db"}),
   // The athlete's outline in his own picture: the floor is cut out there.
-  silhouette: Object.freeze({"url":"/assets/unreal-athlete/athlete-01/floor/front-silhouette.webp","width":900,"height":1760,"bytes":9472,"sha256":"55e51eb5cc33d5e2952a4cfcf8ddb2585d6274978ee42cdf6a5a54c90c65fb24"}),
+  silhouette: Object.freeze({"url":"/assets/unreal-athlete/athlete-01/floor/front-silhouette.webp","width":900,"height":1760,"bytes":9290,"sha256":"06ece46ae85d451cd390cd643eb10c91eb0bb16262a9100fbada1df544965e7c"}),
   // The share of the athlete's height the floor picture covers, from the bottom.
   heightShare: "42.045%",
   // The two maps of the surface this picture was rendered from, by SHA-256.

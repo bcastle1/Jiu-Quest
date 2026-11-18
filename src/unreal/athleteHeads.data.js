@@ -2,7 +2,7 @@
 // Where the head pictures of the Unreal athlete are published and how large they are.
 // src/unreal/athleteHeads.js names each picture; athleteHeads.pins.js pins every file.
 export default Object.freeze({
-  renderer: 'Unreal Engine 5.8.4, Movie Render Queue, 64 spatial samples per still',
+  renderer: 'Unreal Engine 5.8, Movie Render Queue, 64 spatial samples per still',
   baseFaces: Object.freeze(['dean']),
   athlete: Object.freeze({
     width: 900,

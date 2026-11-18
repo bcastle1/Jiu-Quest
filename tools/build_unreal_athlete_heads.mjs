@@ -5,7 +5,8 @@
 // standing position still (src/unreal/positionStills.js).
 //
 //   node tools/build_unreal_athlete_heads.mjs <heads.json>
-//        [--public <folder>] [--module <file>] [--debug <folder>]
+//        [--public <folder>] [--module <file>] [--debug <folder>] [--layer-input-public <folder>]
+//        [--layer-input-receipt <json file>]
 //
 // heads.json lists Unreal renders with their size and SHA-256 (they are not in
 // this repository: renders of licensed characters stay with the renderer). Every
@@ -33,6 +34,23 @@
 // --module names the first; it must end in .data.js, and the second is written
 // beside it as .pins.js. --public names another folder to write the pictures
 // under; a trial run names both, and the tool stops if --public comes alone.
+// --layer-input-public names the public root containing the fresh body layers.
+// Without it, inputs still come from this checkout's public, even with --public.
+// All five base/jacket inputs are checked and read before any output is written;
+// a missing or invalid input never falls back to another folder. The report names
+// both roots, while the portable pins bind the actual input bytes by asset URL.
+// Athletic catalogs (heads.json.athleticRender) also require --layer-input-receipt.
+// Build that receipt from the actual fresh front/standing build reports:
+// { schema: 1, nativeSources: {
+//     front: { black: SHA, white: SHA, beltWhite: SHA },
+//     standing: { base: SHA, leadGiWhite: SHA, otherGiWhite: SHA,
+//                 leadBeltWhite: SHA, otherBeltWhite: SHA }
+//   }, layers: { [each of the five base/jacket asset URLs]: { bytes: SIZE, sha256: SHA } } }
+// Every native hash must match this catalog and every layer must match the bytes
+// read. The visual mean-error check alone cannot distinguish old and fresh bases.
+// The stdout report records the receipt's own hash; no local paths enter pins.
+// Receipt consistency does not verify the complete native catalog, the protected
+// hem proof, or visual acceptance; those remain separate integration gates.
 //
 // Nothing published is touched until every picture is built: the tool writes
 // into a folder beside each published one and exchanges the two at the end, so
@@ -41,13 +59,13 @@
 // The gi layers stay the published ones. They are added on top of a base in the
 // browser (see src/unreal/athlete.js), so a base must show the black gi exactly
 // where the published base does. A head made for a bigger body keeps a little
-// shoulder skin above the cloth; where a render shows anything but the reference
-// render inside the gi, the reference render's pixels are used.
+// shoulder skin above the cloth. Legacy batches use a reference blend there.
+// The verified Athletic V2 batch uses Dean's unaltered native pair in all three views.
 //
 // sharp is not a dependency of this project: the tool loads the copy pnpm keeps
 // in node_modules for the build tools, or a sharp that Node can resolve.
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -100,6 +118,140 @@ const SETTINGS = Object.freeze({
   baseQuality: 90, headQuality: 88, thumbQuality: 82,
 });
 
+const LAYER_SIZES = {
+    '/assets/unreal-athlete/athlete-01/front-base.webp': SCENES.front.size,
+    '/assets/unreal-athlete/athlete-01/front-jacket.webp': SCENES.front.size,
+    '/assets/unreal-positions/standing/base.webp': SCENES.standing.size,
+    '/assets/unreal-positions/standing/lead-jacket.webp': SCENES.standing.size,
+    '/assets/unreal-positions/standing/other-jacket.webp': SCENES.standing.size,
+};
+// The head builder uses only these body layers. Read them once so that the bytes
+// used by every head and the recorded hashes cannot drift during a long build.
+export function createLayerInput(publicRoot = join(ROOT, 'public')) {
+  const root = resolve(publicRoot);
+  if (!existsSync(root) || !statSync(root).isDirectory()) throw new Error(`layer input public root is not a directory: ${root}`);
+  const buffers = new Map(), files = {};
+  for (const [url, size] of Object.entries(LAYER_SIZES)) {
+    const path = join(root, url.slice(1));
+    if (!existsSync(path) || !statSync(path).isFile()) throw new Error(`layer input is missing: ${path}`);
+    const data = readFileSync(path);
+    if (data.length < 30 || data.toString('latin1', 0, 4) !== 'RIFF'
+      || data.toString('latin1', 8, 16) !== 'WEBPVP8 '
+      || !data.subarray(23, 26).equals(Buffer.from([0x9d, 0x01, 0x2a]))) {
+      throw new Error(`layer input must be an opaque VP8 WebP: ${path}`);
+    }
+    const width = data.readUInt16LE(26) & 0x3fff, height = data.readUInt16LE(28) & 0x3fff;
+    if (width !== size[0] || height !== size[1]) throw new Error(`layer input ${path} is ${width} x ${height}, expected ${size.join(' x ')}`);
+    buffers.set(url, data);
+    files[url] = Object.freeze({ bytes: data.length, sha256: createHash('sha256').update(data).digest('hex') });
+  }
+  return Object.freeze({
+    root,
+    files: Object.freeze(files),
+    read(url) {
+      if (!buffers.has(url)) throw new Error(`unknown head-builder layer input: ${url}`);
+      return Buffer.from(buffers.get(url));
+    },
+  });
+}
+
+// A receipt binds fresh build output to the exact eight native reference passes.
+// This is also usable without sharp or native pixels during receipt preflight.
+export function validateLayerInputReceipt(pack, layerFiles, receipt) {
+  if (receipt == null) {
+    if (pack?.athleticRender != null) throw new Error('Athletic render catalog requires --layer-input-receipt from the fresh body-layer builds');
+    return false;
+  }
+  if (receipt.schema !== 1) throw new Error('layer input receipt must have schema 1');
+  const sha = /^[0-9a-f]{64}$/;
+  const references = {
+    front: ['black', 'white', 'beltWhite'],
+    standing: ['base', 'leadGiWhite', 'otherGiWhite', 'leadBeltWhite', 'otherBeltWhite'],
+  };
+  for (const [scene, names] of Object.entries(references)) {
+    for (const name of names) {
+      const expected = pack?.[scene]?.reference?.[name]?.sha256;
+      const actual = receipt.nativeSources?.[scene]?.[name];
+      if (typeof expected !== 'string' || !sha.test(expected)) throw new Error(`heads.json lacks a valid ${scene}.reference.${name}.sha256 for layer input verification`);
+      if (actual !== expected) throw new Error(`layer input receipt native source mismatch: ${scene}/${name}`);
+    }
+  }
+  const expectedUrls = Object.keys(LAYER_SIZES).sort();
+  if (!layerFiles || JSON.stringify(Object.keys(layerFiles).sort()) !== JSON.stringify(expectedUrls)) {
+    throw new Error('layer input verification requires all five actual base/jacket inputs');
+  }
+  if (!receipt.layers || JSON.stringify(Object.keys(receipt.layers).sort()) !== JSON.stringify(expectedUrls)) {
+    throw new Error('layer input receipt must describe exactly the five base/jacket inputs');
+  }
+  for (const url of expectedUrls) {
+    const expected = receipt.layers[url], actual = layerFiles[url];
+    if (!actual || !Number.isSafeInteger(actual.bytes) || actual.bytes <= 0 || !sha.test(actual.sha256)
+      || !expected || expected.bytes !== actual.bytes || expected.sha256 !== actual.sha256) {
+      throw new Error(`layer input receipt does not match the body layer bytes: ${url}`);
+    }
+  }
+  return true;
+}
+
+// These two native files identify the batch whose unaltered Dean collars were reviewed.
+const ATHLETIC_V2_CONFIG = '7ba0ed3be16366e8d15ab5ea14d6a454e11d5bb571b839de54216e547ceff3f4';
+const ATHLETIC_V2_INDEX = '9df51a17fcbed1eec970ecdafa0c69c0cf18491ae991c1fd5ba64a1c24fc4927';
+
+export function verifiedAthleticV2Batch(render) {
+  if (render?.configSha256 !== ATHLETIC_V2_CONFIG || render.preparationIndexSha256 !== ATHLETIC_V2_INDEX) return false;
+  for (const [path, expected] of [[render.config, ATHLETIC_V2_CONFIG], [render.preparationIndex, ATHLETIC_V2_INDEX]]) {
+    if (createHash('sha256').update(readFileSync(path)).digest('hex') !== expected) {
+      throw new Error(`Athletic V2 batch identity mismatch: ${path}`);
+    }
+  }
+  return true;
+}
+
+// Where a base render shows something other than the gi inside the reference athlete's gi (a head made for a
+// bigger body keeps a little shoulder skin above the cloth): per pixel, how much of the reference render to take.
+function pokeWeights(render, reference, gi) {
+  const width = render.width, height = render.height;
+  const delta = difference(render, reference);
+  // only well inside the gi: its edge belongs to the render (the skin beside it has this face's colour)
+  const inside = Uint8Array.from(counts(gi, width, height, 2), (count) => (count === 25 ? 1 : 0));
+  const poke = new Uint8Array(width * height);
+  let poked = 0;
+  for (let i = 0, p = 0; i < poke.length; i += 1, p += 3) {
+    // Cloth only. Skin under the chin also brightens when the gi turns white (the gi lights it), so it is in the
+    // gi mask; in the black-gi reference it is skin-bright, where the cloth is nearly black.
+    const cloth = Math.max(reference.data[p], reference.data[p + 1], reference.data[p + 2]) < SETTINGS.clothCeiling;
+    if (inside[i] && cloth && delta[i] > SETTINGS.pokeThreshold) { poke[i] = 1; poked += 1; }
+  }
+  const grown = over(counts(poke, width, height, 3), 0);
+  for (let i = 0; i < grown.length; i += 1) grown[i] = grown[i] && gi[i] ? 1 : 0;
+  const weights = blur(grown, width, height, 1);
+  for (let i = 0; i < weights.length; i += 1) weights[i] = Math.min(1, weights[i] * 1.6);
+  return { weights, poked };
+}
+// A render with the reference render's pixels where the weights say so. The black-gi and the white-gi render of a
+// face take the same weights, so that the gi light between them stays the gi's.
+function patched(render, reference, weights) {
+  const data = Buffer.alloc(render.data.length);
+  for (let i = 0, p = 0; i < weights.length; i += 1, p += 3) {
+    const w = weights[i];
+    for (let c = 0; c < 3; c += 1) data[p + c] = Math.round(render.data[p + c] * (1 - w) + reference.data[p + c] * w);
+  }
+  return { width: render.width, height: render.height, data };
+}
+export function faceBodyPasses(isAthleticV2, faceId, black, white, referenceBlack, referenceWhite, gi) {
+  // The older blend cuts into Dean's native V2 front collar and lead nape and introduces a dark mark
+  // at the other nape. Keep the black/mixed pass and its corresponding white pass together.
+  if (isAthleticV2 && faceId === 'dean') return { baseImage: black, whiteImage: white, pixelsTakenFromReference: 0 };
+  const { weights, poked } = pokeWeights(black, referenceBlack, gi);
+  return {
+    baseImage: patched(black, referenceBlack, weights),
+    whiteImage: patched(white, referenceWhite, weights),
+    pixelsTakenFromReference: poked,
+  };
+}
+
+// Importing the checked layer reader does not load sharp or start a build.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 // ---- arguments ----
 const args = process.argv.slice(2);
 // A flag without its value stops the tool: read as absent, `--public` alone would write into the real folder.
@@ -112,27 +264,38 @@ const option = (name) => {
 };
 const publicOption = option('--public'), moduleOption = option('--module');
 const publicDir = resolve(publicOption ?? join(ROOT, 'public'));
+const layerInputOption = option('--layer-input-public');
+const layerReceiptOption = option('--layer-input-receipt');
 const moduleFile = resolve(moduleOption ?? join(ROOT, 'src', 'unreal', 'athleteHeads.data.js'));
 const debugDir = option('--debug');
 if (!moduleFile.endsWith('.data.js')) fail('--module must name a file ending in .data.js (the pins are written beside it as .pins.js)');
 // A trial run names both: pictures written to another folder must not be described by the page's own modules.
 if (publicOption && !moduleOption) fail('--public needs --module too, or the trial would overwrite src/unreal/athleteHeads.data.js and .pins.js');
-if (args.length !== 1) fail('usage: node tools/build_unreal_athlete_heads.mjs <heads.json> [--public <folder>] [--module <file>] [--debug <folder>]');
+if (args.length !== 1) fail('usage: node tools/build_unreal_athlete_heads.mjs <heads.json> [--public <folder>] [--module <file>] [--debug <folder>] [--layer-input-public <folder>] [--layer-input-receipt <json file>]');
 const packFile = resolve(args[0]);
 if (!existsSync(packFile)) fail(`not found: ${packFile}`);
 const pack = JSON.parse(readFileSync(packFile, 'utf8'));
+let layerInput, layerInputReceipt = null, isAthleticV2;
+try {
+  layerInput = createLayerInput(layerInputOption ?? join(ROOT, 'public'));
+  const receiptBytes = layerReceiptOption ? readFileSync(resolve(layerReceiptOption)) : null;
+  validateLayerInputReceipt(pack, layerInput.files, receiptBytes ? JSON.parse(receiptBytes.toString('utf8')) : null);
+  isAthleticV2 = verifiedAthleticV2Batch(pack.athleticRender);
+  if (receiptBytes) layerInputReceipt = { bytes: receiptBytes.length, sha256: createHash('sha256').update(receiptBytes).digest('hex') };
+}
+catch (error) { fail(error.message); }
 const sharp = loadSharp();
 sharp.cache(false);
 
 // ---- renders ----
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
-// The published layers the head pictures are made for, read from this working copy (in a trial run too). The pins keep
+// The body layers the head pictures are made for, read from the checked input root. The pins keep
 // the SHA-256 of each (`layers`): a head picture belongs to the base it lies on and to the jacket layers Dean's are made
 // from, and tests/unrealAthleteHeads.test.js fails when the published layers are no longer those.
 const layersRead = {};
 function publishedLayer(url) {
-  const data = readFileSync(join(ROOT, 'public', url));
-  layersRead[url] = sha256(data);
+  const data = layerInput.read(url);
+  layersRead[url] = layerInput.files[url].sha256;
   return data;
 }
 const verified = new Map();
@@ -175,37 +338,6 @@ function giMask(white, black) {
   // a majority vote over 7 x 7 removes specks, then the region grows by two pixels
   const voted = Uint8Array.from(counts(raw, width, height, 3), (count) => (count > 24 ? 1 : 0));
   return over(counts(voted, width, height, 2), 0);
-}
-// Where a base render shows something other than the gi inside the reference athlete's gi (a head made for a
-// bigger body keeps a little shoulder skin above the cloth): per pixel, how much of the reference render to take.
-function pokeWeights(render, reference, gi) {
-  const width = render.width, height = render.height;
-  const delta = difference(render, reference);
-  // only well inside the gi: its edge belongs to the render (the skin beside it has this face's colour)
-  const inside = Uint8Array.from(counts(gi, width, height, 2), (count) => (count === 25 ? 1 : 0));
-  const poke = new Uint8Array(width * height);
-  let poked = 0;
-  for (let i = 0, p = 0; i < poke.length; i += 1, p += 3) {
-    // Cloth only. Skin under the chin also brightens when the gi turns white (the gi lights it), so it is in the
-    // gi mask; in the black-gi reference it is skin-bright, where the cloth is nearly black.
-    const cloth = Math.max(reference.data[p], reference.data[p + 1], reference.data[p + 2]) < SETTINGS.clothCeiling;
-    if (inside[i] && cloth && delta[i] > SETTINGS.pokeThreshold) { poke[i] = 1; poked += 1; }
-  }
-  const grown = over(counts(poke, width, height, 3), 0);
-  for (let i = 0; i < grown.length; i += 1) grown[i] = grown[i] && gi[i] ? 1 : 0;
-  const weights = blur(grown, width, height, 1);
-  for (let i = 0; i < weights.length; i += 1) weights[i] = Math.min(1, weights[i] * 1.6);
-  return { weights, poked };
-}
-// A render with the reference render's pixels where the weights say so. The black-gi and the white-gi render of a
-// face take the same weights, so that the gi light between them stays the gi's.
-function patched(render, reference, weights) {
-  const data = Buffer.alloc(render.data.length);
-  for (let i = 0, p = 0; i < weights.length; i += 1, p += 3) {
-    const w = weights[i];
-    for (let c = 0; c < 3; c += 1) data[p + c] = Math.round(render.data[p + c] * (1 - w) + reference.data[p + c] * w);
-  }
-  return { width: render.width, height: render.height, data };
 }
 // The part of an image inside a box given in the image's own pixels.
 function cut(image, [left, top, width, height]) {
@@ -300,7 +432,12 @@ function sameHead(variantHead, referenceHead, what) {
 }
 const published = ATHLETE_FACES[0];
 if (baseKey(published) !== athleteHeadKey(DEFAULT_ATHLETE_HEAD)) fail('the first face must be the published athlete');
-const report = { front: {}, standing: {} };
+const report = {
+  paths: { layerInputPublic: layerInput.root, outputPublic: publicDir, moduleFile },
+  layerInputs: layerInput.files,
+  layerInputReceipt,
+  front: {}, standing: {},
+};
 // For the report: how many head pictures had a faint part at the edge of their box left out, and the largest difference left out.
 function noteLeftOut(scene, name, picture) {
   const row = (scene[name] ??= { pictures: 0, pixels: 0, largestDifference: 0 });
@@ -345,18 +482,18 @@ const frontData = { headBox: front.headBox, bases: {}, jackets: {}, heads: {}, t
     } else {
       const whole = await region(baseEntry, `front ${baseKey(face)}`, front, front.crop);
       const wholeWhite = await region(pack.front.white?.[face.id], `front ${face.id} in a white gi`, front, front.crop);
-      const { weights, poked } = pokeWeights(whole, black, gi);
-      const baseImage = patched(whole, black, weights);
+      const { baseImage, whiteImage, pixelsTakenFromReference } =
+        faceBodyPasses(isAthleticV2, face.id, whole, wholeWhite, black, white, gi);
       await debug(`front-base-${face.id}.png`, baseImage);
       frontData.bases[face.id] = await publish(front.folder, `base-${face.id}.webp`, resize(rgb(baseImage), front.size), { quality: SETTINGS.baseQuality });
       // The jacket layer of this face: the published one, with this face's own gi light around its head.
       const cropBox = [headRender[0] - front.crop[0], headRender[1] - front.crop[1], headRender[2], headRender[3]];
-      const light = giLight(cut(patched(wholeWhite, white, weights), cropBox), cut(baseImage, cropBox));
+      const light = giLight(cut(whiteImage, cropBox), cut(baseImage, cropBox));
       const piece = await resize(rgb(light), [front.headBox[2], front.headBox[3]]).raw().toBuffer();
       const jacket = await jacketWith('/assets/unreal-athlete/athlete-01/front-jacket.webp', { width: front.headBox[2], height: front.headBox[3], data: piece }, front.headBox);
       await debug(`front-jacket-${face.id}.png`, jacket);
       frontData.jackets[face.id] = await publish(front.folder, `jacket-${face.id}.webp`, rgb(jacket), { quality: SETTINGS.headQuality });
-      report.front[`base-${face.id}`] = { pixelsTakenFromReference: poked };
+      report.front[`base-${face.id}`] = { pixelsTakenFromReference };
     }
     for (const key of KEYS.filter((candidate) => candidate.startsWith(`${face.id}/`))) {
       const entry = frontVariants.get(key);
@@ -406,15 +543,15 @@ const standingData = { lead: { headBox: standing.headBoxes.lead, bases: {}, jack
         const whole = await region(mixed, `standing mixed ${face.id} ${role}`, standing, standing.crop);
         // the same picture with that athlete's gi white, for the jacket layer beside this face's neck
         const wholeWhite = await region(pack.standing.mixedWhite?.[face.id]?.[role], `standing mixed ${face.id} ${role} in a white gi`, standing, standing.crop);
-        const { weights, poked } = pokeWeights(whole, base, gi);
-        const baseImage = patched(whole, base, weights);
+        const { baseImage, whiteImage, pixelsTakenFromReference } =
+          faceBodyPasses(isAthleticV2, face.id, whole, wholeWhite, base, role === 'lead' ? leadWhite : otherWhite, gi);
         await debug(`standing-${role}-base-${face.id}.png`, baseImage);
         standingData[role].bases[face.id] = await publish(standing.folder, `${role}-base-${face.id}.webp`, rgb(baseImage), { quality: SETTINGS.baseQuality });
-        const light = giLight(cut(patched(wholeWhite, role === 'lead' ? leadWhite : otherWhite, weights), standing.headBoxes[role]), cut(baseImage, standing.headBoxes[role]));
+        const light = giLight(cut(whiteImage, standing.headBoxes[role]), cut(baseImage, standing.headBoxes[role]));
         const jacket = await jacketWith(`/assets/unreal-positions/standing/${role}-jacket.webp`, light, standing.headBoxes[role]);
         await debug(`standing-${role}-jacket-${face.id}.png`, jacket);
         standingData[role].jackets[face.id] = await publish(standing.folder, `${role}-jacket-${face.id}.webp`, rgb(jacket), { quality: standing.jacketQuality });
-        report.standing[`${role}-base-${face.id}`] = { pixelsTakenFromReference: poked };
+        report.standing[`${role}-base-${face.id}`] = { pixelsTakenFromReference };
       }
       for (const key of KEYS.filter((candidate) => candidate.startsWith(`${face.id}/`))) {
         if (key === baseKey(face)) continue;
@@ -498,3 +635,4 @@ report.front.bytes = { bases: bytes(frontData.bases), jackets: bytes(frontData.j
 report.standing.bytes = { bases: bytes(standingData.lead.bases) + bytes(standingData.other.bases), jackets: bytes(standingData.lead.jackets) + bytes(standingData.other.jackets), heads: bytes(standingData.lead.heads) + bytes(standingData.other.heads) };
 report.choices = { faces: ATHLETE_FACES.length, hairs: ATHLETE_HAIRS.length, hairColors: ATHLETE_HAIR_COLORS.length, beards: ATHLETE_BEARDS.length, pictures: KEYS.length, base: Object.fromEntries(ATHLETE_FACES.map((face) => [face.id, baseKey(athleteFace(face.id))])) };
 console.log(JSON.stringify(report, null, 2));
+}

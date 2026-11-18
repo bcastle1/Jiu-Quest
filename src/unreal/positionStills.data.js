@@ -23,40 +23,40 @@ const stills = [
     },
     "files": {
       "base": {
-        "bytes": 69734,
-        "sha256": "cb449ede3f15ee552370095a33e894bda799c1be28a804ef909248d2f8df3461"
+        "bytes": 69548,
+        "sha256": "60e16a03b5871f7d55e861ce6033960cbcb1356341e2be479d60f0618cb4df64"
       },
       "leadBelt": {
-        "bytes": 4796,
-        "sha256": "acd76d54f7b9c5230059e593b86a39df4c2e59de8839897e648bf499a8e5ce9a"
+        "bytes": 4812,
+        "sha256": "e7bf7064c73ce77f4f439181ff70d925cc60608820e59a826d4e6d7289033360"
       },
       "leadJacket": {
-        "bytes": 18348,
-        "sha256": "d5f882028693480333db2cb3008a96b99e3c72f83a703988666f2f8f007a61e8"
+        "bytes": 18214,
+        "sha256": "d09a9e952e6fa35ba57c2e882d3ca7c8d4e8ebecdb8ca8b3ea94cc9a75bc2103"
       },
       "leadPants": {
-        "bytes": 14844,
-        "sha256": "a76cb3e558d8e67c641805f0f8db240bb799427cc78eedaf82cfeb0ef54436a4"
+        "bytes": 14756,
+        "sha256": "1a80dbe144b253d79ced02abbe5be5f56318cabacb2a5146a045d8eb859b0c8d"
       },
       "otherBelt": {
-        "bytes": 6516,
-        "sha256": "8ed718617fee6dbe730052a541ececd92d1de38c2ff6bee90c584be6e72f3edc"
+        "bytes": 6532,
+        "sha256": "583da5185eb4a5b0ad6467f777d855763d9e42ea9c5d5c098cf585a794810b8e"
       },
       "otherJacket": {
-        "bytes": 17294,
-        "sha256": "dba977b9518738198fa140ab67c9d0b7cca10f05ee1e5ab3a73a2390908ec704"
+        "bytes": 17186,
+        "sha256": "84fbdb07060dbe7f5d143bbad005c0330dbd2616b74754dab43e8b483427457c"
       },
       "otherPants": {
-        "bytes": 15678,
-        "sha256": "9fd57e4412807d338e145a7fb2d1a0c930e40844328f8c622c889365de0f2bd5"
+        "bytes": 15674,
+        "sha256": "6ac7f51241e8de3457f586b08d267d1f81c5c963f86bf2ab7e62a3bd3797561f"
       }
     },
     "sources": {
-      "base.png": "60d096e3f3b0b1ed050219e97553cacafeaf0bd28fc6f53cd5f07b85aac0958f",
-      "lead-gi-white.png": "e339b7d5daae2fbc4f62c7d2650141ab7eb2e668634dcf3192963102ae0b1ba6",
-      "other-gi-white.png": "d36b5e89b3d6aed7607fe001ba5444f37b96528fe81b105748f168be8570ad5d",
-      "lead-belt-white.png": "1bd1e5a96f0e65eee7aecfad6561c0df20a7d3679a6de075ace5a4df29db07c3",
-      "other-belt-white.png": "3562269a7afebb661697ff9ca9e42ae53b4b5240cd9ff8fe97da5db804404127"
+      "base.png": "0126176670b6afa8e7b84fb85ff3664ed5723ecb1eaa62bc5560580c4ec5d0ca",
+      "lead-gi-white.png": "5a70156bbaf5234a3b8873e4a1d2b5a2f1a51b857b8d68080550a2974461b912",
+      "other-gi-white.png": "687cefcc81fca89f8103666d6e874f7dff281c9c4e13f0d09eeb34fbe937197e",
+      "lead-belt-white.png": "126fd047db7dce4de44d3ee90d376a2b8dff66dd8443bf8d9806c0a0e80ad7d8",
+      "other-belt-white.png": "adbcb21447d26638ff8dc002a171d1faf5e90a12ac054bb87c5b62f59a90776c"
     }
   }
 ];
