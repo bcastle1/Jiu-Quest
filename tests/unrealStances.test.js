@@ -80,9 +80,10 @@ test('whatever stance is chosen, the clip it leads to is one that is published',
   }
 });
 
-// The loops are not all one length any more (the boxer shell's motion-captured
-// loop is longer than the others), so a stance whose views were imported at
-// different times could show one take from the side and another from the front.
+// The loops are not all one length any more (the motion-captured loops of the
+// boxer shell and the Muay Thai guard are longer than the others, and not as
+// long as each other), so a stance whose views were imported at different
+// times could show one take from the side and another from the front.
 test('every view of one stance loop shows the same loop: the same frames, the same length, and it loops', () => {
   let stancesWithViews = 0;
   for (const stance of UNREAL_STANCES) {

@@ -4,16 +4,18 @@
 // choosing one changes the fighter's stance and is remembered, the clip above
 // is the one that stance leads to (with a plain note when Unreal has not
 // rendered that stance yet) and offers camera buttons exactly when that clip
-// has more than one view, the boxer shell's motion-captured loop plays in both
-// of its views and starts again at its end (on a wide stage its front view is
-// trimmed from the top, so the near foot is whole), the keyboard works, the picker
-// leaves once an exchange settles, and the page fits phones. It checks the
-// page. It does not run Unreal or any stream.
+// has more than one view, every stance whose loop has a front view (among them
+// the motion-captured loops of the boxer shell and the Muay Thai guard) plays
+// in both of its views, each starting again at its end, and on a wide stage
+// shows its athletes whole in each view (the two motion-captured front views
+// are trimmed from the top, so the near foot is whole), the keyboard works, the
+// picker leaves once an exchange settles, and the page fits phones. It checks
+// the page. It does not run Unreal or any stream.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
-import { chromium } from 'playwright';
+import { chromium, errors as playwrightErrors } from 'playwright';
 import { defaultNpcs } from '../src/storage.js';
 import { UNREAL_STANCES, findStance, stanceLoop } from '../src/unreal/stances.js';
 import { findUnrealClip, unrealClipViews } from '../src/unreal/techniqueClips.js';
@@ -69,6 +71,31 @@ const box = async (locator) => { const found = await locator.boundingBox(); retu
 const chosen = () => group().getByRole('radio', { checked: true }).getAttribute('aria-label');
 const notReady = (stance) => `The ${findStance(stance).label} animation is not ready yet, so standing animations start from the standard wrestling stance for now. Your choice is saved.`;
 
+// The rows of the 720 that the athletes reach in each published view of a stance loop with a front
+// view, measured on the decoded frames of that exact file (named by its SHA-256) on November 18,
+// 2026: `head`, the highest row with any pixel of a head over every frame (the backdrop above the
+// athletes is black, so every pixel there of luminance 5 or more is the athlete), and `foot`, the
+// lowest row of a foot (the feet stand planted; read on frames across the loop, with the shaded
+// undersides of the toes counted). On a wide stage the picture box must show from 10 rows above
+// `head` to 6 rows below `foot`. A new take is a new file: measure it and change this list (and, if
+// its feet need it, the trim in src/components/UnrealClipStage.css) before this suite passes again.
+const MEASURED_ROWS = Object.freeze({
+  'standing_stance/fighter-side': { sha256: 'd67347b7f474fd23456844c20c1d0d72764cf6281bfb1a68d75941f865d2d262', head: 172, foot: 626 },
+  'standing_stance/fighter-front': { sha256: '79d732be347b39cb9f103dffa5416f7f22e11f38b5295edf5fc2ba676c0b02bb', head: 156, foot: 684 },
+  'stance_sumo/fighter-side': { sha256: 'bc334feaa5e57b3058b743ab7bf6fc2182804f07123ec944e33cc9e590f5f4ac', head: 172, foot: 637 },
+  'stance_sumo/fighter-front': { sha256: 'bf3bf3e1dd91df49567c5fb13bcee6e1937d6181ba6a80735d932efb2381424c', head: 181, foot: 657 },
+  'stance_boxing/fighter-side': { sha256: '389d5779676214e2c650c7431ae70d28111244be7bdffa44b7608434a85771dc', head: 139, foot: 626 },
+  'stance_boxing/fighter-front': { sha256: '352d116e2752eb5e59b21193a3e4978b6f666297ec1f33edfa01448c4680e386', head: 108, foot: 708 },
+  'stance_muay_thai/fighter-side': { sha256: '5df72fc76c76dd0659c5376fbf7f18fcb564ad02e945831592e1f49d03d9f48b', head: 138, foot: 626 },
+  'stance_muay_thai/fighter-front': { sha256: '763b91807f3f30bc0e7e927f288cfd8d236aa294be2468efca109f0cfb9aeeb3', head: 105, foot: 709 },
+  'stance_sambo/fighter-side': { sha256: 'b6c0bf6aafc2106c907504d5c149657ce5b57d57aa166a8df32a6cfba6610f17', head: 172, foot: 626 },
+  'stance_sambo/fighter-front': { sha256: 'f7e4f37e3a30bf55c76c633d5ce0b33ba5717452fcd0633dc6c75cb4ed6660e6', head: 181, foot: 636 },
+});
+// On a wide stage the usual trim shows rows 56 to 696; a view whose feet need more is trimmed from
+// the top instead and shows rows 80 to 720.
+const USUAL_TRIM = Object.freeze({ position: '50% 70%', lastRow: 696 });
+const TOP_TRIM = '50% 100%';
+
 async function capture(name) {
   // Let the highlight finish moving to the new choice before the picture is taken.
   await page.waitForTimeout(400);
@@ -77,13 +104,45 @@ async function capture(name) {
   images.push({ name, path: file, bytes: data.length });
 }
 
+// Every video on the page as the browser has it: its stage, its file, how much of it has loaded,
+// and whether it plays, is paused or has failed.
+const videoStates = () => page.evaluate(() => [...document.querySelectorAll('video')].map((element) => {
+  const stage = element.closest('.unreal-clip-stage');
+  const round = (seconds) => Math.round(seconds * 1000) / 1000;
+  return {
+    stage: stage ? [stage.dataset.kind, stage.dataset.move, stage.dataset.camera].filter(Boolean).join(' ') : null,
+    src: element.currentSrc || element.src,
+    readyState: element.readyState,
+    networkState: element.networkState,
+    error: element.error ? element.error.code : null,
+    paused: element.paused,
+    ended: element.ended,
+    currentTime: round(element.currentTime),
+    buffered: Array.from({ length: element.buffered.length }, (_, index) => [round(element.buffered.start(index)), round(element.buffered.end(index))]),
+  };
+}));
+
+// page.waitForFunction for a video. A wait that times out fails with the state of every video on
+// the page, also kept in the report, so a failure (in CI too) says what the video was doing. The
+// wait itself is as long as before.
+async function waitForVideo(what, test, argument, options) {
+  try {
+    return await page.waitForFunction(test, argument, options);
+  } catch (error) {
+    if (!(error instanceof playwrightErrors.TimeoutError)) throw error;
+    const videos = await videoStates().catch((reason) => `not readable (${reason.message})`);
+    report.videoTimeouts = [...(report.videoTimeouts ?? []), { what, atUtc: new Date().toISOString(), videos }];
+    throw new Error(`${what}: timed out after ${options.timeout} ms. The videos on the page: ${JSON.stringify(videos)}`, { cause: error });
+  }
+}
+
 // The clip on the stage is the one this stance leads to, it is playing, and the
 // note is there exactly when the clip cannot show the stance asked for.
 async function shows(stance, label) {
   const choice = stanceLoop(stance, RIVAL_STANCE);
   const clip = findUnrealClip(choice.moveId, choice.performerSide);
   assert.ok(clip, `${stance} leads to a published clip`);
-  await page.waitForFunction((path) => {
+  await waitForVideo(`${label}: ${clip.video} playing on the stage`, (path) => {
     const element = document.querySelector('.mat-window .unreal-clip-stage video');
     return element && new URL(element.currentSrc || element.src).pathname === path && element.readyState >= 2 && !element.paused && element.currentTime > 0.05;
   }, clip.video, { timeout: 30000 });
@@ -108,7 +167,7 @@ async function shows(stance, label) {
 }
 
 // The stance loop's stage plays this file.
-const untilPlaying = (path) => page.waitForFunction((wanted) => {
+const untilPlaying = (path, label) => waitForVideo(`${label}: ${path} playing on the stance loop's stage`, (wanted) => {
   const element = document.querySelector('.mat-window .unreal-clip-stage[data-kind="stance"] video');
   return element && new URL(element.currentSrc || element.src).pathname === wanted && element.readyState >= 2 && !element.paused && element.currentTime > 0.05;
 }, path, { timeout: 30000 });
@@ -117,7 +176,7 @@ const untilPlaying = (path) => page.waitForFunction((wanted) => {
 // and it plays to its end and starts again: its clock passes the last half
 // second of the loop, then goes back by more than half the loop.
 async function playsThrough(clip, label) {
-  const seen = await page.waitForFunction(({ path, seconds }) => {
+  const seen = await waitForVideo(`${label}: ${clip.video} playing to the end of its loop and on into the next`, ({ path, seconds }) => {
     const element = document.querySelector('.mat-window .unreal-clip-stage[data-kind="stance"] video');
     if (!element || new URL(element.currentSrc || element.src).pathname !== path || element.paused) return false;
     const watched = window.__loopWatch?.path === path ? window.__loopWatch : (window.__loopWatch = { path, peak: 0 });
@@ -203,36 +262,50 @@ try {
   await shows('boxer shell', 'boxer chosen by keyboard');
   checks.push('Arrow keys move the choice from stance to stance.');
 
-  // The boxer shell's loop is a motion-capture take, longer than the other loops, with a side and
-  // a front view: the stage offers both cameras, each view plays to the end of its loop and starts
-  // again, and Side brings the side view back.
-  const boxing = stanceLoop('boxer shell', RIVAL_STANCE);
-  const boxingViews = unrealClipViews(boxing.moveId, boxing.performerSide);
-  assert.deepEqual([boxing.exact, boxingViews.map((view) => view.camera)], [true, ['side', 'front']], 'the boxer shell loop is published in the side and front views');
-  const boxingSeen = [];
-  for (const [view, step] of [[boxingViews[0], 'opens on'], [boxingViews[1], 'Front plays'], [boxingViews[0], 'Side brings back']]) {
-    const pressed = cameras().getByRole('button', { name: CAMERA_LABELS[view.camera], exact: true });
-    if (step !== 'opens on') await pressed.click();
-    await untilPlaying(view.video);
-    assert.deepEqual([await loopStage().getAttribute('data-move'), await loopStage().getAttribute('data-camera'), await pressed.getAttribute('aria-pressed')], [boxing.moveId, view.camera, 'true'], `boxer shell: ${step} the ${view.camera} view`);
-    // On this wide stage the picture box is two to one, so 640 of the clip's 720 rows show. In
-    // the front view the near foot reaches row 706 and the athletes' heads start at row 110
-    // (measured on every frame of the take published on November 18, 2026), so that view takes
-    // the whole trim from the top; the side view keeps the usual trim (UnrealClipStage.css).
-    const rows = await shownRows();
-    assert.deepEqual([rows.fit, rows.percent], ['cover', true], `boxer shell, ${view.camera}: the picture covers the box (${rows.position})`);
-    assert.ok(Math.abs(rows.last - rows.first - 640) < 2, `boxer shell, ${view.camera}: the wide stage trims the picture to two to one (rows ${rows.first} to ${rows.last})`);
-    if (view.camera === 'front') {
-      assert.ok(rows.first <= 100 && rows.last >= 712, `boxer shell, front: the box shows rows ${rows.first} to ${rows.last}, so the near foot (down to row 706) and both heads (from row 110) are whole`);
-    } else {
-      assert.equal(rows.position, '50% 70%', `boxer shell, ${view.camera}: the usual trim`);
+  // Every stance whose loop has a front view, in the picker's order. The boxer shell's and the Muay
+  // Thai guard's loops are motion-capture takes, longer than the others; all of them have a side
+  // and a front view. For each, the stage offers both cameras, Front plays the front view and Side
+  // brings the side view back, and each view is the published file, set to loop, and plays to the
+  // end of its loop and on into the next. On this wide stage the picture box is two to one, so 640
+  // of the clip's 720 rows show: each view must show its athletes whole, from 10 rows above the
+  // highest head to 6 rows below the lowest foot (MEASURED_ROWS), with the usual trim, except a
+  // view whose feet reach below that trim, which is trimmed from the top (UnrealClipStage.css).
+  const withFront = UNREAL_STANCES.filter((stance) => {
+    const loop = stanceLoop(stance.stance, RIVAL_STANCE);
+    return findUnrealClip(loop.moveId, loop.performerSide, 'front');
+  });
+  assert.deepEqual(withFront.map((stance) => stance.label), ['Wrestling Stance', 'Sumo Base', 'Boxer Shell', 'Muay Thai Guard', 'Sambo Crouch'], 'the stances whose loops have a front view; the karate stance and the capoeira rhythm have the side view only');
+  const viewsSeen = [];
+  for (const stance of withFront) {
+    await radio(stance.label).check();
+    const choice = await shows(stance.stance, `${stance.label} chosen`);
+    const views = unrealClipViews(choice.moveId, choice.performerSide);
+    assert.deepEqual([choice.exact, views.map((view) => view.camera)], [true, ['side', 'front']], `${stance.label}: its own loop, published in the side and front views`);
+    for (const [view, step] of [[views[0], 'opens on'], [views[1], 'Front plays'], [views[0], 'Side brings back']]) {
+      const label = `${stance.label}, ${view.camera}`;
+      const pressed = cameras().getByRole('button', { name: CAMERA_LABELS[view.camera], exact: true });
+      if (step !== 'opens on') await pressed.click();
+      await untilPlaying(view.video, `${stance.label}: ${step} the ${view.camera} view`);
+      assert.deepEqual([await loopStage().getAttribute('data-move'), await loopStage().getAttribute('data-camera'), await pressed.getAttribute('aria-pressed')], [choice.moveId, view.camera, 'true'], `${stance.label}: ${step} the ${view.camera} view`);
+      const name = `${view.moveId}/${view.performerSide}-${view.camera}`;
+      const measured = MEASURED_ROWS[name];
+      assert.ok(measured, `${name} has no measured rows: measure its highest head row and lowest foot row and add them to MEASURED_ROWS`);
+      assert.equal(view.sha256, measured.sha256, `${name}: its rows were measured on another file; a new take has to be measured again`);
+      const rows = await shownRows();
+      assert.deepEqual([rows.fit, rows.percent], ['cover', true], `${label}: the picture covers the box (${rows.position})`);
+      assert.ok(Math.abs(rows.last - rows.first - 640) < 2, `${label}: the wide stage trims the picture to two to one (rows ${rows.first} to ${rows.last})`);
+      assert.ok(rows.first <= measured.head - 10 && rows.last >= measured.foot + 6, `${label}: the box shows rows ${rows.first} to ${rows.last}, so the heads (from row ${measured.head}) and the feet (down to row ${measured.foot}) are whole`);
+      const position = measured.foot + 6 > USUAL_TRIM.lastRow ? TOP_TRIM : USUAL_TRIM.position;
+      assert.equal(rows.position, position, `${label}: ${position === TOP_TRIM ? 'the feet reach below the usual trim, so the whole trim comes off the top' : 'the usual trim'}`);
+      const through = await playsThrough(view, label);
+      viewsSeen.push({ stance: stance.label, step, video: view.video, frames: view.frames, measured: { head: measured.head, foot: measured.foot }, rows, ...through });
+      if (step === 'Front plays' && ['boxing', 'muay_thai'].includes(stance.id)) await capture(`desktop-${stance.id.replace('_', '-')}-front`);
     }
-    const through = await playsThrough(view, `boxer shell, ${view.camera}`);
-    boxingSeen.push({ step, video: view.video, frames: view.frames, rows, ...through });
-    if (step === 'Front plays') await capture('desktop-boxing-front');
   }
-  layouts.push({ boxing: boxingSeen });
-  checks.push(`The Boxer Shell loop (${boxingViews.map((view) => `${view.camera} ${view.frames} frames, ${view.durationSeconds} s`).join('; ')}) shows the Side and Front buttons; each view plays to the end of its loop and starts again, and Side brings the side view back. At 1440 by 900 the front view shows rows ${boxingSeen[1].rows.first} to ${boxingSeen[1].rows.last} of 720, the whole near foot, and the side view the usual rows ${boxingSeen[0].rows.first} to ${boxingSeen[0].rows.last}.`);
+  layouts.push({ stanceViews: viewsSeen });
+  const fromTop = viewsSeen.filter((seen) => seen.rows.position === TOP_TRIM);
+  const ranges = (seen) => [...new Set(seen.map(({ rows }) => `${rows.first} to ${rows.last}`))].join(' or ');
+  checks.push(`Each stance with a front view (${withFront.map((stance) => { const loop = stanceLoop(stance.stance, RIVAL_STANCE); return `${stance.label}: ${unrealClipViews(loop.moveId, loop.performerSide).map((view) => `${view.camera} ${view.frames} frames`).join(', ')}`; }).join('; ')}) shows the Side and Front buttons; each view plays to the end of its loop and starts again, and Side brings the side view back. At 1440 by 900 every view shows its measured heads and feet whole: ${[...new Set(fromTop.map((seen) => `${seen.stance} ${seen.video.endsWith('-front.mp4') ? 'front' : 'side'}`))].join(' and ')} rows ${ranges(fromTop)} of 720, trimmed from the top for the near foot, and every other view the usual rows ${ranges(viewsSeen.filter((seen) => seen.rows.position !== TOP_TRIM))}.`);
   await desktop.close();
 
   // ---- A match: the picker stays through the first sequence, then leaves ----
