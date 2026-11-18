@@ -1,3 +1,7 @@
 [
-  { "file": "match_greeting/fighter-side.mp4", "sha256": "8daaadcdc7ceb8d4800ce130aa2b1dfe98b378eaff856df37c5096bf3de20e7b", "acceptedOn": "2026-11-17" }
+  {
+    "file": "match_greeting/fighter-side.mp4",
+    "sha256": "6ea0fe2a32c4a032b048611e871c014f0c93bc342003198ddfcc4960b5eeea73",
+    "acceptedOn": "2026-11-18"
+  }
 ]

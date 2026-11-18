@@ -61,20 +61,21 @@ export const TECHNIQUE_OPENING_CAMERA = Object.freeze({ rear_naked_choke: 'front
 
 const ENGINE = Object.freeze({ kind: 'engine' });
 
-// The owner explicitly approved publishing this exact draft as-is on 2026-11-16.
-// This is permission to show one unfinished take, not choreography acceptance.
-// A new render or another performer/camera needs its own publication decision.
+// The owner approved the original unfinished take on 2026-11-16 and its
+// neck/shoulder appearance refresh on 2026-11-18. These pins identify the refresh.
+// The movement remains a draft; this is not choreography acceptance. Further
+// renders or another performer/camera need their own publication decision.
 // The exception ends when the technique switches over by the normal rule, which
 // needs an accepted view of every performer it needs: an accepted fighter take
 // imported on its own takes this draft's place without making the technique
 // ready (docs/unreal-integration.md, "Owner-published double-leg draft").
 export const OWNER_PUBLISHED_DRAFT = Object.freeze({
   moveId: 'double_leg', performerSide: 'fighter', camera: 'side',
-  sha256: '3872c9e491ab556290577986968626ff7dd53e894f455164915063cf596efc0f',
-  bytes: 593719,
-  posterSha256: 'b37745ede6f918db94b003b534f0f717fc386b11db84a6bd96009e8f5ae12aab',
-  posterBytes: 271326,
-  ownerDraftPublishedOn: '2026-11-16',
+  sha256: '7f382d14aba50babfa33d7476d02962adcb1794b2464792c25952d0c368c464a',
+  bytes: 595137,
+  posterSha256: '10c68614e23cff5ace444ab8341decd052d58c0853d29e179c445e246c876ded',
+  posterBytes: 271426,
+  ownerDraftPublishedOn: '2026-11-18',
   draftNotice: 'Lunge, forward drive, and grips are still being refined.',
 });
 

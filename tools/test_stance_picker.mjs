@@ -83,16 +83,16 @@ const notReady = (stance) => `The ${findStance(stance).label} animation is not r
 // `head` to 6 rows below `foot`. A new take is a new file: measure it and change this list (and, if
 // its feet need it, the trim in src/components/UnrealClipStage.css) before this suite passes again.
 const MEASURED_ROWS = Object.freeze({
-  'standing_stance/fighter-side': { sha256: 'd67347b7f474fd23456844c20c1d0d72764cf6281bfb1a68d75941f865d2d262', head: 172, foot: 626 },
-  'standing_stance/fighter-front': { sha256: '79d732be347b39cb9f103dffa5416f7f22e11f38b5295edf5fc2ba676c0b02bb', head: 156, foot: 684 },
-  'stance_sumo/fighter-side': { sha256: 'bc334feaa5e57b3058b743ab7bf6fc2182804f07123ec944e33cc9e590f5f4ac', head: 172, foot: 637 },
-  'stance_sumo/fighter-front': { sha256: 'bf3bf3e1dd91df49567c5fb13bcee6e1937d6181ba6a80735d932efb2381424c', head: 181, foot: 657 },
-  'stance_boxing/fighter-side': { sha256: '389d5779676214e2c650c7431ae70d28111244be7bdffa44b7608434a85771dc', head: 139, foot: 626 },
-  'stance_boxing/fighter-front': { sha256: '352d116e2752eb5e59b21193a3e4978b6f666297ec1f33edfa01448c4680e386', head: 108, foot: 708 },
-  'stance_muay_thai/fighter-side': { sha256: '79f8d4be8f9e268bd85c8e1c35f905c0b13c199be72ca45622f2249285583106', head: 133, foot: 626 },
-  'stance_muay_thai/fighter-front': { sha256: '1f2de2d5263faab6677447ec82c25c437248fad53557f88026abcdca1760dfa6', head: 100, foot: 709 },
-  'stance_sambo/fighter-side': { sha256: 'b6c0bf6aafc2106c907504d5c149657ce5b57d57aa166a8df32a6cfba6610f17', head: 172, foot: 626 },
-  'stance_sambo/fighter-front': { sha256: 'f7e4f37e3a30bf55c76c633d5ce0b33ba5717452fcd0633dc6c75cb4ed6660e6', head: 181, foot: 636 },
+  'standing_stance/fighter-side': { sha256: '3cd59069d4fb5864bd513ba9bb2866db4b5b3ea9a64778f0a2491aa55f6d8838', head: 172, foot: 626 },
+  'standing_stance/fighter-front': { sha256: '4e5b43724bc6eae2bd6041e0b1b6581b739a595056ea2a181284a99ed366f1dd', head: 156, foot: 684 },
+  'stance_sumo/fighter-side': { sha256: 'beb6c2b5010a2d8457578f9a5a5ee0f6c43d376bba0c5da3520c3bcb83abbc22', head: 172, foot: 637 },
+  'stance_sumo/fighter-front': { sha256: 'b8e555fcba030ad569af052f76da0f18a525f7bd07fa50690b0ddd08c806938f', head: 181, foot: 657 },
+  'stance_boxing/fighter-side': { sha256: '85cb3d4147b9c1c3c742f04ffc4074857ef0dcc41c9adfd28e3b4b8ac005bd53', head: 139, foot: 626 },
+  'stance_boxing/fighter-front': { sha256: '3b22b13089a4eeb5ef1fde228e1b4667d03e54133d7c70092ee18e53e69697ae', head: 108, foot: 708 },
+  'stance_muay_thai/fighter-side': { sha256: '1d80467b7b283d2556327b5337bc4040b02ae049d86da8319c205257b997d13b', head: 133, foot: 626 },
+  'stance_muay_thai/fighter-front': { sha256: '9f1357a1df5f33d3f585f13184806bd72bc832090f32e4f48177af06e6efc70c', head: 100, foot: 709 },
+  'stance_sambo/fighter-side': { sha256: '1d3eef4fd132eb7f7d007ed489a1526d382c3a0f80003bddf5abf8f77ad7dcf9', head: 172, foot: 626 },
+  'stance_sambo/fighter-front': { sha256: '939daa4e7259065d0afe8a77f56a3c391fbdcc05a4fc5487f721497552a6c9d7', head: 181, foot: 636 },
 });
 // On a wide stage the usual trim shows rows 56 to 696; a view whose feet need more is trimmed from
 // the top instead and shows rows 80 to 720.
