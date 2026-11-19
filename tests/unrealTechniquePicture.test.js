@@ -8,6 +8,7 @@ import { isMatchMoment } from '../src/unreal/matchMoments.js';
 import { UNREAL_STANCES } from '../src/unreal/stances.js';
 import { FIGHTER_ONLY_CLIP_IDS, TECHNIQUE_OPENING_CAMERA, TECHNIQUE_PERFORMERS, chooseTechniquePicture, techniqueClipPerformers, techniqueClipReady, techniqueMoves } from '../src/unreal/techniquePicture.js';
 import { UNREAL_CLIPS, unrealClipViews } from '../src/unreal/techniqueClips.js';
+import legHookTakedownTrainingClip from '../src/unreal/legHookTakedownTrainingClip.js';
 import { isOwnerPublishedDraft } from '../src/unreal/techniquePicture.js';
 import { resolveArenaClipPlayback, unrealClipMoveId } from '../src/unreal/techniqueIds.js';
 import { STAND_IN_REACT, asModule, createHookRunner, findElement, loadComponent, repoModule, standInComponent, useGlobals, viewsOf } from './helpers/stageHarness.js';
@@ -55,7 +56,7 @@ const FIGHTER_ONLY = Object.freeze([
 // The next three say in plain functions what the components do. A test further
 // down pins the source lines they repeat, so they cannot drift apart unnoticed.
 // What GrapplingStage asks the rule, given its props (src/components/GrapplingStage.jsx).
-const stagePicture = ({ moveId, performerSide, clipMoveId, clipPerformerSide }, engine, search, views) => chooseTechniquePicture({ moveId, clipMoveId: clipMoveId === undefined ? moveId : clipMoveId, performerSide: clipPerformerSide ?? performerSide, engine, search, views });
+const stagePicture = ({ moveId, performerSide, clipMoveId, clipPerformerSide, trainingClip }, engine, search, views) => chooseTechniquePicture({ moveId, clipMoveId: clipMoveId === undefined ? moveId : clipMoveId, performerSide: clipPerformerSide ?? performerSide, trainingClip, engine, search, views });
 // The props Training gives the stage for the technique on screen (src/App.jsx).
 const trainingProps = (move) => ({ moveId: resolveUnityMove(move.id), clipMoveId: unrealClipMoveId(move.id) });
 // The props the Arena gives it for a settled exchange (src/components/CombatArenaView.jsx).
@@ -460,12 +461,12 @@ test('Training heading for a technique the engine cannot animate: moving with it
 
 test('Training and the Arena hand the stage the clip id beside the engine move id, and the stage keeps it from the engine stages', () => {
   const stage = source('src/components/GrapplingStage.jsx');
-  // The two clip props, the clip's give-way callback and the two match moment
+  // The clip selection props, the clip's give-way callback and the two match moment
   // props (tests/unrealMatchMoments.test.js) are taken out before the rest is
   // spread, so the Unity stage, the local Unreal stage and the fallback get
   // the props they always got.
-  assert.match(stage, /export default function GrapplingStage\(\{ idleStanding = false, onRendererChange, clipMoveId, clipPerformerSide, onClipUnavailable, momentId, onMomentDone, \.\.\.props \}\) \{/);
-  assert.doesNotMatch(stage, /props\.(?:clip(?:MoveId|PerformerSide)|onClipUnavailable|momentId|onMomentDone)/);
+  assert.match(stage, /export default function GrapplingStage\(\{ idleStanding = false, onRendererChange, clipMoveId, clipPerformerSide, trainingClip, onClipUnavailable, momentId, onMomentDone, \.\.\.props \}\) \{/);
+  assert.doesNotMatch(stage, /props\.(?:clip(?:MoveId|PerformerSide)|trainingClip|onClipUnavailable|momentId|onMomentDone)/);
   // The callback goes to the technique clip stage and nowhere else.
   assert.equal(stage.match(/onClipUnavailable/g).length, 3, 'named in the comment, taken out, handed on');
   assert.match(stage, /kind="technique" [^>]* onUnavailable=\{onClipUnavailable\} fallback=\{stage\} \/>/);
@@ -473,17 +474,18 @@ test('Training and the Arena hand the stage the clip id beside the engine move i
   assert.match(stage, /const stage = engine === 'unreal' \? <UnrealGrapplingStage \{\.\.\.props\} moveId=[^>]* \/> : engine === 'unity' \? <UnityGrapplingStage \{\.\.\.props\} \/> : props\.fallback;/);
   // The rule gets both ids. A caller that names no clip id gets the engine's;
   // one that passes null gets no clip.
-  assert.match(stage, /chooseTechniquePicture\(\{ moveId: props\.moveId, clipMoveId: clipMoveId === undefined \? props\.moveId : clipMoveId, performerSide: clipPerformerSide \?\? props\.performerSide, engine, search: window\.location\.search, views: unrealClipViews \}\);/);
+  assert.match(stage, /chooseTechniquePicture\(\{ moveId: props\.moveId, clipMoveId: clipMoveId === undefined \? props\.moveId : clipMoveId, performerSide: clipPerformerSide \?\? props\.performerSide, trainingClip, engine, search: window\.location\.search, views: unrealClipViews \}\);/);
   // The clip stage plays what the rule chose.
-  assert.match(stage, /kind="technique" moveId=\{picture\.moveId\} performerSide=\{picture\.performerSide\} /);
+  assert.match(stage, /kind="technique" moveId=\{picture\.moveId\} performerSide=\{picture\.performerSide\} trainingClip=\{picture\.trainingClip\} /);
 
   // Training: the clip id of the technique on screen, worked out once, for the heading and for the stage.
   const app = source('src/App.jsx');
   assert.match(app, /import \{ unrealClipMoveId \} from '\.\/unreal\/techniqueIds\.js';/);
   assert.match(app, /const clipMoveId = unrealClipMoveId\(selectedMove\.id\);/);
+  assert.match(app, /const trainingClip = clipMoveId === legHookTakedownTrainingClip\.moveId \? legHookTakedownTrainingClip : undefined;/);
   // The heading leaves the clip out once that clip has given way; the stage keeps its clip id.
-  assert.match(app, /const movementPreview = techniqueMoves\(\{ engine: renderer, moveId: resolveUnityMove\(selectedMove\.id\), clipMoveId: clipGaveWay === clipMoveId \? null : clipMoveId, search: window\.location\.search, views: unrealClipViews \}\);/);
-  assert.match(app, /<GrapplingStage onRendererChange=\{setRenderer\} moveId=\{resolveUnityMove\(selectedMove\.id\)\} clipMoveId=\{clipMoveId\} onClipUnavailable=\{setClipGaveWay\} moveLabel=\{selectedMove\.name\} /);
+  assert.match(app, /const movementPreview = techniqueMoves\(\{ engine: renderer, moveId: resolveUnityMove\(selectedMove\.id\), clipMoveId: clipGaveWay === clipMoveId \? null : clipMoveId, trainingClip, search: window\.location\.search, views: unrealClipViews \}\);/);
+  assert.match(app, /<GrapplingStage onRendererChange=\{setRenderer\} moveId=\{resolveUnityMove\(selectedMove\.id\)\} clipMoveId=\{clipMoveId\} trainingClip=\{trainingClip\} onClipUnavailable=\{setClipGaveWay\} moveLabel=\{selectedMove\.name\} /);
 
   // Arena: the clip of the settled exchange beside Unity's playback, which
   // stays as it was. An exchange that asks for no clip passes null, so the
@@ -493,6 +495,26 @@ test('Training and the Arena hand the stage the clip id beside the engine move i
   assert.match(arena, /const unityPlayback = resolveArenaUnityPlayback\(combat\.result\);/);
   assert.match(arena, /const clipPlayback = resolveArenaClipPlayback\(combat\.result\);/);
   assert.match(arena, /<GrapplingStage\s+idleStanding=\{idleStanding\}\s+moveId=\{unityPlayback\?\.moveId\}\s+performerSide=\{unityPlayback\?\.performerSide\}\s+clipMoveId=\{clipPlayback \? clipPlayback\.clipMoveId : null\}\s+clipPerformerSide=\{clipPlayback\?\.performerSide\}\s+moveLabel=\{combat\.result\?\.techniqueName\}\s+signal=\{combat\.result\?\.animationSignal\}/);
+});
+
+test('the Leg Hook Takedown lesson plays its own Unreal preview and preserves explicit renderer choices', () => {
+  const move = allMoves.find(move => move.id === 'leg-hook-takedown');
+  const lesson = { ...trainingProps(move), trainingClip: legHookTakedownTrainingClip };
+  const views = fakeViews();
+  const selection = { ...lesson, ...releaseDefault, views };
+  assert.equal(lesson.clipMoveId, legHookTakedownTrainingClip.moveId);
+  assert.equal(lesson.moveId, null);
+  const picture = stagePicture(lesson, 'unity', '', views);
+  assert.equal(picture.kind, 'clip');
+  assert.equal(picture.trainingClip, legHookTakedownTrainingClip);
+  assert.equal(techniqueMoves(selection), true);
+  assert.equal(chooseTechniquePicture({ ...selection, trainingClip: undefined }).kind, 'engine');
+  assert.equal(chooseTechniquePicture({ ...selection, performerSide: 'opponent' }).kind, 'engine');
+  assert.equal(techniqueMoves({ ...selection, clipMoveId: null }), false);
+  for (const search of ['?engine=unity', '?engine=snapshot']) {
+    assert.equal(chooseTechniquePicture({ ...selection, search }).kind, 'engine');
+    assert.equal(techniqueMoves({ ...selection, search }), false);
+  }
 });
 
 test('every curriculum technique plays its own clips in Training and in the Arena once both performers have them', () => {
@@ -698,7 +720,7 @@ test('Training remembers which clip gave way only while that technique is open, 
   assert.equal(app.match(/\bsetClipGaveWay\b/g).length, 3, 'declared, cleared on a new technique, handed to the stage');
   assert.equal(app.match(/\bclipGaveWay\b/g).length, 2, 'declared, and read by the heading only');
   // The stage is told nothing new: it keeps the real clip id, so nothing remounts.
-  assert.match(app, /<GrapplingStage onRendererChange=\{setRenderer\} moveId=\{resolveUnityMove\(selectedMove\.id\)\} clipMoveId=\{clipMoveId\} onClipUnavailable=\{setClipGaveWay\} /);
+  assert.match(app, /<GrapplingStage onRendererChange=\{setRenderer\} moveId=\{resolveUnityMove\(selectedMove\.id\)\} clipMoveId=\{clipMoveId\} trainingClip=\{trainingClip\} onClipUnavailable=\{setClipGaveWay\} /);
   // Both the heading and the line under it follow movementPreview.
   assert.match(app, /<h3>\{movementPreview \? 'Movement preview' : 'Position reference'\}<\/h3><p>\{movementPreview \? 'Review the draft movement where a matching animation is available\. Follow the technique steps for the required setup\.' : 'A reference for the starting position\. Follow the steps below for the exact setup and full sequence\.'\}<\/p>/);
   // The Arena has no heading and passes no callback.

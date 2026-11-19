@@ -235,7 +235,7 @@ async function stillShown(base) {
   assert.match(await stage.locator('.snapshot-position').innerText(), /General reference · exact setup not pictured$/);
   assert.match((await inspect(stage)).label, /^General grappling reference\. The exact .+ setup is not pictured\./);
   // The classic picture shows the clinch grips, and every ground position, so those stay.
-  for (const name of ['Leg Hook Takedown', 'Americana Armlock']) {
+  for (const name of ['Body Fold Takedown', 'Americana Armlock']) {
     await technique(name);
     stage = await settled('main', 'classic');
     assert.doesNotMatch(await stage.locator('.snapshot-position').innerText(), /Unreal Engine/);

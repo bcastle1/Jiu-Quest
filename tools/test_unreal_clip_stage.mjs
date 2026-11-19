@@ -12,6 +12,7 @@
 // with its poster compared to frame 0. The one owner-published draft is checked
 // apart: Training and the player's Arena win play it, with no Front view and
 // its poster not compared to frame 0, and a rival's win shows the Unity stage.
+// The Leg Hook Takedown preview plays in Training only.
 // Every other technique shows what it showed before on the release default: the
 // Unity stage where Unity animates it, the position picture otherwise, in
 // Training, or in the Arena for the white-belt starters Training does not list.
@@ -24,6 +25,7 @@ import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 import { resolveUnityMove } from '../src/unity/bridge.js';
 import { findUnrealClip, unrealClipViews } from '../src/unreal/techniqueClips.js';
+import legHookTakedownTrainingClip from '../src/unreal/legHookTakedownTrainingClip.js';
 import { isOwnerPublishedDraft, techniqueClipReady } from '../src/unreal/techniquePicture.js';
 import { CARD, MAT, TECHNIQUE_IDS, arenaStart, checkArenaWin, checkTraining, curriculumMove, inTraining, openTrainingTechnique, playArena, techniqueStage, watchUnity } from './unreal_technique_checks.mjs';
 import { runnerNetwork } from './runner_network.mjs';
@@ -297,10 +299,13 @@ try {
   // Every curriculum technique has a clip id, so any of them can be ready.
   const ready = TECHNIQUE_IDS.filter((moveId) => techniqueClipReady(moveId, unrealClipViews));
   const ownerDrafts = TECHNIQUE_IDS.filter((moveId) => unrealClipViews(moveId, 'fighter').some(isOwnerPublishedDraft));
-  const waiting = TECHNIQUE_IDS.filter((moveId) => !ready.includes(moveId) && !ownerDrafts.includes(moveId));
-  report.techniqueClips = { ready, ownerDrafts, waiting };
+  const trainingOnly = legHookTakedownTrainingClip.moveId;
+  const waiting = TECHNIQUE_IDS.filter((moveId) => moveId !== trainingOnly && !ready.includes(moveId) && !ownerDrafts.includes(moveId));
+  report.techniqueClips = { ready, ownerDrafts, trainingOnly, waiting };
   quietUnity = true;
-  if (!ready.length && !ownerDrafts.length) checks.push('No technique clip is published; technique steps did not run.');
+  const lesson = await open({ viewport: { width: 1440, height: 900 } });
+  await checkTraining(page, { base, moveId: trainingOnly, views: [legHookTakedownTrainingClip], unity: watchUnity(page), capture, checks });
+  await lesson.close();
   for (const moveId of ready) {
     const views = { fighter: unrealClipViews(moveId, 'fighter'), opponent: unrealClipViews(moveId, 'opponent') };
     const move = curriculumMove(moveId);
