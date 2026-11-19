@@ -29,7 +29,8 @@ DTYPES = {5126: "<f4", 5125: "<u4", 5123: "<u2", 5121: "u1", 5122: "<i2", 5120: 
 
 
 def read_glb(path):
-    data = open(path, "rb").read()
+    with open(path, "rb") as fh:
+        data = fh.read()
     magic, version, length = struct.unpack("<III", data[:12])
     assert magic == 0x46546C67 and version == 2, "not a glTF 2.0 binary"
     json_len, json_type = struct.unpack("<II", data[12:20])

@@ -1,0 +1,8 @@
+# Python packages for the video-motion tools (tested with Python 3.12 on Linux, CPU only).
+# rig.py, write_paired_glb.py and build_observations.py need only numpy.
+numpy
+scipy
+torch            # fit_motion.py (CPU is enough)
+opencv-python-headless
+mediapipe        # detect_people.py; needs libEGL/libGLES (apt: libegl1 libgles2)
+ultralytics      # detect_people.py; YOLO11 pose weights are AGPL-3.0, used only as a local analysis tool
