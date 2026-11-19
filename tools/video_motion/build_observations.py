@@ -68,6 +68,14 @@ def lying_score(person):
     return 0.0
 
 
+def lying_direction(person):
+    """+1 lying face up (on the back), -1 face down / chest down on top of the other athlete, 0 unknown."""
+    t = (person.get('posture', '') + ' ' + person.get('facing', '')).lower()
+    up = any(k in t for k in ('on his back', 'on back', 'supine', 'face up', 'face-up', 'facing up', 'up (lying', 'flat on his back'))
+    down = any(k in t for k in ('face down', 'face-down', 'prone', 'chest down', 'chest-down', 'facing down', 'down (', 'on top', 'chest to chest', 'chest-to-chest'))
+    return 1.0 if up and not down else (-1.0 if down and not up else 0.0)
+
+
 def feet_flags(person):
     t = (person.get('feet_on_floor', '') or '').lower()
     t = t.replace('balls of', '').replace('ball of', '')
@@ -151,6 +159,7 @@ def main():
     kf_lying = np.zeros((len(kf), 2))
     kf_feet = np.zeros((len(kf), 2, 2))
     kf_yaw = np.full((len(kf), 2), np.nan)
+    kf_ldir = np.zeros((len(kf), 2))
     kf_text = {}
     kf_clasp = np.zeros(len(kf))
     clasp_re = re.compile(r'(clasp|interlock|gable|grip|locked|lock)', re.I)
@@ -176,6 +185,7 @@ def main():
             kf_xy[i, p], kf_sig[i, p], kf_spread[i, p] = xy, sig, spread
             kf_lying[i, p] = np.mean([lying_score(fr[role]) for fr in per_frame[k]])
             kf_feet[i, p] = np.mean([feet_flags(fr[role]) for fr in per_frame[k]], 0)
+            kf_ldir[i, p] = np.mean([lying_direction(fr[role]) for fr in per_frame[k]])
             yaws = [facing_to_yaw(fr[role]['facing']) for fr in per_frame[k]]
             yaws = [y for y in yaws if np.isfinite(y)]
             if yaws:
@@ -190,6 +200,7 @@ def main():
     lying = np.zeros((F, 2))
     feet = np.zeros((F, 2, 2))
     yaw = np.full((F, 2), np.nan)
+    ldir = np.zeros((F, 2))
     src = np.zeros((F, 2, 19), dtype=np.int8)        # 0 none, 1 keyframe, 2 interpolated, 3 detector
     clasp = np.zeros(F)
     kf_arr = np.array(kf)
@@ -212,6 +223,7 @@ def main():
                     xy[fi, p], sigma[fi, p] = kf_xy[a, p], kf_sig[a, p]
                     src[fi, p][np.isfinite(sigma[fi, p])] = 1
                     lying[fi, p], feet[fi, p], yaw[fi, p] = kf_lying[a, p], kf_feet[a, p], kf_yaw[a, p]
+                    ldir[fi, p] = kf_ldir[a, p]
                 elif a is not None and b is not None:
                     ka, kb = kf_arr[a], kf_arr[b]
                     if kb - ka > 14:
@@ -226,6 +238,7 @@ def main():
                     feet[fi, p] = kf_feet[a, p] if t < 0.5 else kf_feet[b, p]
                     ya, yb = kf_yaw[a, p], kf_yaw[b, p]
                     yaw[fi, p] = ya if t < 0.5 else yb
+                    ldir[fi, p] = kf_ldir[a, p] if t < 0.5 else kf_ldir[b, p]
         # detector evidence
         H = stab[str(f)]['H'] if str(f) in stab else None
         if H is None:
@@ -274,7 +287,7 @@ def main():
                     src[fi, role, j] = 3
     W, Hh = [float(x) for x in args.image_size.split(',')]
     np.savez(args.out, frames=np.array(frames), image_size=np.array([W, Hh]), xy=np.nan_to_num(xy), sigma=sigma,
-             lying=lying, foot_contact=feet, facing_yaw=yaw, source=src, clasp=clasp, kf_frames=np.array(kf), kf_xy=kf_xy,
+             lying=lying, lying_dir=ldir, foot_contact=feet, facing_yaw=yaw, source=src, clasp=clasp, kf_frames=np.array(kf), kf_xy=kf_xy,
              kf_sigma=kf_sig, kf_spread=kf_spread)
     json.dump({str(k): v for k, v in kf_text.items()}, open(args.out.replace('.npz', '_kf_text.json'), 'w'), indent=1)
     have = np.isfinite(sigma)

@@ -245,6 +245,7 @@ def fit(obs, rigs, args, log=print):
     foot_contact = torch.tensor(obs['foot_contact'])  # (F,2,2) 0..1, [left,right]
     facing = obs['facing_yaw']                        # (F,2) radians or nan, world yaw of chest normal
     clasp = torch.tensor(obs['clasp']) if 'clasp' in obs else torch.zeros(F)   # performer's hands locked at receiver's lower back
+    ldir = torch.tensor(obs['lying_dir']) if 'lying_dir' in obs else torch.zeros(F, 2)  # +1 face up, -1 face down
 
     # ---- initialisation: pelvis on the ray through the observed hip midpoint
     tracks = []
@@ -269,8 +270,11 @@ def fit(obs, rigs, args, log=print):
             Ry = np.array([[math.cos(dy), 0, math.sin(dy)], [0, 1, 0], [-math.sin(dy), 0, math.cos(dy)]])
             R0[f] = Ry @ R_rest
             if obs['lying'][f, p] > 0.5:
-                # lying on the back: tip the standing frame back 90 degrees about its left axis
+                # lying: tip the standing frame 90 degrees about its left axis, back for face up,
+                # forward for face down
                 left = Ry @ (R_role @ np.array([1.0, 0, 0]))
+                if 'lying_dir' in obs and obs['lying_dir'][f, p] < -0.2:
+                    left = -left
                 K = np.array([[0, -left[2], left[1]], [left[2], 0, -left[0]], [-left[1], left[0], 0]])
                 Rt = np.eye(3) + K + K @ K   # 90 deg (sin=1, 1-cos=1)
                 R0[f] = Rt @ R0[f]
@@ -370,8 +374,6 @@ def fit(obs, rigs, args, log=print):
         eh = 0.0
         for p in range(2):
             Gt = Gts[p]
-            for f_idx in range(0, F):
-                pass
             yaw_t = torch.tensor(np.nan_to_num(facing[:, p], nan=0.0))
             has = torch.tensor(np.isfinite(facing[:, p]).astype(float))
             # chest normal = forward of spine_03 frame ~ world-forward of the pelvis frame
@@ -384,7 +386,9 @@ def fit(obs, rigs, args, log=print):
             horiz = fwd * torch.tensor([1.0, 0.0, 1.0])
             cos = (horiz * target).sum(-1) / (torch.sqrt((horiz ** 2).sum(-1) + 1e-6))
             eh = eh + (has * stand * (1 - cos)).sum()
-            eh = eh + (lying[:, p] * torch.relu(Gt[:, 0, 1] - 0.35).pow(2)).sum() * 20
+            eh = eh + (lying[:, p] * torch.relu(Gt[:, 0, 1] - 0.5).pow(2)).sum() * 20
+            # face up / face down: the chest normal points up or down
+            eh = eh + (lying[:, p] * ldir[:, p].abs() * torch.relu(0.4 - ldir[:, p].sign() * fwd[:, 1]).pow(2)).sum() * 5
         E['hints'] = eh * args.w_hints
         # gravity priors for athletes who are not lying or falling: at least one foot on the mat
         # (soft-min of heel/toe heights) and a torso within ~45 degrees of vertical
