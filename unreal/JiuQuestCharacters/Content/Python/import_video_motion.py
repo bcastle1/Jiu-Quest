@@ -37,9 +37,10 @@ What it does, copying import_pilot.py's verified Editor calls wherever it can:
      SHA-256, key times and scene extras (no pinning: these are review drafts).
   2. Claims a new run: Saved/VideoMotion/<clip>/<UTC>/ and /Game/VideoMotion/<clip>/Run_<UTC>.
      An existing run directory or content folder is never overwritten.
-  3. Detaches the unselected hair meshes with pilot_source.select_hair (animation, skins and
-     binary data stay byte-for-byte) and imports that copy, kept in the run directory, with
-     Interchange scene import into a new review map with a no-pawn review game mode.
+  3. Detaches the unselected hair meshes with pilot_source.select_hair (the binary chunk stays
+     byte-for-byte; the rest of the JSON, animation and skins included, is unchanged) and
+     imports that copy, kept in the run directory, with Interchange scene import into a new
+     review map with a no-pawn review game mode.
   4. Binds both athletes' AnimSequences to one LevelSequence (the imported parent-motion
      sequence) that plays once and keeps its final pose, adds the pilot's floor and lights,
      and a CineCameraActor at the side of the pair, framed from the GLB's joint positions.
@@ -193,7 +194,8 @@ def validate_request(values):
 
 def read_sidecar(path):
     try:
-        values = json.loads(path.read_text(encoding="utf-8"))
+        # utf-8-sig: Windows PowerShell 5.1 writes UTF-8 files with a byte-order mark.
+        values = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError) as error:
         raise UsageError("Cannot read %s: %s" % (path, error)) from None
     if not isinstance(values, dict):
@@ -207,9 +209,11 @@ def read_sidecar(path):
     return values
 
 
-def resolve_request(argv, environ, sidecar=SIDECAR):
+def resolve_request(argv, environ, sidecar=None):
     """(request, source, other sources present). Arguments win, then the environment, then
     the sidecar file; a source that is chosen but incomplete is an error, never skipped."""
+    sidecar = SIDECAR if sidecar is None else Path(sidecar)
+    argv = [arg for arg in argv if arg.strip()]
     present = []
     if any(environ.get(name) for name in ENVIRONMENT.values()):
         present.append("environment")
@@ -784,7 +788,7 @@ def add_stage(actors, framing):
                 light.get_actor_location(), unreal.Vector(cx, cy, 100.)), False)
             comp.set_editor_property("source_width", 250.)
             comp.set_editor_property("source_height", 250.)
-    camera, camera_report = add_side_camera(actors, framing)
+    _, camera_report = add_side_camera(actors, framing)
     return {"floor": floor.get_path_name(), "lights": [row[0] for row in PILOT_LIGHTS],
             "centreCm": [cx, cy], "floorScale": framing["floorScale"],
             "camera": {**camera_report, "framing": framing}}
@@ -1026,7 +1030,11 @@ def main(report, argv, environ, now):
         check(not unreal.EditorAssetLibrary.does_directory_exist(content),
               "Refusing to overwrite an earlier import: " + content)
     with report.step("prepare import source"):
-        derived, selection = select_hair(raw, request["hair"])
+        try:
+            derived, selection = select_hair(raw, request["hair"])
+        except ValueError as error:
+            raise RuntimeError("Hair selection failed (%s): the GLB must keep the template's five "
+                               "JQ_<Role>_Hair<Style> meshes per athlete" % error) from error
         import_file = report.path.parent / "source" / (clip + ".glb")
         import_file.parent.mkdir()
         with open(import_file, "xb") as stream:

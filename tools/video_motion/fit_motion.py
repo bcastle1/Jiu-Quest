@@ -517,7 +517,6 @@ def to_motion(obs, cam, tracks, bodies, rigs, template, frames, fps=30.0):
         R_role = quat_to_mat(rig.role_rest_r)
         root = rig.index('root')
         R_root_g = R_role @ quat_to_mat(rig.rest_r[root])
-        pel_rest_t = rig.rest_t[rig.index('pelvis')]
         # pelvis global in pair space
         GRp = np.einsum('ab,fbc->fac', Rw, GR[:, 0])
         Gtp = xf(Gt[:, 0])
@@ -525,11 +524,17 @@ def to_motion(obs, cam, tracks, bodies, rigs, template, frames, fps=30.0):
         for i, b in enumerate(FIT_BONES[1:], start=1):
             j = rig.index(b)
             local[:, j] = mat_to_quat(np.einsum('ab,fbc->fac', quat_to_mat(rig.rest_r[j]), D[:, i]))
-        node_t = Gtp - (R_role @ (rig.rest_t[root] + quat_to_mat(rig.rest_r[root]) @ pel_rest_t))[None]
-        motion[f'{role}__node_translation'] = node_t
+        # All travel rides on the pelvis (as in motion capture), so an Unreal retarget of the skeleton
+        # alone keeps it. The role node stays at its rest transform for the whole clip.
+        joint_t = np.repeat(rig.rest_t[None], F, 0).astype(np.float64)
+        R_root_l = quat_to_mat(rig.rest_r[root])
+        joint_t[:, rig.index('pelvis')] = np.einsum('ab,fb->fa', R_root_l.T,
+                                                    np.einsum('ab,fb->fa', R_role.T, Gtp - rig.role_rest_t[None]) - rig.rest_t[root][None])
+        motion[f'{role}__node_translation'] = np.repeat(rig.role_rest_t[None], F, 0)
         motion[f'{role}__node_rotation'] = np.repeat(rig.role_rest_r[None], F, 0)
         motion[f'{role}__joint_names'] = np.array(rig.joint_names)
         motion[f'{role}__joint_rotation'] = make_quat_continuous(local)
+        motion[f'{role}__joint_translation'] = joint_t
     camera = {
         'world_to_pair': {'R': Rw.tolist(), 't': shift.tolist()},
         'focal_px': float(torch.exp(cam.log_f)), 'principal_point_px': cam.c.detach().numpy().tolist(),

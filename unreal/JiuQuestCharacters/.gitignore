@@ -6,6 +6,10 @@
 /*.sln
 /*.suo
 /Content/Pilot/
+# Video-derived review imports (import_video_motion.py) and its local request file,
+# which holds paths on the importing machine.
+/Content/VideoMotion/
+/Content/Python/import_video_motion.json
 # Editor-generated device axis defaults; this pilot defines no runtime input yet.
 /Config/DefaultInput.ini
 __pycache__/
