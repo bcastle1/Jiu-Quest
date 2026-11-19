@@ -25,7 +25,7 @@ const IDLE_CLIP = Object.freeze({ moveId: 'standing_stance', label: 'Standing st
 // id when the moment is over or cannot be shown here. All five are taken out
 // here, so the engine stages below receive exactly the props they always
 // received.
-export default function GrapplingStage({ idleStanding = false, onRendererChange, clipMoveId, clipPerformerSide, onClipUnavailable, momentId, onMomentDone, ...props }) {
+export default function GrapplingStage({ idleStanding = false, onRendererChange, clipMoveId, clipPerformerSide, trainingClip, onClipUnavailable, momentId, onMomentDone, ...props }) {
   const local = localUnrealAllowed(window.location.href, import.meta.env.DEV);
   const [engine, setEngine] = useState(() => resolveCombatRenderer(window.location.href, { development: import.meta.env.DEV, configuredEngine: import.meta.env.VITE_COMBAT_ENGINE }));
   // The person's choice of view and speed outlives the remount on a new move.
@@ -69,12 +69,12 @@ export default function GrapplingStage({ idleStanding = false, onRendererChange,
   // or where it is the one owner-published draft, for that draft's own
   // performer only (src/unreal/techniquePicture.js); until then, and if every
   // view fails, `stage` plays as it does today.
-  const picture = !idleStanding && chooseTechniquePicture({ moveId: props.moveId, clipMoveId: clipMoveId === undefined ? props.moveId : clipMoveId, performerSide: clipPerformerSide ?? props.performerSide, engine, search: window.location.search, views: unrealClipViews });
+  const picture = !idleStanding && chooseTechniquePicture({ moveId: props.moveId, clipMoveId: clipMoveId === undefined ? props.moveId : clipMoveId, performerSide: clipPerformerSide ?? props.performerSide, trainingClip, engine, search: window.location.search, views: unrealClipViews });
   // The picture without a match moment: exactly what showed before moments.
   const usual = idleClip
     ? <UnrealClipStage key="stance" moveId={idle.moveId} performerSide={idle.performerSide} moveLabel={IDLE_CLIP.label} camera={stanceCamera} onCameraChange={setStanceCamera} wantsPlay={stancePlays} onWantsPlayChange={setStancePlays} opening={handover} fighter={props.fighter} opponent={props.opponent} compact={props.compact} fallback={stage} />
     : picture && picture.kind === 'clip'
-      ? <UnrealClipStage key={`technique:${picture.moveId}:${picture.performerSide}:${props.signal ?? ''}`} kind="technique" moveId={picture.moveId} performerSide={picture.performerSide} moveLabel={props.moveLabel} study={Boolean(props.compact)} camera={camera ?? picture.camera} onCameraChange={setCamera} rate={rate} onRateChange={setRate} fighter={props.fighter} opponent={props.opponent} onUnavailable={onClipUnavailable} fallback={stage} />
+      ? <UnrealClipStage key={`technique:${picture.moveId}:${picture.performerSide}:${props.signal ?? ''}`} kind="technique" moveId={picture.moveId} performerSide={picture.performerSide} trainingClip={picture.trainingClip} moveLabel={props.moveLabel} study={Boolean(props.compact)} camera={camera ?? picture.camera} onCameraChange={setCamera} rate={rate} onRateChange={setRate} fighter={props.fighter} opponent={props.opponent} onUnavailable={onClipUnavailable} fallback={stage} />
       : stage;
   // A match moment takes that picture's place once its clip is published, and
   // never over the local live preview. The greeting plays only where the

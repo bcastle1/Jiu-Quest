@@ -95,13 +95,17 @@ export function techniqueClipReady(moveId, views) {
   return Boolean(moveId) && techniqueClipPerformers(moveId).every((side) => views(moveId, side).some((clip) => clip.draft !== true));
 }
 
-export function chooseTechniquePicture({ moveId, clipMoveId = moveId, performerSide = 'fighter', engine, search = '', views }) {
+export function chooseTechniquePicture({ moveId, clipMoveId = moveId, performerSide = 'fighter', trainingClip, engine, search = '', views }) {
   // The local live preview draws every technique itself. A clip never covers it.
   if (engine === 'unreal' || !clipMoveId) return ENGINE;
   // An explicit ?engine=snapshot (position pictures only) or ?engine=unity
   // (keep testing Unity) turns technique clips off for the visit.
   const forced = engineParam(search);
   if (forced === 'snapshot' || forced === 'unity') return ENGINE;
+  // Training can supply its own lesson preview independently of the Arena catalog.
+  if (trainingClip?.moveId === clipMoveId && trainingClip.performerSide === performerSide) {
+    return { kind: 'clip', moveId: clipMoveId, performerSide, camera: trainingClip.camera, trainingClip };
+  }
   // Only this exact approved draft can show before bilateral acceptance. The
   // rival keeps its engine fallback; old front/opponent takes are not borrowed.
   const draft = views(clipMoveId, performerSide).find((clip) => isOwnerPublishedDraft(clip)
@@ -118,7 +122,7 @@ export function chooseTechniquePicture({ moveId, clipMoveId = moveId, performerS
 
 // Training's heading: true when the technique itself will be shown moving, as
 // a clip or by an engine that animates its `moveId`.
-export function techniqueMoves({ engine, moveId, clipMoveId = moveId, search = '', views }) {
-  if (chooseTechniquePicture({ moveId, clipMoveId, engine, search, views }).kind === 'clip') return true;
+export function techniqueMoves({ engine, moveId, clipMoveId = moveId, trainingClip, search = '', views }) {
+  if (chooseTechniquePicture({ moveId, clipMoveId, trainingClip, engine, search, views }).kind === 'clip') return true;
   return Boolean(moveId) && (engine === 'unity' || engine === 'unreal') && engineParam(search) !== 'snapshot';
 }

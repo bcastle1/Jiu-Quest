@@ -163,7 +163,7 @@ function StanceClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opp
   );
 }
 
-function TechniqueClip({ moveId, performerSide = 'fighter', moveLabel, fighter, opponent, study = false, fallback = null, camera: chosenCamera, onCameraChange, rate: chosenRate, onRateChange, onUnavailable }) {
+function TechniqueClip({ moveId, performerSide = 'fighter', trainingClip, moveLabel, fighter, opponent, study = false, fallback = null, camera: chosenCamera, onCameraChange, rate: chosenRate, onRateChange, onUnavailable }) {
   const id = useId();
   const viewportRef = useRef(null);
   const videoRef = useRef(null);
@@ -171,7 +171,7 @@ function TechniqueClip({ moveId, performerSide = 'fighter', moveLabel, fighter, 
   const resumeFrame = useRef(null);
   const [failed, setFailed] = useState([]);
   const [ownCamera, setOwnCamera] = useState(null);
-  const allViews = unrealClipViews(moveId, performerSide);
+  const allViews = trainingClip ? [trainingClip] : unrealClipViews(moveId, performerSide);
   const views = allViews.filter((view) => !failed.includes(view.camera));
   const wanted = chosenCamera ?? ownCamera;
   const clip = views.find((view) => view.camera === wanted) ?? views[0] ?? null;
